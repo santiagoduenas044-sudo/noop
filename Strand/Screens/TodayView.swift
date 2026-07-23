@@ -751,9 +751,11 @@ struct TodayView: View {
             // sentences the briefing tells. Name is empty (NOOP is anonymous); streaks land in a later milestone.
             let focus = HomeFocusResolver.resolve(ranked: ranked)
             let part = MorningBriefing.partOfDay(hour: Calendar.current.component(.hour, from: Date()))
-            let script = MorningBriefingPlanner.plan(part: part, focus: focus, ranked: ranked)
+            let streak = bestCurrentStreak()
+            let script = MorningBriefingPlanner.plan(part: part, focus: focus, ranked: ranked,
+                                                     streakDays: streak)
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
-                MorningBriefingView(script: script, name: "", cardsByKind: cardsByKind, streakDays: nil)
+                MorningBriefingView(script: script, name: "", cardsByKind: cardsByKind, streakDays: streak)
                 // Adaptive Home: the leading domain becomes the hero, with its own why + what-to-do.
                 if let heroModel = focusHeroModel(focus: focus, recovery: recoverySignal, drivers: drivers,
                                                   stageReport: stageReport, headlineCard: cards.first) {
@@ -868,6 +870,65 @@ struct TodayView: View {
         }
         return ("Steady and strong",
                 String(localized: "Your recovery has held near your personal baseline for two weeks."))
+    }
+
+    // MARK: Health streaks (meaningful, self-adapting behaviour streaks)
+
+    /// Build the Today streak cards from the user's own history: sleep timing + duration (from the
+    /// deduped per-night sessions) and Charge (from repo.days). Each streak's target adapts to the user.
+    private func streakSummaries() -> [StreakSummary] {
+        var out: [StreakSummary] = []
+
+        let sleeps = Array(repo.sleeps.sorted { $0.effectiveStartTs < $1.effectiveStartTs }.suffix(60))
+        if sleeps.count >= HealthStreaks.scheduleMinBaseline + 1 {
+            let keys = sleeps.indices.map { "n\($0)" }
+            let asleep = sleeps.map { Double(Swift.max(0, $0.endTs - $0.effectiveStartTs)) / 60.0 }
+            let mids = sleeps.map {
+                SleepTimingNight.from(onsetEpoch: $0.effectiveStartTs, wakeEpoch: $0.endTs).midpointMinOfDay
+            }
+            let steady = HealthStreaks.steadyFlags(days: keys, midpointsMinOfDay: mids)
+            out.append(streakSummary(.steadySchedule, "Steady schedule", "clock.arrow.circlepath",
+                                     StrandPalette.metricPurple, unit: "night streak", flags: steady,
+                                     target: String(localized: "Within ±60 min of your usual")))
+
+            let rested = HealthStreaks.restedFlags(days: keys, asleepMins: asleep)
+            let tgt = Int(HealthStreaks.restedTargetMin(asleep).rounded())
+            out.append(streakSummary(.restedNights, "Rested nights", "bed.double.fill",
+                                     StrandPalette.restColor, unit: "night streak", flags: rested,
+                                     target: String(format: String(localized: "≈ your usual %ldh %02ldm"),
+                                                     tgt / 60, tgt % 60)))
+        }
+
+        let recDays = Array(repo.days.suffix(60))
+        if recDays.filter({ $0.recovery != nil }).count >= 4 {
+            let recFlags = HealthStreaks.recoveryFlags(days: recDays.map { $0.day },
+                                                       recoveries: recDays.map { $0.recovery ?? 0 })
+            let floor = Int(HealthStreaks.recoveryFloor(recDays.compactMap { $0.recovery }).rounded())
+            out.append(streakSummary(.recoveryReady, "Recovery-ready", "bolt.heart.fill",
+                                     StrandPalette.chargeColor, unit: "day streak", flags: recFlags,
+                                     target: String(format: String(localized: "Charge %ld or higher"), floor)))
+        }
+        return out
+    }
+
+    private func streakSummary(_ kind: HealthStreaks.Kind, _ title: LocalizedStringKey, _ symbol: String,
+                               _ accent: Color, unit: LocalizedStringKey,
+                               flags: [StreakEngine.DayFlag], target: String) -> StreakSummary {
+        StreakSummary(id: kind, title: title, symbol: symbol, accent: accent, unit: unit,
+                      result: StreakEngine.assess(days: flags),
+                      recentFlags: flags.suffix(7).map { $0.met }, targetText: target)
+    }
+
+    /// The best current run across all streaks, for the briefing's closer (nil when none is long enough).
+    private func bestCurrentStreak() -> Int? {
+        let best = streakSummaries().map { $0.result.current }.max() ?? 0
+        return best >= MorningBriefingPlanner.streakCloserMinDays ? best : nil
+    }
+
+    @ViewBuilder
+    private func streaksSection() -> some View {
+        let summaries = streakSummaries()
+        if !summaries.isEmpty { StreaksSection(summaries: summaries) }
     }
 
     // MARK: Component 2, explained score states (calibrating / carriedLastNight / needsStrap)
@@ -1485,14 +1546,17 @@ struct TodayView: View {
                     .staggeredAppear(index: 1)
                 #endif
                 synthesisSection.staggeredAppear(index: 2)
+                // Meaningful health streaks (steady schedule, rested nights, recovery-ready) — kept-up
+                // habits judged against the user's own baseline. Today only (they're the run up to now).
+                if selectedDayOffset == 0 { streaksSection().staggeredAppear(index: 3) }
                 // S4: the SEPARATE Readiness block is no longer a home-screen card, it folded into the
                 // Charge-ring tap (chargeBreakdownSheet). A one-word readiness read (Push / Maintain / Rest,
                 // #205) stays on the hero via the Synthesis section's pill row, so the home screen keeps a
                 // glanceable verdict without the full card. Readiness is NOT deleted, only moved behind a tap.
-                metricsSection.staggeredAppear(index: 3)
-                workoutsSection.staggeredAppear(index: 4)
-                heartRateTrendSection.staggeredAppear(index: 5)
-                yourCardsSection.staggeredAppear(index: 6)
+                metricsSection.staggeredAppear(index: 4)
+                workoutsSection.staggeredAppear(index: 5)
+                heartRateTrendSection.staggeredAppear(index: 6)
+                yourCardsSection.staggeredAppear(index: 7)
                 // Opt-in "looks like a workout?" suggestion (default OFF). Renders only when the
                 // Settings toggle is on AND the detector finds a recent unsaved, un-dismissed window.
                 AutoWorkoutCard()
