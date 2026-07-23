@@ -15,6 +15,27 @@ enum MetricEducation {
 
     enum Metric {
         case recovery, hrv, restingHR, sleepPerformance, respiratoryRate
+        case bloodOxygen, skinTemperature, strain
+    }
+
+    /// Map a MetricCatalog key to an explainer, when one exists (nil = no education for that metric yet).
+    static func metric(forKey key: String) -> Metric? {
+        switch key {
+        case "recovery":                       return .recovery
+        case "hrv":                            return .hrv
+        case "rhr":                            return .restingHR
+        case "sleep_performance", "sleep_score": return .sleepPerformance
+        case "resp_rate":                      return .respiratoryRate
+        case "spo2":                           return .bloodOxygen
+        case "skin_temp":                      return .skinTemperature
+        case "strain":                         return .strain
+        default:                               return nil
+        }
+    }
+
+    /// The ready-to-drop-in disclosure for a MetricCatalog key, or nil when unmapped.
+    static func disclosure(forKey key: String) -> LearnMoreDisclosure? {
+        metric(forKey: key).map { disclosure(for: $0) }
     }
 
     /// The standing disclaimer appended to every explainer — general guidance, personal baseline, trend.
@@ -104,6 +125,48 @@ enum MetricEducation {
                       bullets: ["Illness or fever", "Alcohol", "Altitude", "Stress and late meals"]),
                 .init(systemImage: "eye", heading: "What to watch",
                       bullets: ["It’s not a number to chase — aim for stability", "Note sustained rises from your baseline"]),
+            ])
+
+        case .bloodOxygen:
+            return Content(title: "About Blood Oxygen", tint: StrandPalette.metricCyan, sections: [
+                .init(systemImage: "questionmark.circle", heading: "What it measures",
+                      body: "The percentage of oxygen your blood carries overnight (SpO₂). It’s normally high and stable through the night."),
+                .init(systemImage: "heart.text.square", heading: "Why it matters",
+                      body: "Steady overnight oxygen reflects healthy breathing during sleep. Brief dips are normal; a sustained drop from your usual is what’s worth noticing."),
+                .init(systemImage: "chart.bar", heading: "Typical range",
+                      body: "In healthy adults SpO₂ usually sits around 95–100% overnight. Wrist sensors are approximate, so trends matter far more than any single reading."),
+                .init(systemImage: "arrow.triangle.branch", heading: "What influences it",
+                      bullets: ["Altitude", "Congestion or illness", "Sleep position and breathing", "Sensor fit and movement"]),
+                .init(systemImage: "eye", heading: "What to watch",
+                      bullets: ["It’s not a number to optimise — aim for stable and high", "Note sustained drops below your usual"]),
+            ])
+
+        case .skinTemperature:
+            return Content(title: "About Skin Temperature", tint: StrandPalette.metricRose, sections: [
+                .init(systemImage: "questionmark.circle", heading: "What it measures",
+                      body: "How far your overnight skin temperature sits from your personal baseline — a relative trend, not an absolute clinical temperature."),
+                .init(systemImage: "heart.text.square", heading: "Why it matters",
+                      body: "A shift from your baseline — especially warmer — can accompany illness, alcohol, or (for some) menstrual-cycle changes."),
+                .init(systemImage: "chart.bar", heading: "Typical range",
+                      body: "NOOP shows a deviation from your own baseline, so around 0 °C is ‘typical for you’. There’s no universal target — the movement from your baseline is the signal."),
+                .init(systemImage: "arrow.triangle.branch", heading: "What influences it",
+                      bullets: ["Illness or fever", "Alcohol and late meals", "Room and bedding warmth", "Menstrual cycle, for some"]),
+                .init(systemImage: "eye", heading: "What to watch",
+                      bullets: ["Read it as a relative trend, not a fever thermometer", "A sustained warm shift can precede feeling unwell"]),
+            ])
+
+        case .strain:
+            return Content(title: "About Effort", tint: StrandPalette.effortColor, sections: [
+                .init(systemImage: "questionmark.circle", heading: "What it measures",
+                      body: "How much cardiovascular load you’ve built up today, read from your heart-rate data across the whole day."),
+                .init(systemImage: "heart.text.square", heading: "Why it matters",
+                      body: "It tells you how hard your body worked — most useful weighed against how recovered you are, so you build fitness without digging a hole."),
+                .init(systemImage: "chart.bar", heading: "Typical range",
+                      body: "Effort is personal and scales with your own fitness and heart-rate zones — a ‘hard’ day for you isn’t the same as for someone else. Match it to your recovery, not to a fixed target."),
+                .init(systemImage: "arrow.triangle.branch", heading: "What influences it",
+                      bullets: ["Duration and intensity of activity", "Heart-rate zones you reach", "Heat and fatigue", "Your fitness level"]),
+                .init(systemImage: "arrow.up.forward", heading: "How to use it",
+                      bullets: ["Push more on high-recovery days", "Ease off when recovery is low", "Build load gradually week to week"]),
             ])
         }
     }

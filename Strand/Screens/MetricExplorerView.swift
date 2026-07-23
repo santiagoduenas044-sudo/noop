@@ -686,6 +686,10 @@ struct MetricDetailView: View {
                     statRow(effectiveRange: effRange, windowed: win)
                     readingsTable(windowed: win)
                     correlationCard
+                    // Teach, don't just measure: a concise, non-clinical explainer for metrics we cover.
+                    if let edu = MetricEducation.disclosure(forKey: metric.key) {
+                        edu.padding(.top, NoopMetrics.space2)
+                    }
                 }
             }
             .padding(NoopMetrics.screenPadding)
