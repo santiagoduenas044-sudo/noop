@@ -754,10 +754,120 @@ struct TodayView: View {
             let script = MorningBriefingPlanner.plan(part: part, focus: focus, ranked: ranked)
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 MorningBriefingView(script: script, name: "", cardsByKind: cardsByKind, streakDays: nil)
+                // Adaptive Home: the leading domain becomes the hero, with its own why + what-to-do.
+                if let heroModel = focusHeroModel(focus: focus, recovery: recoverySignal, drivers: drivers,
+                                                  stageReport: stageReport, headlineCard: cards.first) {
+                    FocusHero(model: heroModel)
+                }
                 TodayInsightsFeed(cards: cards, dayTone: ranked.dayTone,
                                   attentionCount: ranked.attentionCount)
             }
         }
+    }
+
+    /// Build the Adaptive Home focus hero for the resolved focus domain, or nil when there isn't enough
+    /// to show (the briefing + feed still render). Reuses the SAME domain outputs the feed uses, so the
+    /// hero can never disagree with the cards below it.
+    private func focusHeroModel(focus: HomeFocusResult,
+                                recovery: TodayInsightsBuilder.RecoverySignal?,
+                                drivers: [ChargeDriver],
+                                stageReport: SleepStageInsights.Report?,
+                                headlineCard: TodayInsightCard?) -> FocusHeroModel? {
+        switch focus.domain {
+        case .recovery:
+            guard let rec = recovery else { return nil }
+            let score = Double(rec.score)
+            let accent = StrandPalette.recoveryColor(score)
+            let titleActionIcon: (LocalizedStringKey, String, String) = {
+                switch rec.band {
+                case .primed:
+                    return ("You're primed today",
+                            String(localized: "It's a good day to train harder if you've been meaning to."),
+                            "bolt.heart.fill")
+                case .strained:
+                    return ("Ease off today",
+                            String(localized: "Keep it light — gentle movement, hydration, and an early night usually bring it back."),
+                            "leaf.fill")
+                case .rundown:
+                    return ("Your body needs recovery",
+                            String(localized: "Prioritise rest today — light movement at most, and an early night."),
+                            "leaf.fill")
+                default:
+                    return ("A balanced day",
+                            String(localized: "Nothing stands out — train to how you feel."),
+                            "equal.circle.fill")
+                }
+            }()
+            let heroDrivers = drivers.prefix(3).map {
+                FocusDriver(label: $0.label, value: $0.valueText, positive: $0.deltaPoints >= 0)
+            }
+            let explanation: String = {
+                if let d = drivers.first {
+                    return String(format: String(localized: "Charge %ld. %@ — %@"),
+                                  rec.score, d.valueText.isEmpty ? d.label : d.valueText, d.verdict)
+                }
+                return String(format: String(localized: "Charge %ld."), rec.score)
+            }()
+            return FocusHeroModel(domain: .recovery, mode: focus.mode, accent: accent,
+                                  title: titleActionIcon.0, explanation: explanation,
+                                  action: titleActionIcon.1, actionIcon: titleActionIcon.2,
+                                  recoveryScore: score, recoveryDrivers: Array(heroDrivers))
+
+        case .sleep:
+            guard let report = stageReport else { return nil }
+            let c = report.composition
+            let mins = c.asleepMin
+            let duration = String(format: String(localized: "%ldh %02ldm"), Int(mins) / 60, Int(mins) % 60)
+            let eff = String(format: String(localized: "%ld%% efficiency"), Int((c.efficiency * 100).rounded()))
+            let hasCaution = report.insights.contains { $0.tone == .caution }
+            let title: LocalizedStringKey = hasCaution ? "Last night is worth a look" : "Last night's sleep"
+            let explanation = headlineCard?.subtitle
+                ?? String(localized: "Here's how the night broke down across stages.")
+            let action = hasCaution
+                ? String(localized: "Aim for a consistent, slightly earlier bedtime tonight.")
+                : String(localized: "A steady bedtime keeps nights like this consistent.")
+            return FocusHeroModel(domain: .sleep, mode: focus.mode, accent: StrandPalette.sleepDeep,
+                                  title: title, explanation: explanation, action: action,
+                                  actionIcon: "moon.zzz.fill",
+                                  sleep: FocusSleep(deep: c.deepMin, light: c.lightMin, rem: c.remMin,
+                                                    awake: c.awakeMin, duration: duration, efficiency: eff))
+
+        case .trends:
+            let series = repo.days.suffix(21).compactMap { $0.recovery }
+            let action = String(localized: "A steady stretch like this is a great time to build on your habits.")
+            guard series.count >= 3 else {
+                return FocusHeroModel(domain: .trends, mode: .optimization, accent: StrandPalette.chargeColor,
+                                      title: "You're in a good rhythm",
+                                      explanation: String(localized: "Everything's near your personal baseline today."),
+                                      action: action, actionIcon: "chart.line.uptrend.xyaxis")
+            }
+            let headline = trendsHeadline(series)
+            return FocusHeroModel(domain: .trends, mode: .optimization, accent: StrandPalette.chargeColor,
+                                  title: headline.0, explanation: headline.1, action: action,
+                                  actionIcon: "chart.line.uptrend.xyaxis", trendValues: series)
+
+        case .strain:
+            return nil   // strain focus needs the standout-load signal (a later milestone)
+        }
+    }
+
+    /// A tiny, honest trend read over the recovery series for the trends focus hero.
+    private func trendsHeadline(_ series: [Double]) -> (LocalizedStringKey, String) {
+        let n = series.count
+        let third = Swift.max(1, n / 3)
+        let firstMean = series.prefix(third).reduce(0, +) / Double(third)
+        let lastMean = series.suffix(third).reduce(0, +) / Double(third)
+        let delta = lastMean - firstMean
+        if delta >= 4 {
+            let pct = firstMean > 0 ? Int((delta / firstMean * 100).rounded()) : 0
+            return ("Trending up — a chance to build",
+                    String(format: String(localized: "Your recovery is up about %ld%% over the last couple of weeks."), pct))
+        } else if delta <= -4 {
+            return ("Holding steady",
+                    String(localized: "Your recovery has eased a little lately, but nothing needs attention today."))
+        }
+        return ("Steady and strong",
+                String(localized: "Your recovery has held near your personal baseline for two weeks."))
     }
 
     // MARK: Component 2, explained score states (calibrating / carriedLastNight / needsStrap)
@@ -1346,22 +1456,24 @@ struct TodayView: View {
                 // without tinting the rest of the dashboard. The day-cycle scene wash caps at ~0.42 opacity
                 // and fades top-down with a bottom dark scrim, no glow, so the white ring numbers + labels
                 // stay crisp and high-contrast.
+                // Adaptive Home: the intelligence block LEADS — the Morning Briefing (the answer, in
+                // words), the adaptive Focus Hero (the leading domain, full treatment), then the ranked
+                // "what matters today" feed. It self-hides on a cold start / past days, so the identity
+                // rings below take the lead when there's nothing to say yet.
+                if selectedDayOffset == 0 { todayInsightsSection().staggeredAppear(index: 0) }
                 #if os(iOS)
-                // Pull the rings up under the compact top bar, the full section gap left too much air
-                // above them now the big "Today's Synthesis" header is gone. The hero now sits over the
-                // day-cycle SCENE wash (picked by the local hour), which fades top-down behind the rings;
-                // the scene IS the atmosphere here, replacing the procedural time-of-day backdrop. It caps
-                // at ~0.42 opacity with a bottom dark scrim so the white ring numbers + labels stay crisp.
+                // The rings are the persistent identity (Charge / Effort / Rest), now sitting just below
+                // the adaptive focus. The hero sits over the day-cycle SCENE wash (picked by the local
+                // hour), which fades top-down behind the rings; it caps at ~0.42 opacity with a bottom
+                // dark scrim so the white ring numbers + labels stay crisp.
                 heroSection
                     .padding(.vertical, NoopMetrics.space4)
                     .frame(maxWidth: .infinity)
-                    // The dark hero CARD floats over the vivid day-scene so the rings + white numbers stay
-                    // crisp, the card does the contrast work, not a muted scene (2026-06-23).
                     .background(
                         RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
                             .fill(StrandPalette.surfaceBase.opacity(0.72))
                     )
-                    .staggeredAppear(index: 0)
+                    .staggeredAppear(index: 1)
                 #else
                 heroSection
                     .padding(.vertical, NoopMetrics.space4)
@@ -1370,13 +1482,9 @@ struct TodayView: View {
                         RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
                             .fill(StrandPalette.surfaceBase.opacity(0.72))
                     )
-                    .staggeredAppear(index: 0)
+                    .staggeredAppear(index: 1)
                 #endif
-                synthesisSection.staggeredAppear(index: 1)
-                // "What matters today": the ranked, cross-domain insight feed. Sits right under the hero
-                // synthesis so the single most important read (recovery caution, a standout sleep signal,
-                // timing drift) leads the screen. Self-hides on a cold start (no domain has anything yet).
-                if selectedDayOffset == 0 { todayInsightsSection().staggeredAppear(index: 2) }
+                synthesisSection.staggeredAppear(index: 2)
                 // S4: the SEPARATE Readiness block is no longer a home-screen card, it folded into the
                 // Charge-ring tap (chargeBreakdownSheet). A one-word readiness read (Push / Maintain / Rest,
                 // #205) stays on the hero via the Synthesis section's pill row, so the home screen keeps a
