@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation   // Calendar/Date/DateComponents + String(localized:) formatting
 import StrandDesign
 import StrandAnalytics
 
@@ -40,7 +41,7 @@ struct SleepConsistencyDetailView: View {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 dialCard
                 if presentation.showChannelBars { channelCard }
-                if midpoints.count >= 2 { trendCard }
+                if result.isReadable && midpoints.count >= 2 { trendCard }
                 explainerCard
             }
             .padding(NoopMetrics.screenPadding)

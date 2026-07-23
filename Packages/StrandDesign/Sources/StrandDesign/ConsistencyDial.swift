@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation   // cos/sin/.pi for the polar geometry
 
 // ConsistencyDial.swift — a 24-hour polar dial visualising sleep-TIMING consistency.
 //
