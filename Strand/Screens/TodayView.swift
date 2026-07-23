@@ -746,8 +746,17 @@ struct TodayView: View {
                 TodayInsightCard.make(for: $0, drivers: drivers,
                                       stageReport: stageReport, timing: timing)
             }
-            TodayInsightsFeed(cards: cards, dayTone: ranked.dayTone,
-                              attentionCount: ranked.attentionCount)
+            let cardsByKind = Dictionary(cards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+            // The narrative story sits above the feed: the resolved focus + the ranked feed drive which
+            // sentences the briefing tells. Name is empty (NOOP is anonymous); streaks land in a later milestone.
+            let focus = HomeFocusResolver.resolve(ranked: ranked)
+            let part = MorningBriefing.partOfDay(hour: Calendar.current.component(.hour, from: Date()))
+            let script = MorningBriefingPlanner.plan(part: part, focus: focus, ranked: ranked)
+            VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+                MorningBriefingView(script: script, name: "", cardsByKind: cardsByKind, streakDays: nil)
+                TodayInsightsFeed(cards: cards, dayTone: ranked.dayTone,
+                                  attentionCount: ranked.attentionCount)
+            }
         }
     }
 
