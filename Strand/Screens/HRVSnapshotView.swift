@@ -72,6 +72,9 @@ struct HRVSnapshotView: View {
             controlRow
             if phase == .done, let result { resultCard(result) }
             methodologyCard
+            // Teach where they measure: a collapsed-by-default explainer of HRV — what it means, why it
+            // matters, why there's no universal "good" number, and how to improve it.
+            MetricEducation.disclosure(for: .hrv)
             if !bonded { notBondedHint }
         }
         // Pull new R-R intervals into the capture buffer as they arrive — same path as BreathingView.
