@@ -56,6 +56,9 @@ class SourceCoordinatorAdoptionTest {
         override suspend fun setPeripheralId(id: String, peripheralId: String?) {
             devices[id]?.let { devices[id] = it.copy(peripheralId = peripheralId) }
         }
+        override suspend fun setModel(id: String, model: String) {
+            devices[id]?.let { devices[id] = it.copy(model = model) }
+        }
         override suspend fun deviceForPeripheralId(peripheralId: String): PairedDeviceRow? =
             devices.values.firstOrNull { it.peripheralId == peripheralId }
         override suspend fun setDayOwner(row: DayOwnershipRow) { owners[row.day] = row }
