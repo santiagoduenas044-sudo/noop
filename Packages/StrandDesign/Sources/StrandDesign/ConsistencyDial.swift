@@ -1,5 +1,7 @@
 import SwiftUI
-import Foundation   // cos/sin/.pi for the polar geometry
+// NB: do NOT `import Foundation` here — it brings _math's cos/sin(Double) into scope alongside
+// CoreGraphics' cos/sin(CGFloat), making the polar-geometry calls ambiguous. SwiftUI already
+// vends the CoreGraphics overloads, and `.pi` comes from the stdlib.
 
 // ConsistencyDial.swift — a 24-hour polar dial visualising sleep-TIMING consistency.
 //
@@ -130,9 +132,12 @@ public struct ConsistencyDial: View {
         let labels: [(String, Double)] = [("12a", 0), ("6a", 360), ("12p", 720), ("6p", 1080)]
         for (text, m) in labels {
             let p = point(m, radius - 20, center)
+            // `.foregroundColor` (not `.foregroundStyle`) — inside `resolve` this must return a
+            // Text, and the Text-returning `foregroundStyle` overload is macOS 14+; the app baseline
+            // is macOS 13. `.foregroundColor`'s Text overload is available here.
             let resolved = ctx.resolve(Text(text)
                 .font(StrandFont.captionNumber)
-                .foregroundStyle(StrandPalette.textTertiary))
+                .foregroundColor(StrandPalette.textTertiary))
             ctx.draw(resolved, at: p, anchor: .center)
         }
     }
