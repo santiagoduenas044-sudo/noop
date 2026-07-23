@@ -998,6 +998,40 @@ struct TodayView: View {
         if review.hasEnoughData { WeeklyReviewView(review: review) }
     }
 
+    // MARK: What moves your recovery (personal correlations)
+
+    /// Correlate Charge against the user's own sleep-quality factors (all keyed by the night's wake day,
+    /// which is the Charge day it produced). Only significant, meaningful links survive.
+    private func recoveryFactorsReport() -> PersonalCorrelations.Report {
+        let target: [(day: String, value: Double)] = repo.days.compactMap {
+            guard let r = $0.recovery else { return nil }
+            return (day: $0.day, value: r)
+        }
+        var duration: [(day: String, value: Double)] = []
+        var efficiency: [(day: String, value: Double)] = []
+        var restorative: [(day: String, value: Double)] = []
+        var awake: [(day: String, value: Double)] = []
+        for s in repo.sleeps {
+            let day = SleepTimingNight.from(onsetEpoch: s.effectiveStartTs, wakeEpoch: s.endTs).day
+            duration.append((day: day, value: Double(Swift.max(0, s.endTs - s.effectiveStartTs)) / 3600.0))
+            if let e = s.efficiency { efficiency.append((day: day, value: e)) }
+            if let m = SleepStageTotals.minutes(fromStagesJSON: s.stagesJSON) {
+                restorative.append((day: day, value: m.deep + m.rem))
+                awake.append((day: day, value: m.awake))
+            }
+        }
+        return PersonalCorrelations.analyze(target: target, factors: [
+            ("sleepDuration", duration), ("sleepEfficiency", efficiency),
+            ("restorative", restorative), ("awake", awake),
+        ])
+    }
+
+    @ViewBuilder
+    private func recoveryFactorsSection() -> some View {
+        let report = recoveryFactorsReport()
+        if report.hasEnough { RecoveryFactorsView(report: report) }
+    }
+
     // MARK: Component 2, explained score states (calibrating / carriedLastNight / needsStrap)
 
     /// The Charge (recovery) score's explained state for the selected day. Built ENTIRELY from the
@@ -1626,7 +1660,9 @@ struct TodayView: View {
                 // The week-scale story: wins, setbacks, and one thing to try. Today only; self-hides
                 // until there are a few days of data this week.
                 if selectedDayOffset == 0 { weeklyReviewSection().staggeredAppear(index: 7) }
-                yourCardsSection.staggeredAppear(index: 8)
+                // "What moves your recovery": honest personal correlations (associations, not cause).
+                if selectedDayOffset == 0 { recoveryFactorsSection().staggeredAppear(index: 8) }
+                yourCardsSection.staggeredAppear(index: 9)
                 // Opt-in "looks like a workout?" suggestion (default OFF). Renders only when the
                 // Settings toggle is on AND the detector finds a recent unsaved, un-dismissed window.
                 AutoWorkoutCard()
