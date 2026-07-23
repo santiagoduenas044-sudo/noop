@@ -233,6 +233,14 @@ struct ChargeBreakdownSection: View {
                 Spacer()
                 ConfidenceTierChip(confidence: confidence)
             }
+            // At-a-glance diverging overview: what pushed Charge up (green, right) vs down (red, left),
+            // biggest mover first. The detailed value/baseline/verdict rows follow below.
+            if drivers.count >= 2 {
+                ContributorBars(contributors: drivers.map {
+                    ContributorBars.Contributor(label: $0.label, points: $0.deltaPoints)
+                }, labelWidth: 104)
+                .padding(.top, NoopMetrics.space1)
+            }
             VStack(spacing: NoopMetrics.rowSpacing) {
                 let maxMag = drivers.map { abs($0.deltaPoints) }.max() ?? 1
                 ForEach(Array(drivers.enumerated()), id: \.offset) { _, driver in
