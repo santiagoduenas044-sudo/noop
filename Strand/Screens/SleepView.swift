@@ -142,7 +142,8 @@ struct SleepView: View {
                         sleepDebtLedger(resolved).staggeredAppear(index: 4)
                         sleepConsistencySection().staggeredAppear(index: 5)
                         stagesVsTypical(resolved).staggeredAppear(index: 6)
-                        durationTrend(resolved).staggeredAppear(index: 7)
+                        sleepStagesSection().staggeredAppear(index: 7)
+                        durationTrend(resolved).staggeredAppear(index: 8)
                     }
                 } else {
                     emptyState
@@ -1644,6 +1645,87 @@ struct SleepView: View {
         case .variable:    return "A little variable"
         case .irregular:   return "Quite variable — room to steady it"
         case .unreadable:  return "Building your baseline"
+        }
+    }
+
+    // MARK: - Sleep stages (composition + actionable insights + stacked trend)
+
+    /// Stage composition bar + ranked, neutral insights + a stacked stage trend, built from the pure
+    /// SleepStageTotals decoder over the deduped per-night sessions. All stage MATH lives in
+    /// SleepStageInsights; this only lays out design-system components + localized copy. The decode is
+    /// capped to the recent window actually needed (tonight + 30 baseline) so a body re-eval stays cheap.
+    @ViewBuilder
+    private func sleepStagesSection() -> some View {
+        let recent = repo.sleeps.sorted { $0.effectiveStartTs < $1.effectiveStartTs }.suffix(31)
+        let allMins = recent.compactMap { SleepStageTotals.minutes(fromStagesJSON: $0.stagesJSON) }
+        if let tonight = allMins.last {
+            let baseline = Array(allMins.dropLast())
+            let report = SleepStageInsights.analyze(tonight: tonight, baseline: baseline)
+            let comp = report.composition
+            let trend = allMins.suffix(14).map {
+                StageStackTrend.Night(deep: $0.deep, light: $0.light, rem: $0.rem, awake: $0.awake)
+            }
+            StrandCard {
+                VStack(alignment: .leading, spacing: 16) {
+                    SectionHeader("Sleep stages", overline: "How the night was spent",
+                                  trailing: efficiencyText(comp.efficiency))
+                    StageCompositionBar(deepMin: comp.deepMin, lightMin: comp.lightMin,
+                                        remMin: comp.remMin, awakeMin: comp.awakeMin)
+                    if !report.insights.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(Array(report.insights.enumerated()), id: \.offset) { _, ins in
+                                stageInsightLine(ins)
+                            }
+                        }
+                    }
+                    if trend.count >= 3 {
+                        VStack(alignment: .leading, spacing: 8) {
+                            SectionHeader("Stage trend", overline: "Last \(trend.count) nights", trailing: nil)
+                            StageStackTrend(nights: trend)
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+            }
+        }
+    }
+
+    private func efficiencyText(_ eff: Double) -> String {
+        "\(Int((eff * 100).rounded()))% efficient"
+    }
+
+    /// One insight row: a tone-tinted dot + neutral copy. No clinical claims.
+    @ViewBuilder
+    private func stageInsightLine(_ ins: SleepStageInsights.Insight) -> some View {
+        let color: Color = {
+            switch ins.tone {
+            case .positive: return StrandPalette.statusPositive
+            case .caution:  return StrandPalette.statusWarning
+            case .neutral:  return StrandPalette.textTertiary
+            }
+        }()
+        HStack(alignment: .firstTextBaseline, spacing: 9) {
+            Circle().fill(color).frame(width: 7, height: 7).offset(y: 1)
+            Text(stageInsightCopy(ins))
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private func stageInsightCopy(_ ins: SleepStageInsights.Insight) -> LocalizedStringKey {
+        let d = abs(ins.deltaMin ?? 0)
+        switch ins.kind {
+        case .efficientNight:    return "You spent almost no time awake in bed."
+        case .fragmented:        return "Your night was broken up by time awake."
+        case .restorativeStrong: return "A strong share of deep + REM — restorative."
+        case .restorativeLight:  return "Deep + REM were a smaller share tonight."
+        case .deepAboveUsual:    return "More deep sleep than your usual (+\(d) min)."
+        case .deepBelowUsual:    return "Less deep sleep than your usual (−\(d) min)."
+        case .remAboveUsual:     return "More REM than your usual (+\(d) min)."
+        case .remBelowUsual:     return "Less REM than your usual (−\(d) min)."
+        case .balancedNight:     return "A steady, well-balanced night."
+        case .buildingBaseline:  return "A few more nights and stage trends fill in."
         }
     }
 
