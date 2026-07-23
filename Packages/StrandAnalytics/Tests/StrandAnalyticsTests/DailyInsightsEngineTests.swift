@@ -42,7 +42,7 @@ final class DailyInsightsEngineTests: XCTestCase {
         let strong = di("dup", .sleep, .caution, 0.6)
         let r = DailyInsightsEngine.rank([weak, strong])
         XCTAssertEqual(r.insights.count, 1)
-        XCTAssertEqual(r.insights.first?.magnitude, 0.6, accuracy: 1e-9)
+        XCTAssertEqual(r.insights.first!.magnitude, 0.6, accuracy: 1e-9)
     }
 
     func testCap() {
