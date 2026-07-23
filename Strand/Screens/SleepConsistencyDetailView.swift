@@ -275,7 +275,9 @@ struct SleepConsistencyDetailView: View {
 
 #Preview("Sleep Consistency — building baseline") {
     NavigationStack {
-        SleepConsistencyDetailView(result: .unreadable(nightCount: 2), midpoints: [])
+        // Empty history → the engine returns a withheld read (the "building your baseline" state),
+        // via the public init — `SleepRegularityResult.unreadable` is internal to StrandAnalytics.
+        SleepConsistencyDetailView(nights: [])
     }
     .preferredColorScheme(.light)
 }
