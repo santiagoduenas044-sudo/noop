@@ -754,6 +754,11 @@ struct TodayView: View {
             let streak = bestCurrentStreak()
             let script = MorningBriefingPlanner.plan(part: part, focus: focus, ranked: ranked,
                                                      streakDays: streak)
+            // Forward-looking: a hedged, conditional forecast for tomorrow morning. Sleep-driven for now
+            // (effort term wired later); self-hides until there's enough Charge history to forecast.
+            let outlook = TomorrowOutlook.build(recentCharge: repo.days.compactMap { $0.recovery },
+                                                todayEffort: nil,
+                                                todayCharge: chargeBreakdownRow?.recovery)
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 MorningBriefingView(script: script, name: "", cardsByKind: cardsByKind, streakDays: streak)
                 // Adaptive Home: the leading domain becomes the hero, with its own why + what-to-do.
@@ -763,6 +768,7 @@ struct TodayView: View {
                 }
                 TodayInsightsFeed(cards: cards, dayTone: ranked.dayTone,
                                   attentionCount: ranked.attentionCount)
+                if outlook.hasForecast { TomorrowOutlookView(outlook: outlook) }
             }
         }
     }
