@@ -708,6 +708,49 @@ struct TodayView: View {
         }
     }
 
+    // MARK: Today's Insights feed (the ranked, cross-domain "what matters today" surface)
+
+    /// Tonight's sleep-stage report vs the recent baseline, reusing the SAME producer as the Sleep tab
+    /// (deduped per-night sessions → composition + ranked insights). nil when there is no staged night.
+    private func todayStageReport() -> SleepStageInsights.Report? {
+        let recent = repo.sleeps.sorted { $0.effectiveStartTs < $1.effectiveStartTs }.suffix(31)
+        let allMins = recent.compactMap { SleepStageTotals.minutes(fromStagesJSON: $0.stagesJSON) }
+        guard let tonight = allMins.last else { return nil }
+        return SleepStageInsights.analyze(tonight: tonight, baseline: Array(allMins.dropLast()))
+    }
+
+    /// The trailing-window sleep-timing regularity read, reusing the Sleep tab's producer.
+    private func todayTimingResult() -> SleepRegularityResult {
+        let nights = repo.sleeps
+            .sorted { $0.effectiveStartTs < $1.effectiveStartTs }
+            .map { SleepTimingNight.from(onsetEpoch: $0.effectiveStartTs, wakeEpoch: $0.endTs) }
+        return SleepRegularity.assess(nights: nights)
+    }
+
+    /// The ranked, cross-domain "what matters today" feed. Recovery uses the displayed Charge row + the
+    /// readiness band (so it agrees with the hero's Push / Maintain / Rest read); sleep uses tonight's
+    /// stage report and the timing read. Renders nothing when no domain has anything to say (cold start).
+    @ViewBuilder
+    private func todayInsightsSection() -> some View {
+        let recoverySignal: TodayInsightsBuilder.RecoverySignal? = chargeBreakdownRow?.recovery
+            .map { TodayInsightsBuilder.RecoverySignal(score: $0, band: readiness.level) }
+        let stageReport = todayStageReport()
+        let timing = todayTimingResult()
+        let ranked = TodayInsightsBuilder.build(recovery: recoverySignal,
+                                                sleepStages: stageReport,
+                                                sleepTiming: timing,
+                                                max: 4)
+        if !ranked.insights.isEmpty {
+            let drivers = chargeBreakdown()?.drivers ?? []
+            let cards = ranked.insights.map {
+                TodayInsightCard.make(for: $0, drivers: drivers,
+                                      stageReport: stageReport, timing: timing)
+            }
+            TodayInsightsFeed(cards: cards, dayTone: ranked.dayTone,
+                              attentionCount: ranked.attentionCount)
+        }
+    }
+
     // MARK: Component 2, explained score states (calibrating / carriedLastNight / needsStrap)
 
     /// The Charge (recovery) score's explained state for the selected day. Built ENTIRELY from the
@@ -1321,14 +1364,18 @@ struct TodayView: View {
                     .staggeredAppear(index: 0)
                 #endif
                 synthesisSection.staggeredAppear(index: 1)
+                // "What matters today": the ranked, cross-domain insight feed. Sits right under the hero
+                // synthesis so the single most important read (recovery caution, a standout sleep signal,
+                // timing drift) leads the screen. Self-hides on a cold start (no domain has anything yet).
+                if selectedDayOffset == 0 { todayInsightsSection().staggeredAppear(index: 2) }
                 // S4: the SEPARATE Readiness block is no longer a home-screen card, it folded into the
                 // Charge-ring tap (chargeBreakdownSheet). A one-word readiness read (Push / Maintain / Rest,
                 // #205) stays on the hero via the Synthesis section's pill row, so the home screen keeps a
                 // glanceable verdict without the full card. Readiness is NOT deleted, only moved behind a tap.
-                metricsSection.staggeredAppear(index: 2)
-                workoutsSection.staggeredAppear(index: 3)
-                heartRateTrendSection.staggeredAppear(index: 4)
-                yourCardsSection.staggeredAppear(index: 5)
+                metricsSection.staggeredAppear(index: 3)
+                workoutsSection.staggeredAppear(index: 4)
+                heartRateTrendSection.staggeredAppear(index: 5)
+                yourCardsSection.staggeredAppear(index: 6)
                 // Opt-in "looks like a workout?" suggestion (default OFF). Renders only when the
                 // Settings toggle is on AND the detector finds a recent unsaved, un-dismissed window.
                 AutoWorkoutCard()
