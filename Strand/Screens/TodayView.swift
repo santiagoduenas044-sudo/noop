@@ -928,7 +928,38 @@ struct TodayView: View {
     @ViewBuilder
     private func streaksSection() -> some View {
         let summaries = streakSummaries()
-        if !summaries.isEmpty { StreaksSection(summaries: summaries) }
+        if !summaries.isEmpty {
+            let mom = Momentum.summarize(summaries.map {
+                Momentum.Streak(kind: $0.id, current: $0.result.current, best: $0.result.best)
+            })
+            StreaksSection(summaries: summaries, momentum: momentumBundle(mom))
+        }
+    }
+
+    /// Resolve the Momentum ember's colour + proud copy from the featured habit.
+    private func momentumBundle(_ mom: Momentum.Summary) -> MomentumBundle {
+        guard let kind = mom.featuredKind else {
+            return MomentumBundle(summary: mom, accent: StrandPalette.restColor, title: nil,
+                                  message: String(localized: "A rested night or a steady bedtime starts a new streak."))
+        }
+        let accent: Color
+        let title: LocalizedStringKey
+        let noun: String
+        switch kind {
+        case .steadySchedule:
+            accent = StrandPalette.metricPurple; title = "Steady schedule"
+            noun = String(localized: "nights on a steady schedule")
+        case .restedNights:
+            accent = StrandPalette.restColor; title = "Rested nights"
+            noun = String(localized: "nights of solid rest")
+        case .recoveryReady:
+            accent = StrandPalette.chargeColor; title = "Recovery-ready"
+            noun = String(localized: "days starting recovered")
+        }
+        let tail = mom.isRecord ? String(localized: " — your best run yet.")
+                                : String(localized: ", and counting.")
+        let message = String(format: String(localized: "%ld %@%@"), mom.current, noun, tail)
+        return MomentumBundle(summary: mom, accent: accent, title: title, message: message)
     }
 
     // MARK: Component 2, explained score states (calibrating / carriedLastNight / needsStrap)

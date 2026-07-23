@@ -28,14 +28,27 @@ struct StreakSummary: Identifiable, Equatable {
     let targetText: String
 }
 
-/// The streak row: a header and a horizontally-scrolling set of streak cards.
+/// Everything the Momentum ember needs (resolved by the app).
+struct MomentumBundle {
+    let summary: Momentum.Summary
+    let accent: Color
+    let title: LocalizedStringKey?
+    let message: String
+}
+
+/// The streak section: a header, the signature Momentum ember, and a horizontally-scrolling set of
+/// per-habit streak cards.
 struct StreaksSection: View {
     let summaries: [StreakSummary]
+    var momentum: MomentumBundle? = nil
 
     var body: some View {
         if !summaries.isEmpty {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                 SectionHeader("Your streaks", overline: "Healthy habits, kept up")
+                if let m = momentum {
+                    MomentumHero(summary: m.summary, accent: m.accent, title: m.title, message: m.message)
+                }
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: NoopMetrics.gap) {
                         ForEach(summaries) { StreakCard(summary: $0) }
@@ -133,18 +146,22 @@ private struct StreakCard: View {
 
 #if DEBUG
 #Preview("Streaks") {
-    let mk: (HealthStreaks.Kind, LocalizedStringKey, String, Color, LocalizedStringKey, Int, Int, Int, [Bool], String) -> StreakSummary = {
-        StreakSummary(id: $0, title: $1, symbol: $2, accent: $3, unit: $4,
-                      result: StreakEngine.Result(current: $5, best: $6, metCount: $7, total: 7, atRisk: $8),
-                      recentFlags: $9, targetText: $10)
-    }
     let s = [
-        mk(.steadySchedule, "Steady schedule", "clock.arrow.circlepath", StrandPalette.metricPurple, "night streak",
-           5, 9, 6, 0, [true, false, true, true, true, true, true], "Within ±60 min of your usual"),
-        mk(.restedNights, "Rested nights", "bed.double.fill", StrandPalette.restColor, "night streak",
-           0, 6, 4, 3, [true, true, false, true, true, true, false], "≈ your usual 7h 30m"),
-        mk(.recoveryReady, "Recovery-ready", "bolt.heart.fill", StrandPalette.chargeColor, "day streak",
-           12, 12, 12, 0, [true, true, true, true, true, true, true], "Charge 52 or higher"),
+        StreakSummary(id: .steadySchedule, title: "Steady schedule", symbol: "clock.arrow.circlepath",
+                      accent: StrandPalette.metricPurple, unit: "night streak",
+                      result: StreakEngine.Result(current: 5, best: 9, metCount: 6, total: 7, atRisk: 0),
+                      recentFlags: [true, false, true, true, true, true, true],
+                      targetText: "Within ±60 min of your usual"),
+        StreakSummary(id: .restedNights, title: "Rested nights", symbol: "bed.double.fill",
+                      accent: StrandPalette.restColor, unit: "night streak",
+                      result: StreakEngine.Result(current: 0, best: 6, metCount: 4, total: 7, atRisk: 3),
+                      recentFlags: [true, true, false, true, true, true, false],
+                      targetText: "≈ your usual 7h 30m"),
+        StreakSummary(id: .recoveryReady, title: "Recovery-ready", symbol: "bolt.heart.fill",
+                      accent: StrandPalette.chargeColor, unit: "day streak",
+                      result: StreakEngine.Result(current: 12, best: 12, metCount: 12, total: 7, atRisk: 0),
+                      recentFlags: [true, true, true, true, true, true, true],
+                      targetText: "Charge 52 or higher"),
     ]
     return ScrollView { StreaksSection(summaries: s).padding() }
         .background(StrandPalette.surfaceBase)
