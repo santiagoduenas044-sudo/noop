@@ -253,6 +253,11 @@ struct ChargeBreakdownSection: View {
                 SkinTempDeviationRow(rel: rel)
                     .padding(.top, NoopMetrics.space1)
             }
+            // Teach, don't just measure: an unobtrusive, collapsed-by-default explainer of Recovery —
+            // what it means, why it matters, general-population ranges (vs the personal baseline the
+            // rows above show), what influences it, and how to improve it.
+            MetricEducation.disclosure(for: .recovery)
+                .padding(.top, NoopMetrics.space2)
         }
     }
 }
