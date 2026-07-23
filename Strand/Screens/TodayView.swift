@@ -759,6 +759,16 @@ struct TodayView: View {
             let outlook = TomorrowOutlook.build(recentCharge: repo.days.compactMap { $0.recovery },
                                                 todayEffort: nil,
                                                 todayCharge: chargeBreakdownRow?.recovery)
+            // The on-device coach: instant, private answers composed from the day's engines (verdict,
+            // top Charge driver, outlook, personal correlations, weekly review).
+            let coachContext = CoachContext(
+                verdict: CoachAdvisor.trainingVerdict(band: readiness.level,
+                                                      tomorrow: outlook.hasForecast ? outlook.direction : nil),
+                recoveryScore: recoverySignal?.score,
+                topDriver: drivers.first,
+                outlook: outlook,
+                topFactor: recoveryFactorsReport().factors.first,
+                weekly: weeklyReview())
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 MorningBriefingView(script: script, name: "", cardsByKind: cardsByKind, streakDays: streak)
                 // Adaptive Home: the leading domain becomes the hero, with its own why + what-to-do.
@@ -769,6 +779,7 @@ struct TodayView: View {
                 TodayInsightsFeed(cards: cards, dayTone: ranked.dayTone,
                                   attentionCount: ranked.attentionCount)
                 if outlook.hasForecast { TomorrowOutlookView(outlook: outlook) }
+                OnDeviceCoachView(context: coachContext)
             }
         }
     }
