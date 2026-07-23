@@ -1,7 +1,9 @@
 import SwiftUI
-// NB: do NOT `import Foundation` here — it brings _math's cos/sin(Double) into scope alongside
-// CoreGraphics' cos/sin(CGFloat), making the polar-geometry calls ambiguous. SwiftUI already
-// vends the CoreGraphics overloads, and `.pi` comes from the stdlib.
+import CoreGraphics
+// NB: `cos`/`sin` are QUALIFIED as `CoreGraphics.cos`/`.sin` in `point(_:_:_:)` below. Both
+// CoreGraphics (CGFloat) and the transitively-imported `_math` (Double) vend these, so an
+// unqualified call on a Double is ambiguous; qualifying picks the CoreGraphics overload. `.pi`
+// comes from the stdlib. Do not "simplify" the qualification away.
 
 // ConsistencyDial.swift — a 24-hour polar dial visualising sleep-TIMING consistency.
 //
@@ -144,8 +146,9 @@ public struct ConsistencyDial: View {
 
     /// Point on the dial for a minute-of-day at a given radius. Midnight at top, clockwise.
     private func point(_ minute: Double, _ radius: CGFloat, _ center: CGPoint) -> CGPoint {
-        let theta = (minute / 1440.0) * 2 * .pi - .pi / 2
-        return CGPoint(x: center.x + radius * cos(theta), y: center.y + radius * sin(theta))
+        let theta: CGFloat = (minute / 1440.0) * 2 * .pi - .pi / 2
+        return CGPoint(x: center.x + radius * CoreGraphics.cos(theta),
+                       y: center.y + radius * CoreGraphics.sin(theta))
     }
 
     private func arcPath(start: Double, end: Double, radius: CGFloat, center: CGPoint) -> Path {
