@@ -733,7 +733,7 @@ struct TodayView: View {
     @ViewBuilder
     private func todayInsightsSection() -> some View {
         let recoverySignal: TodayInsightsBuilder.RecoverySignal? = chargeBreakdownRow?.recovery
-            .map { TodayInsightsBuilder.RecoverySignal(score: $0, band: readiness.level) }
+            .map { TodayInsightsBuilder.RecoverySignal(score: Int($0.rounded()), band: readiness.level) }
         let stageReport = todayStageReport()
         let timing = todayTimingResult()
         let ranked = TodayInsightsBuilder.build(recovery: recoverySignal,
