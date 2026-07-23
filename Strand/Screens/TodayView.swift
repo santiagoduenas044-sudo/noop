@@ -968,6 +968,36 @@ struct TodayView: View {
         return MomentumBundle(summary: mom, accent: accent, title: title, message: message)
     }
 
+    // MARK: Weekly Review (the week-scale story)
+
+    private func weekStats(chargeDays: ArraySlice<DailyMetric>,
+                           nights: ArraySlice<CachedSleepSession>) -> WeeklyReview.WeekStats {
+        let charges = chargeDays.compactMap { $0.recovery }
+        let avgCharge = charges.isEmpty ? nil : charges.reduce(0, +) / Double(charges.count)
+        let hours = nights.map { Double(Swift.max(0, $0.endTs - $0.effectiveStartTs)) / 3600.0 }
+        let avgSleep = hours.isEmpty ? nil : hours.reduce(0, +) / Double(hours.count)
+        let timing = nights.map { SleepTimingNight.from(onsetEpoch: $0.effectiveStartTs, wakeEpoch: $0.endTs) }
+        let sd = SleepRegularity.assess(nights: Array(timing)).midpointSDMinutes
+        return WeeklyReview.WeekStats(avgCharge: avgCharge, avgSleepHours: avgSleep, avgEffort: nil,
+                                      scheduleSDMin: sd, daysWithData: charges.count,
+                                      totalDays: chargeDays.count)
+    }
+
+    private func weeklyReview() -> WeeklyReview.Review {
+        let days = repo.days
+        let sleeps = repo.sleeps.sorted { $0.effectiveStartTs < $1.effectiveStartTs }
+        return WeeklyReview.build(
+            this: weekStats(chargeDays: days.suffix(7), nights: sleeps.suffix(7)),
+            prior: weekStats(chargeDays: days.dropLast(7).suffix(7),
+                             nights: sleeps.dropLast(7).suffix(7)))
+    }
+
+    @ViewBuilder
+    private func weeklyReviewSection() -> some View {
+        let review = weeklyReview()
+        if review.hasEnoughData { WeeklyReviewView(review: review) }
+    }
+
     // MARK: Component 2, explained score states (calibrating / carriedLastNight / needsStrap)
 
     /// The Charge (recovery) score's explained state for the selected day. Built ENTIRELY from the
@@ -1593,7 +1623,10 @@ struct TodayView: View {
                 metricsSection.staggeredAppear(index: 4)
                 workoutsSection.staggeredAppear(index: 5)
                 heartRateTrendSection.staggeredAppear(index: 6)
-                yourCardsSection.staggeredAppear(index: 7)
+                // The week-scale story: wins, setbacks, and one thing to try. Today only; self-hides
+                // until there are a few days of data this week.
+                if selectedDayOffset == 0 { weeklyReviewSection().staggeredAppear(index: 7) }
+                yourCardsSection.staggeredAppear(index: 8)
                 // Opt-in "looks like a workout?" suggestion (default OFF). Renders only when the
                 // Settings toggle is on AND the detector finds a recent unsaved, un-dismissed window.
                 AutoWorkoutCard()
