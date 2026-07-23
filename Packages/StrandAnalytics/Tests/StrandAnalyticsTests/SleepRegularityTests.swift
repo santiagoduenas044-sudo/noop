@@ -128,4 +128,32 @@ final class SleepRegularityTests: XCTestCase {
         XCTAssertEqual(n.durationMin, 480.0, accuracy: 1e-9)
         XCTAssertEqual(n.midpointMinOfDay, 180.0, accuracy: 1e-9)                    // 03:00
     }
+
+    /// The epoch factory resolves onset/wake to a LOCAL minute-of-day and keys the night by the
+    /// wake civil date. Built from components so the test carries no hand-computed epoch constants.
+    func testFromEpochResolvesLocalMinuteOfDay() {
+        var cal = Calendar(identifier: .gregorian)
+        let utc = TimeZone(identifier: "UTC")!
+        cal.timeZone = utc
+        func epoch(_ y: Int, _ mo: Int, _ d: Int, _ h: Int, _ mi: Int) -> Int {
+            let comps = DateComponents(calendar: cal, timeZone: utc, year: y, month: mo, day: d, hour: h, minute: mi)
+            return Int(cal.date(from: comps)!.timeIntervalSince1970)
+        }
+        let n = SleepTimingNight.from(onsetEpoch: epoch(2026, 6, 1, 23, 0),
+                                      wakeEpoch: epoch(2026, 6, 2, 7, 0), timeZone: utc)
+        XCTAssertEqual(n.onsetMinOfDay, 1380)   // 23:00
+        XCTAssertEqual(n.wakeMinOfDay, 420)     // 07:00
+        XCTAssertEqual(n.day, "2026-06-02")     // keyed by wake date
+        XCTAssertEqual(n.durationMin, 480.0, accuracy: 1e-9)
+    }
+
+    /// `windowedNights` drops implausible nights and caps to the most-recent window — and is the
+    /// same set `assess` scores, so a dial built from it matches the number.
+    func testWindowedNightsFiltersAndCaps() {
+        var ns = nights(Array(repeating: 1380, count: 20))
+        ns.append(SleepTimingNight(day: "nap", onsetMinOfDay: 600, wakeMinOfDay: 630))  // 30 min → dropped
+        let w = SleepRegularity.windowedNights(ns, window: 14)
+        XCTAssertEqual(w.count, 14)
+        XCTAssertTrue(w.allSatisfy { $0.durationMin >= SleepRegularity.minDurationMin })
+    }
 }

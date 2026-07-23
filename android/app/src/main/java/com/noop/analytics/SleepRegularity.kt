@@ -148,17 +148,28 @@ object SleepRegularity {
      *   nights are skipped.
      * @param window how many of the most-recent USABLE nights to include (default 14, ≥ 1).
      */
-    fun assess(
+    /**
+     * The nights an assessment actually uses: implausible-duration nights dropped, chronological
+     * order preserved, capped to the most-recent [window]. Exposed so a dial can plot exactly the
+     * nights the score was built from (one source of truth for the windowing).
+     */
+    fun windowedNights(
         nights: List<SleepTimingNight>,
         window: Int = DEFAULT_WINDOW_NIGHTS,
-    ): SleepRegularityResult {
+    ): List<SleepTimingNight> {
         val cap = window.coerceAtLeast(1)
-
         val usable = nights.filter {
             val d = it.durationMin
             d >= MIN_DURATION_MIN && d <= MAX_DURATION_MIN
         }
-        val windowed = usable.takeLast(cap)
+        return usable.takeLast(cap)
+    }
+
+    fun assess(
+        nights: List<SleepTimingNight>,
+        window: Int = DEFAULT_WINDOW_NIGHTS,
+    ): SleepRegularityResult {
+        val windowed = windowedNights(nights, window)
 
         if (windowed.size < MIN_NIGHTS) {
             return SleepRegularityResult.unreadable(windowed.size)

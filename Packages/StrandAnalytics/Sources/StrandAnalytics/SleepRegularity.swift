@@ -66,17 +66,42 @@ public struct SleepTimingNight: Equatable, Sendable {
 
     /// Sleep duration (minutes) as the forward arc onset → wake on the 24 h circle, so an
     /// overnight window (wake numerically before onset) yields the correct positive length.
-    var durationMin: Double {
+    public var durationMin: Double {
         let d = ((wakeMinOfDay - onsetMinOfDay) % 1440 + 1440) % 1440
         return Double(d)
     }
 
     /// Sleep midpoint as a minute-of-day (0…1440), = onset + duration/2 wrapped onto the
-    /// circle. This is the primary timing anchor the regularity read is built on.
-    var midpointMinOfDay: Double {
+    /// circle. This is the primary timing anchor the regularity read is built on, and the
+    /// point the dial plots per night.
+    public var midpointMinOfDay: Double {
         let mid = (Double(onsetMinOfDay) + durationMin / 2.0)
             .truncatingRemainder(dividingBy: 1440.0)
         return mid < 0 ? mid + 1440.0 : mid
+    }
+
+    /// Build a night from unix-epoch onset/wake timestamps, resolving each to a LOCAL
+    /// minute-of-day in `timeZone` and keying the night by the wake date's civil day. Kept here
+    /// (not in the app layer) so the timezone math is covered by `swift test`. The app passes the
+    /// session's `effectiveStartTs` (honours a hand-edited onset) and `endTs`.
+    public static func from(onsetEpoch: Int, wakeEpoch: Int,
+                            timeZone: TimeZone = .current) -> SleepTimingNight {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = timeZone
+        let fmt = DateFormatter()
+        fmt.calendar = cal
+        fmt.timeZone = timeZone
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.dateFormat = "yyyy-MM-dd"
+        let wakeDate = Date(timeIntervalSince1970: TimeInterval(wakeEpoch))
+        return SleepTimingNight(day: fmt.string(from: wakeDate),
+                                onsetMinOfDay: Self.minuteOfDay(onsetEpoch, cal),
+                                wakeMinOfDay: Self.minuteOfDay(wakeEpoch, cal))
+    }
+
+    static func minuteOfDay(_ epoch: Int, _ cal: Calendar) -> Int {
+        let c = cal.dateComponents([.hour, .minute], from: Date(timeIntervalSince1970: TimeInterval(epoch)))
+        return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 }
 
@@ -175,6 +200,19 @@ public enum SleepRegularity {
 
     // MARK: - Public API
 
+    /// The nights an assessment actually uses: implausible-duration nights dropped, chronological
+    /// order preserved, capped to the most-recent `window`. Exposed so the dial can plot exactly
+    /// the nights the score was built from (one source of truth for the windowing).
+    public static func windowedNights(_ nights: [SleepTimingNight],
+                                      window: Int = defaultWindowNights) -> [SleepTimingNight] {
+        let cap = max(window, 1)
+        let usable = nights.filter {
+            let d = $0.durationMin
+            return d >= minDurationMin && d <= maxDurationMin
+        }
+        return Array(usable.suffix(cap))
+    }
+
     /// Assess sleep-timing regularity over the most-recent usable nights.
     ///
     /// - Parameters:
@@ -185,14 +223,7 @@ public enum SleepRegularity {
     ///   the read is withheld (`.unreadable`, score nil, `.calibrating`).
     public static func assess(nights: [SleepTimingNight],
                               window: Int = defaultWindowNights) -> SleepRegularityResult {
-        let cap = max(window, 1)
-
-        // Keep only plausible nights, preserve chronological order, take the most-recent `cap`.
-        let usable = nights.filter {
-            let d = $0.durationMin
-            return d >= minDurationMin && d <= maxDurationMin
-        }
-        let windowed = Array(usable.suffix(cap))
+        let windowed = windowedNights(nights, window: window)
 
         guard windowed.count >= minNights else {
             return .unreadable(nightCount: windowed.count)

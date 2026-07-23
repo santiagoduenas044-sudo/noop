@@ -140,8 +140,9 @@ struct SleepView: View {
                         hero(resolved).staggeredAppear(index: 2)
                         metricGrid(resolved).staggeredAppear(index: 3)
                         sleepDebtLedger(resolved).staggeredAppear(index: 4)
-                        stagesVsTypical(resolved).staggeredAppear(index: 5)
-                        durationTrend(resolved).staggeredAppear(index: 6)
+                        sleepConsistencySection().staggeredAppear(index: 5)
+                        stagesVsTypical(resolved).staggeredAppear(index: 6)
+                        durationTrend(resolved).staggeredAppear(index: 7)
                     }
                 } else {
                     emptyState
@@ -1591,6 +1592,59 @@ struct SleepView: View {
         .frame(height: 56)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Per-night sleep balance: \(ledger.nightCount) nights, net \(debtSigned(ledger.balanceMin))")
+    }
+
+    // MARK: - Sleep consistency (timing regularity) — compact entry into the detail
+
+    /// A compact row: a small consistency dial + the current descriptive band, tapping through to
+    /// SleepConsistencyDetailView. All timing math lives in the SleepRegularity engine; this reads
+    /// the deduped per-night sessions (`repo.sleeps`) and maps each to onset/wake minute-of-day.
+    @ViewBuilder
+    private func sleepConsistencySection() -> some View {
+        let nights = repo.sleeps
+            .sorted { $0.effectiveStartTs < $1.effectiveStartTs }
+            .map { SleepTimingNight.from(onsetEpoch: $0.effectiveStartTs, wakeEpoch: $0.endTs) }
+        let result = SleepRegularity.assess(nights: nights)
+        let dialPoints = SleepRegularity.windowedNights(nights).map { $0.midpointMinOfDay }
+        NavigationLink {
+            SleepConsistencyDetailView(nights: nights)
+        } label: {
+            StrandCard {
+                HStack(spacing: 14) {
+                    ConsistencyDial(midpointsMinutes: dialPoints,
+                                    meanMinutes: result.meanMidpointMinOfDay.map(Double.init),
+                                    spreadMinutes: result.midpointSDMinutes,
+                                    diameter: 60, lineWidth: 6)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Sleep consistency").strandOverline()
+                        Text(consistencyHeadline(result.label))
+                            .font(StrandFont.headline)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text(result.isReadable
+                             ? "\(result.score.map(String.init) ?? "—") / 100 · how steady your timing is"
+                             : "Building your baseline")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func consistencyHeadline(_ band: SleepRegularityLabel) -> LocalizedStringKey {
+        switch band {
+        case .veryRegular: return "Very consistent"
+        case .regular:     return "Consistent"
+        case .variable:    return "A little variable"
+        case .irregular:   return "Quite variable — room to steady it"
+        case .unreadable:  return "Building your baseline"
+        }
     }
 
     // MARK: - 3. Stages vs typical

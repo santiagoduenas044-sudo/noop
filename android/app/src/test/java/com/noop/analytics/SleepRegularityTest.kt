@@ -112,4 +112,13 @@ class SleepRegularityTest {
         assertEquals(480.0, n.durationMin, 1e-9)
         assertEquals(180.0, n.midpointMinOfDay, 1e-9)   // 03:00
     }
+
+    @Test
+    fun windowedNights_filtersAndCaps() {
+        val ns = nights(List(20) { 1380 }).toMutableList()
+        ns.add(SleepTimingNight(day = "nap", onsetMinOfDay = 600, wakeMinOfDay = 630)) // 30 min → dropped
+        val w = SleepRegularity.windowedNights(ns, window = 14)
+        assertEquals(14, w.size)
+        assertTrue(w.all { it.durationMin >= SleepRegularity.MIN_DURATION_MIN })
+    }
 }
