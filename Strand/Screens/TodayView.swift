@@ -1028,6 +1028,23 @@ struct TodayView: View {
         if story.hasEnough { MonthlyStoryView(story: story) }
     }
 
+    // MARK: Achievements (earned milestone badges)
+
+    private func achievementsReport() -> Achievements.Report {
+        let summaries = streakSummaries()
+        func best(_ k: HealthStreaks.Kind) -> Int { summaries.first { $0.id == k }?.result.best ?? 0 }
+        let peak = repo.days.compactMap { $0.recovery }.max().map { Int($0.rounded()) } ?? 0
+        let tracked = repo.days.filter { $0.recovery != nil }.count
+        return Achievements.evaluate(scheduleBest: best(.steadySchedule), restedBest: best(.restedNights),
+                                     recoveryBest: best(.recoveryReady), peakRecovery: peak, daysTracked: tracked)
+    }
+
+    @ViewBuilder
+    private func achievementsSection() -> some View {
+        let report = achievementsReport()
+        if report.earnedCount > 0 { AchievementsView(report: report) }
+    }
+
     // MARK: What moves your recovery (personal correlations)
 
     /// Correlate Charge against the user's own sleep-quality factors (all keyed by the night's wake day,
@@ -1680,6 +1697,8 @@ struct TodayView: View {
                 // Meaningful health streaks (steady schedule, rested nights, recovery-ready) — kept-up
                 // habits judged against the user's own baseline. Today only (they're the run up to now).
                 if selectedDayOffset == 0 { streaksSection().staggeredAppear(index: 3) }
+                // Earned milestone badges — the collection you've built over time.
+                if selectedDayOffset == 0 { achievementsSection().staggeredAppear(index: 3) }
                 // S4: the SEPARATE Readiness block is no longer a home-screen card, it folded into the
                 // Charge-ring tap (chargeBreakdownSheet). A one-word readiness read (Push / Maintain / Rest,
                 // #205) stays on the hero via the Synthesis section's pill row, so the home screen keeps a
