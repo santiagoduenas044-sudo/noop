@@ -1009,6 +1009,25 @@ struct TodayView: View {
         if review.hasEnoughData { WeeklyReviewView(review: review) }
     }
 
+    // MARK: Monthly Story (long-term trend read)
+
+    private func monthlyStory() -> MonthlyStory.Story {
+        let days = repo.days.suffix(28)
+        let sleeps = Array(repo.sleeps.sorted { $0.effectiveStartTs < $1.effectiveStartTs }.suffix(28))
+        let hours = sleeps.map { Double(Swift.max(0, $0.endTs - $0.effectiveStartTs)) / 3600.0 }
+        let timing = sleeps.map { SleepTimingNight.from(onsetEpoch: $0.effectiveStartTs, wakeEpoch: $0.endTs) }
+        let sd = SleepRegularity.assess(nights: Array(timing)).midpointSDMinutes
+        let recs = days.compactMap { $0.recovery }
+        return MonthlyStory.build(.init(recoveries: recs, sleepHours: hours, scheduleSDMin: sd,
+                                        daysWithData: recs.count, totalDays: days.count))
+    }
+
+    @ViewBuilder
+    private func monthlyStorySection() -> some View {
+        let story = monthlyStory()
+        if story.hasEnough { MonthlyStoryView(story: story) }
+    }
+
     // MARK: What moves your recovery (personal correlations)
 
     /// Correlate Charge against the user's own sleep-quality factors (all keyed by the night's wake day,
@@ -1671,9 +1690,11 @@ struct TodayView: View {
                 // The week-scale story: wins, setbacks, and one thing to try. Today only; self-hides
                 // until there are a few days of data this week.
                 if selectedDayOffset == 0 { weeklyReviewSection().staggeredAppear(index: 7) }
+                // The month-scale trend read, paired beside the weekly review.
+                if selectedDayOffset == 0 { monthlyStorySection().staggeredAppear(index: 8) }
                 // "What moves your recovery": honest personal correlations (associations, not cause).
-                if selectedDayOffset == 0 { recoveryFactorsSection().staggeredAppear(index: 8) }
-                yourCardsSection.staggeredAppear(index: 9)
+                if selectedDayOffset == 0 { recoveryFactorsSection().staggeredAppear(index: 9) }
+                yourCardsSection.staggeredAppear(index: 10)
                 // Opt-in "looks like a workout?" suggestion (default OFF). Renders only when the
                 // Settings toggle is on AND the detector finds a recent unsaved, un-dismissed window.
                 AutoWorkoutCard()
