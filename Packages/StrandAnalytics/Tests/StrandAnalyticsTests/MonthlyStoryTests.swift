@@ -43,12 +43,12 @@ final class MonthlyStoryTests: XCTestCase {
         XCTAssertEqual(s.trend, .unknown)
     }
 
-    func testScheduleConsistencyAndSleepAverage() {
+    func testScheduleConsistencyAndSleepAverage() throws {
         let rec = Array(repeating: 65.0, count: 20)
         let sleep = Array(repeating: 7.4, count: 20)
         let consistent = MonthlyStory.build(input(rec, sleep: sleep, sd: 40))
         XCTAssertTrue(consistent.consistentSchedule)
-        XCTAssertEqual(consistent.avgSleepHours, 7.4, accuracy: 1e-9)
+        XCTAssertEqual(try XCTUnwrap(consistent.avgSleepHours), 7.4, accuracy: 1e-9)
 
         let drifting = MonthlyStory.build(input(rec, sleep: sleep, sd: 95))
         XCTAssertFalse(drifting.consistentSchedule)
