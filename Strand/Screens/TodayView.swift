@@ -1045,6 +1045,46 @@ struct TodayView: View {
         if report.earnedCount > 0 { AchievementsView(report: report) }
     }
 
+    // MARK: Your week (at-a-glance dashboard)
+
+    private static let weekGlanceParser: DateFormatter = {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = .current
+        f.dateFormat = "yyyy-MM-dd"
+        return f
+    }()
+    private static let weekGlanceWeekday: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = .current
+        f.setLocalizedDateFormatFromTemplate("EEEEE")   // narrow weekday (single letter)
+        return f
+    }()
+    private static func weekdayInitial(_ dayKey: String) -> String {
+        guard let d = weekGlanceParser.date(from: dayKey) else { return "" }
+        return weekGlanceWeekday.string(from: d)
+    }
+
+    private func weekGlanceDays() -> [WeekGlanceDay] {
+        var hoursByDay: [String: Double] = [:]
+        for s in repo.sleeps {
+            let d = SleepTimingNight.from(onsetEpoch: s.effectiveStartTs, wakeEpoch: s.endTs).day
+            hoursByDay[d] = Double(Swift.max(0, s.endTs - s.effectiveStartTs)) / 3600.0
+        }
+        let todayKey = Repository.logicalDayKey(Date())
+        return repo.days.suffix(7).map { m in
+            WeekGlanceDay(id: m.day, label: Self.weekdayInitial(m.day), recovery: m.recovery,
+                          sleepHours: hoursByDay[m.day], isToday: m.day == todayKey)
+        }
+    }
+
+    @ViewBuilder
+    private func weekGlanceSection() -> some View {
+        let days = weekGlanceDays()
+        if days.contains(where: { $0.recovery != nil }) { WeekGlanceView(days: days) }
+    }
+
     // MARK: What moves your recovery (personal correlations)
 
     /// Correlate Charge against the user's own sleep-quality factors (all keyed by the night's wake day,
@@ -1694,6 +1734,8 @@ struct TodayView: View {
                     .staggeredAppear(index: 1)
                 #endif
                 synthesisSection.staggeredAppear(index: 2)
+                // "Your week": a beautiful at-a-glance 7-day recovery + sleep dashboard.
+                if selectedDayOffset == 0 { weekGlanceSection().staggeredAppear(index: 3) }
                 // Meaningful health streaks (steady schedule, rested nights, recovery-ready) — kept-up
                 // habits judged against the user's own baseline. Today only (they're the run up to now).
                 if selectedDayOffset == 0 { streaksSection().staggeredAppear(index: 3) }
