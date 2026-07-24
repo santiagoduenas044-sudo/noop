@@ -3293,10 +3293,6 @@ struct TodayView: View {
 
     /// A full-width 24-hour heart-rate trend, plotted from 5-minute bucket means of the strap's
     /// `hrSample` history (offloaded even while the app was closed, so the day reads continuously).
-    /// When there are fewer than two buckets it shows an explicit calibrating/empty card rather than
-    /// vanishing , a sparse day used to render NOTHING, which read as a frozen graph (#863). Mirrored on
-    /// Android (TodayScreen.kt HeartRateTrendCard).
-    @ViewBuilder
     /// The user's 5-zone HR band set from the pure `HRZones` engine (Tanaka age formula). Falls back to a
     /// neutral age-30 max HR when no birth date is set, so the live monitor's zones are always sensible.
     private var hrZoneSet: HRZoneSet {
@@ -3315,6 +3311,10 @@ struct TodayView: View {
         }
     }
 
+    /// When there are fewer than two buckets it shows an explicit calibrating/empty card rather than
+    /// vanishing — a sparse day used to render NOTHING, which read as a frozen graph (#863). Mirrored on
+    /// Android (TodayScreen.kt HeartRateTrendCard).
+    @ViewBuilder
     private var heartRateTrendSection: some View {
         if hrPoints.count > 1 {
             let v = hrPoints.map(\.value)
