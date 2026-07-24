@@ -255,6 +255,14 @@ struct LiquidTodayView: View {
                         case .hero: heroCard
                         case .liveSession: if liveSessionsBeta { liveSessionStartRow }
                         case .synthesis: synthesisSection
+                        // NOOP's "much more than a dashboard" narrative — the Morning Briefing, the adaptive
+                        // Focus Hero, the ranked Today's Insights feed, Tomorrow's Outlook, the on-device
+                        // Coach, and the zoom-out reads. Today-only (a navigated past day shows its own row
+                        // verbatim, not today's forward-looking narrative); each piece self-gates on data.
+                        case .intelligence:
+                            if selectedDayOffset == 0 {
+                                TodayIntelligenceView(readinessLevel: readiness.level, restScore: restScore)
+                            }
                         case .keyMetrics: keyMetricsSection
                         case .workouts: lastWorkoutsSection
                         case .heartRate: heartRateSection
@@ -547,6 +555,12 @@ struct LiquidTodayView: View {
 
     // MARK: - Heart rate
 
+    /// The user's 5-zone HR band set, from the pure `HRZones` engine (Tanaka age formula). Falls back to a
+    /// neutral age-30 max HR when no birth date is set, so the live monitor's zones are always sensible.
+    private var hrZoneSet: HRZoneSet {
+        HRZones.zones(age: profile.age > 0 ? Double(profile.age) : 30)
+    }
+
     private var heartRateSection: some View {
         VStack(spacing: 8) {
             sectionHead("HEART RATE", trailing: "Live")
@@ -557,11 +571,13 @@ struct LiquidTodayView: View {
             // added that parity in FullDayChartView.)
             NavigationLink(value: TabRoute.fullDayChart) {
                 card {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 12) {
                         // Isolated leaf: it observes LiveState so the ~1 Hz HR notifies re-render ONLY
-                        // this card, never the whole Today. Shows the current bpm live with a rolling
-                        // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
-                        LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded)
+                        // this card, never the whole Today. A live heart that pulses at the ACTUAL rate,
+                        // the current bpm + HR zone, a rolling beat-by-beat trace, and live min/avg/max;
+                        // falls back to today's banked 5-minute trace when idle.
+                        LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded,
+                                     zoneSet: hrZoneSet)
                         HStack(spacing: 4) {
                             Spacer()
                             Text("Full day").font(StrandFont.caption).foregroundStyle(StrandPalette.accent)
@@ -1650,77 +1666,202 @@ private struct LiquidAddButton: View {
 /// never the whole Today (the isolation the classic Today depends on). Keeps its own rolling buffer of
 /// live samples, shows the current bpm live with a beat-by-beat trace, and falls back to today's banked
 /// 5-minute trace when the strap isn't streaming.
+/// A small, copy-owning map from an HR-zone number (0 = resting … 5 = peak) to its display name + accent.
+/// The pure `HRZones` engine owns the boundaries; this owns the words + design tokens so the engine stays
+/// copy-free. Colours run a cool→warm ramp (rest blue → peak rose) so the zone reads at a glance.
+private enum HRZoneStyle {
+    static func name(_ z: Int) -> String {
+        switch z {
+        case 1: return String(localized: "Warm up")
+        case 2: return String(localized: "Light")
+        case 3: return String(localized: "Moderate")
+        case 4: return String(localized: "Hard")
+        case 5: return String(localized: "Peak")
+        default: return String(localized: "Resting")
+        }
+    }
+    static func color(_ z: Int) -> Color {
+        switch z {
+        case 1: return StrandPalette.restColor
+        case 2: return StrandPalette.chargeColor
+        case 3: return StrandPalette.metricAmber
+        case 4: return StrandPalette.effortColor
+        case 5: return StrandPalette.metricRose
+        default: return StrandPalette.textTertiary
+        }
+    }
+}
+
+/// The Home live heart-rate monitor. A heart that PULSES at the actual rate (period = 60/bpm, a lub-dub
+/// envelope), the big live bpm + its HR zone, a five-band zone ladder with the active band lit, a rolling
+/// beat-by-beat trace, and live min/avg/max. Falls back to today's banked 5-minute trace when idle. An
+/// isolated `LiveState` leaf so the ~1 Hz HR notifies re-render only this card, never the whole Today.
 private struct LiquidLiveHR: View {
     var tint: Color
     var fallback: [Double]        // today's banked 5-minute buckets — shown when there's no live stream
     var animated: Bool
+    var zoneSet: HRZoneSet
 
     @EnvironmentObject private var live: LiveState
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var samples: [Double] = []
-    @State private var beat = false
-    private let maxSamples = 90   // ~1.5 min of 1 Hz live HR, enough to read the shape
+    private let maxSamples = 120   // ~2 min of 1 Hz live HR, enough to read the shape
 
-    private var isLive: Bool { live.connected && samples.count >= 2 }
-    private var series: [Double] { isLive ? samples : fallback }
-    private var bigBpm: Int? {
-        if let hr = live.heartRate, hr > 0, live.connected { return hr }
-        if let last = fallback.last { return Int(last.rounded()) }
-        return nil
+    /// A fresh live beat is streaming right now (drives the pulsing heart + the LIVE pill).
+    private var liveBpm: Int? {
+        guard live.connected, let hr = live.heartRate, hr > 0 else { return nil }
+        return hr
     }
-    private var subtitle: String {
-        if isLive { return String(localized: "Live · beat by beat") }
-        if fallback.count >= 2 { return String(localized: "5-minute average · since midnight") }
-        return live.connected ? String(localized: "Waiting for the strap") : String(localized: "Strap not connected")
-    }
+    private var isStreaming: Bool { liveBpm != nil }
+    /// The number the hero shows — the live beat, else today's most recent banked value.
+    private var currentBpm: Int? { liveBpm ?? fallback.last.map { Int($0.rounded()) } }
+    private var currentZone: Int? { currentBpm.map { zoneSet.zoneNumber(forBPM: Double($0)) } }
+    /// The trace series: the live rolling buffer once it has shape, else today's banked buckets.
+    private var series: [Double] { samples.count >= 2 ? samples : fallback }
+    private var animateHeart: Bool { isStreaming && animated && !reduceMotion }
+
+    private var statusText: String {
+        if !live.connected { return String(localized: "Strap not connected") }
+        if live.worn == false { return String(localized: "Strap is off your wrist") }
+        if isStreaming { return String(localized: "Live · beat by beat") }
+        if fallback.count >= 2 { return String(localized: "5-min average · since midnight") }
+        return String(localized: "Waiting for the strap") }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("BEATS PER MINUTE").font(StrandFont.overline).tracking(1.6)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                    Text(subtitle).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
-                }
-                Spacer()
-                if isLive {
-                    // A gentle heartbeat dot that pulses with each incoming sample.
-                    Circle().fill(tint).frame(width: 7, height: 7)
-                        .scaleEffect(beat ? 1.35 : 0.85)
-                        .opacity(beat ? 1 : 0.45)
-                        .animation(.easeOut(duration: 0.28), value: beat)
-                        .padding(.trailing, 2)
-                }
-                if let hr = bigBpm {
-                    (Text("\(hr)").font(StrandFont.rounded(22)).monospacedDigit()
-                        + Text(" bpm").font(StrandFont.caption))
-                        .foregroundStyle(tint)
-                        .contentTransition(.numericText())
-                        .animation(.easeOut(duration: 0.25), value: hr)
-                }
-            }
+        VStack(alignment: .leading, spacing: 14) {
+            header
+            heroRow
+            if currentZone != nil { zoneLadder }
             if series.count >= 2 {
-                LiquidThread(bpm: series, tint: tint, height: 92, animated: animated)
-                HStack {
-                    stat(String(localized: "Min"), series.min())
-                    Spacer()
-                    stat(String(localized: "Avg"), series.reduce(0, +) / Double(series.count))
-                    Spacer()
-                    stat(String(localized: "Max"), series.max())
-                }
-            } else {
+                LiquidThread(bpm: series, tint: tint, height: 84, animated: animated)
+                statsRow
+            } else if !isStreaming {
                 Text(live.connected ? "Waiting for a live heartbeat…" : "Connect your strap to see live heart rate")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.vertical, 24)
+                    .padding(.vertical, 18)
             }
         }
-        .onAppear { if samples.isEmpty, let hr = live.heartRate, hr > 0 { samples = [Double(hr)] } }
+        .onAppear { if samples.isEmpty, let hr = liveBpm { samples = [Double(hr)] } }
         .onChangeCompat(of: live.heartRate) { hr in
-            guard let hr, hr > 0 else { return }
+            guard let hr, hr > 0, live.connected else { return }
             samples.append(Double(hr))
             if samples.count > maxSamples { samples.removeFirst(samples.count - maxSamples) }
-            beat.toggle()
+        }
+    }
+
+    // MARK: header (title + status + LIVE pill)
+
+    private var header: some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("HEART RATE").font(StrandFont.overline).tracking(1.6)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                Text(statusText).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+            }
+            Spacer()
+            if isStreaming { livePill }
+        }
+    }
+
+    private var livePill: some View {
+        HStack(spacing: 5) {
+            PulsingLiveDot(color: tint, animate: animated && !reduceMotion)
+            Text("LIVE").font(StrandFont.overlineScaled(9)).tracking(1.4)
+                .foregroundStyle(tint)
+        }
+        .padding(.horizontal, 9).padding(.vertical, 4)
+        .background(Capsule().fill(tint.opacity(0.14))
+            .overlay(Capsule().strokeBorder(tint.opacity(0.3), lineWidth: 1)))
+    }
+
+    // MARK: hero (pulsing heart + big bpm + zone)
+
+    private var heroRow: some View {
+        HStack(alignment: .center, spacing: 14) {
+            heart
+            VStack(alignment: .leading, spacing: 1) {
+                if let hr = currentBpm {
+                    (Text("\(hr)").font(StrandFont.rounded(42)).monospacedDigit()
+                        .foregroundColor(StrandPalette.textPrimary)
+                        + Text(" bpm").font(StrandFont.body).foregroundColor(StrandPalette.textTertiary))
+                        .contentTransition(.numericText())
+                        .animation(.easeOut(duration: 0.25), value: hr)
+                } else {
+                    Text("––").font(StrandFont.rounded(42)).foregroundStyle(StrandPalette.textTertiary)
+                }
+                if let z = currentZone {
+                    (Text(z >= 1 ? String(format: String(localized: "Zone %ld · "), z) : "")
+                        .font(StrandFont.caption).foregroundColor(StrandPalette.textTertiary)
+                     + Text(HRZoneStyle.name(z))
+                        .font(StrandFont.caption.weight(.semibold)).foregroundColor(HRZoneStyle.color(z)))
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    /// The pulsing heart. When a live beat is streaming it beats at the real rate (period = 60/bpm) with a
+    /// lub-dub envelope, driven by an animation TimelineView inside this isolated leaf; otherwise it rests.
+    @ViewBuilder private var heart: some View {
+        let color = currentZone.map { HRZoneStyle.color($0) } ?? tint
+        if animateHeart, let bpm = liveBpm {
+            TimelineView(.animation) { tl in
+                let s = Self.heartScale(bpm: bpm, at: tl.date)
+                heartGlyph(color: color, scale: s)
+            }
+        } else {
+            heartGlyph(color: color, scale: 1)
+        }
+    }
+
+    private func heartGlyph(color: Color, scale: CGFloat) -> some View {
+        Image(systemName: "heart.fill")
+            .font(.system(size: 34))
+            .foregroundStyle(color)
+            .scaleEffect(scale)
+            .shadow(color: color.opacity(0.55), radius: 10 * max(0, scale - 0.98))
+            .frame(width: 46, height: 46)
+            .accessibilityHidden(true)
+    }
+
+    /// Heartbeat scale at a given instant: a double-bump (lub-dub) envelope over one beat period.
+    static func heartScale(bpm: Int, at date: Date) -> CGFloat {
+        let bps = Swift.max(0.3, Double(bpm) / 60.0)
+        let phase = (date.timeIntervalSinceReferenceDate * bps).truncatingRemainder(dividingBy: 1)
+        func bump(_ x: Double, _ c: Double, _ w: Double) -> Double { exp(-pow((x - c) / w, 2)) }
+        // "lub" at the start of the beat (wrapped at 1.0), a smaller "dub" shortly after.
+        let lub = bump(phase, 0.0, 0.06) + bump(phase, 1.0, 0.06)
+        let dub = 0.5 * bump(phase, 0.17, 0.05)
+        return 1.0 + 0.22 * CGFloat(Swift.min(1.0, lub + dub))
+    }
+
+    // MARK: zone ladder (5 bands, active one lit)
+
+    private var zoneLadder: some View {
+        HStack(alignment: .bottom, spacing: 4) {
+            ForEach(1...5, id: \.self) { z in
+                let on = currentZone == z
+                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                    .fill(on ? HRZoneStyle.color(z) : HRZoneStyle.color(z).opacity(0.16))
+                    .frame(height: on ? 10 : 6)
+                    .animation(.easeOut(duration: 0.3), value: on)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(currentZone.map { Text(HRZoneStyle.name($0)) } ?? Text("Resting"))
+    }
+
+    // MARK: live stats
+
+    private var statsRow: some View {
+        HStack {
+            stat(String(localized: "Min"), series.min())
+            Spacer()
+            stat(String(localized: "Avg"), series.reduce(0, +) / Double(series.count))
+            Spacer()
+            stat(String(localized: "Max"), series.max())
         }
     }
 
@@ -1729,6 +1870,26 @@ private struct LiquidLiveHR: View {
             Text(label).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
             Text(v.map { String(Int($0.rounded())) } ?? "–")
                 .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
+        }
+    }
+}
+
+/// A small dot that softly pulses to signal a live stream (the LIVE pill). Its own TimelineView so it
+/// animates independently of the beat-synced heart, and rests as a static dot when motion is reduced.
+private struct PulsingLiveDot: View {
+    var color: Color
+    var animate: Bool
+    var body: some View {
+        if animate {
+            TimelineView(.animation) { tl in
+                let t = tl.date.timeIntervalSinceReferenceDate
+                let p = 0.5 + 0.5 * sin(t * 3.0)   // ~0.5 Hz gentle breathe
+                Circle().fill(color).frame(width: 7, height: 7)
+                    .scaleEffect(0.8 + 0.3 * CGFloat(p))
+                    .opacity(0.5 + 0.5 * p)
+            }
+        } else {
+            Circle().fill(color).frame(width: 7, height: 7)
         }
     }
 }

@@ -22,6 +22,12 @@ enum TodaySection: String, CaseIterable, Identifiable {
     case hero
     case liveSession
     case synthesis
+    /// NOOP's "much more than a dashboard" narrative block (iPhone-first): the Morning Briefing, the
+    /// leading-domain Focus Hero, the ranked Today's Insights feed, Tomorrow's Outlook, the on-device
+    /// Coach, and the zoom-out reads (Your Week, Streaks, Achievements, Weekly Review, Monthly Story,
+    /// What Moves Your Recovery). Each piece self-gates on having enough history, so a cold start stays
+    /// quiet. The Android twin does not yet reimplement this block; its decoder ignores the unknown token.
+    case intelligence
     case keyMetrics
     case workouts
     case heartRate
@@ -37,6 +43,7 @@ enum TodaySection: String, CaseIterable, Identifiable {
         case .hero:           return String(localized: "Charge / Effort / Rest")
         case .liveSession:    return String(localized: "Start session")
         case .synthesis:      return String(localized: "Synthesis")
+        case .intelligence:   return String(localized: "Insights & Coaching")
         case .keyMetrics:     return String(localized: "Key Metrics")
         case .workouts:       return String(localized: "Workouts")
         case .heartRate:      return String(localized: "Heart Rate")
@@ -46,11 +53,12 @@ enum TodaySection: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The original, hard-coded section order — the default when the layout isn't customised. The journal
-    /// widget (#656) is last by default, where it was first added, above the data-sources card.
+    /// The original, hard-coded section order — the default when the layout isn't customised. The
+    /// intelligence block sits just under the compact Synthesis pills so the rich narrative leads the
+    /// scroll; the journal widget (#656) is last by default, above the data-sources card.
     static let defaultOrder: [TodaySection] = [
-        .hero, .liveSession, .synthesis, .keyMetrics, .workouts, .heartRate, .recoveryVitals, .yourCards,
-        .journal,
+        .hero, .liveSession, .synthesis, .intelligence, .keyMetrics, .workouts, .heartRate, .recoveryVitals,
+        .yourCards, .journal,
     ]
 }
 

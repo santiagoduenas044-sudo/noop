@@ -13,23 +13,23 @@ final class TodayLayoutPrefsTests: XCTestCase {
 
     func testEncodeDecodeRoundTripsAReorderedList() {
         let reordered: [TodaySection] = [
-            .heartRate, .hero, .yourCards, .liveSession, .synthesis, .keyMetrics, .workouts, .recoveryVitals,
-            .journal,
+            .heartRate, .hero, .yourCards, .liveSession, .synthesis, .intelligence, .keyMetrics, .workouts,
+            .recoveryVitals, .journal,
         ]
         let encoded = TodayLayoutPrefs.encode(reordered)
-        XCTAssertEqual(encoded, "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal")
+        XCTAssertEqual(encoded, "heartRate,hero,yourCards,liveSession,synthesis,intelligence,keyMetrics,workouts,recoveryVitals,journal")
         XCTAssertEqual(TodayLayoutPrefs.decodeOrder(encoded), reordered)
     }
 
     /// The v1 upgrade path: an order saved by the FIRST cut (6 sections — no hero/liveSession, which were
-    /// pinned then) must surface the two new sections at the TOP (their default position), not teleport
-    /// them to the bottom of the user's saved order.
+    /// pinned then) must surface the newer sections at their default position, not teleport them to the
+    /// bottom of the user's saved order. The iOS-only intelligence block lands just after synthesis.
     func testSavedOrderFromFirstCutInsertsHeroAndSessionAtTheirDefaultPosition() {
         let firstCut = "synthesis,keyMetrics,workouts,heartRate,recoveryVitals,yourCards"
         XCTAssertEqual(
             TodayLayoutPrefs.decodeOrder(firstCut),
-            // journal(8) follows everything saved → appended.
-            [.hero, .liveSession, .synthesis, .keyMetrics, .workouts, .heartRate, .recoveryVitals, .yourCards, .journal]
+            // journal(9) follows everything saved → appended; intelligence(3) lands right after synthesis.
+            [.hero, .liveSession, .synthesis, .intelligence, .keyMetrics, .workouts, .heartRate, .recoveryVitals, .yourCards, .journal]
         )
     }
 
@@ -37,7 +37,7 @@ final class TodayLayoutPrefsTests: XCTestCase {
         let partial = "heartRate,synthesis,keyMetrics,recoveryVitals"
         XCTAssertEqual(
             TodayLayoutPrefs.decodeOrder(partial),
-            [.hero, .liveSession, .workouts, .heartRate, .synthesis, .keyMetrics, .recoveryVitals, .yourCards, .journal]
+            [.hero, .liveSession, .intelligence, .workouts, .heartRate, .synthesis, .keyMetrics, .recoveryVitals, .yourCards, .journal]
         )
     }
 
@@ -45,7 +45,7 @@ final class TodayLayoutPrefsTests: XCTestCase {
         let messy = "yourCards,BOGUS,yourCards,heartRate, ,heartRate"
         XCTAssertEqual(
             TodayLayoutPrefs.decodeOrder(messy),
-            [.hero, .liveSession, .synthesis, .keyMetrics, .workouts, .recoveryVitals, .yourCards, .heartRate, .journal]
+            [.hero, .liveSession, .synthesis, .intelligence, .keyMetrics, .workouts, .recoveryVitals, .yourCards, .heartRate, .journal]
         )
     }
 
@@ -63,10 +63,14 @@ final class TodayLayoutPrefsTests: XCTestCase {
     func testSectionRawKeysAreStableAndUnique() {
         let raws = TodaySection.allCases.map(\.rawValue)
         XCTAssertEqual(raws.count, Set(raws).count, "raw keys must be unique (they're the persisted identity)")
-        // Pin the exact wire strings — they must match the Android TodaySection byte-for-byte.
+        // Pin the exact wire strings. Every key here EXCEPT `intelligence` must match the Android
+        // TodaySection byte-for-byte; `intelligence` is an iPhone-only narrative block the Android twin does
+        // not yet reimplement, and its decoder ignores the unknown token, so the wire format stays
+        // cross-compatible (an iOS order restored on Android drops it; an Android order restored on iOS
+        // re-inserts it at its default position).
         XCTAssertEqual(
             raws,
-            ["hero", "liveSession", "synthesis", "keyMetrics", "workouts", "heartRate", "recoveryVitals", "yourCards", "journal"]
+            ["hero", "liveSession", "synthesis", "intelligence", "keyMetrics", "workouts", "heartRate", "recoveryVitals", "yourCards", "journal"]
         )
     }
 }
