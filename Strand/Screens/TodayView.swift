@@ -1747,6 +1747,8 @@ struct TodayView: View {
                 // glanceable verdict without the full card. Readiness is NOT deleted, only moved behind a tap.
                 metricsSection.staggeredAppear(index: 4)
                 workoutsSection.staggeredAppear(index: 5)
+                // The real-time HR monitor (today only) sits above the whole-day trend chart.
+                if selectedDayOffset == 0 { liveHeartRateSection.staggeredAppear(index: 6) }
                 heartRateTrendSection.staggeredAppear(index: 6)
                 // The week-scale story: wins, setbacks, and one thing to try. Today only; self-hides
                 // until there are a few days of data this week.
@@ -3295,6 +3297,24 @@ struct TodayView: View {
     /// vanishing , a sparse day used to render NOTHING, which read as a frozen graph (#863). Mirrored on
     /// Android (TodayScreen.kt HeartRateTrendCard).
     @ViewBuilder
+    /// The user's 5-zone HR band set from the pure `HRZones` engine (Tanaka age formula). Falls back to a
+    /// neutral age-30 max HR when no birth date is set, so the live monitor's zones are always sensible.
+    private var hrZoneSet: HRZoneSet {
+        HRZones.zones(age: profile.age > 0 ? Double(profile.age) : 30)
+    }
+
+    /// The real-time heart-rate monitor (today only): a heart that pulses at the actual rate, the live bpm
+    /// and its HR zone, a five-band zone ladder, a rolling beat-by-beat trace, and live min/avg/max. Sits
+    /// above the whole-day trend chart. Its own `LiveState` leaf, so the ~1 Hz HR notifies re-render only
+    /// this card, never the rest of Today.
+    private var liveHeartRateSection: some View {
+        StrandCard {
+            LiveHeartRateCard(tint: StrandPalette.metricRose,
+                              fallback: hrPoints.map(\.value),
+                              animated: true, zoneSet: hrZoneSet)
+        }
+    }
+
     private var heartRateTrendSection: some View {
         if hrPoints.count > 1 {
             let v = hrPoints.map(\.value)

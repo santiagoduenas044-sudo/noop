@@ -40,13 +40,9 @@ struct RootTabView: View {
     @AppStorage(MoreSectionPrefs.storageKey) private var expandedMoreSectionsCSV = MoreSectionPrefs.defaultCSV
     private var expandedMoreSections: Set<String> { MoreSectionPrefs.decode(expandedMoreSectionsCSV) }
 
-    /// V8 liquid redesign is the default Today; the Settings toggle lets a user fall back to the classic
-    /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
-    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
-
-    /// The Today tab root, honouring the liquid/classic preference.
+    /// The Today tab root — the single Today home.
     @ViewBuilder private var todayTabRoot: some View {
-        if liquidTodayEnabled { LiquidTodayView() } else { TodayView() }
+        TodayView()
     }
 
     init() {
@@ -199,7 +195,7 @@ struct RootTabView: View {
                 case .activeWorkout: LiveView()
                 // .liveSession routes to the Today tab (handled above — its Start entry owns the cover);
                 // this keeps the switch exhaustive and falls back to Today if it ever reaches the host.
-                case .liveSession: LiquidTodayView()
+                case .liveSession: TodayView()
                 // .journal opens through the quick-action Journal sheet (handled above); this keeps the
                 // switch exhaustive and falls back to the journal's Insights host if it ever reaches here.
                 case .journal: InsightsView()
@@ -639,31 +635,22 @@ private struct FloatingTabBar: View {
                        Item(title: "More", icon: "ellipsis", tag: 3)]
 
     var body: some View {
-        // One frosted glass bar, four evenly-spaced tabs. The quick-action "+" now lives in the
-        // top-right of each screen's header (balancing the profile avatar on the left).
+        // One clean, solid bar, four evenly-spaced tabs. The quick-action "+" lives in the top-right of
+        // each screen's header (balancing the profile avatar on the left).
         HStack(spacing: 2) {
             tabButton(nav[0])
             tabButton(nav[1])
             tabButton(nav[2])
             tabButton(nav[3])
         }
-        .padding(.vertical, 7)
+        .padding(.vertical, 8)
         .padding(.horizontal, 8)
-        .liquidGlass(in: Capsule())
-        // Over the liquid Today the sky ends at ~340pt, so the bar floats on flat opaque surfaceBase —
-        // a blur material has nothing to dissolve and hardens into a solid lozenge (2026-07-02:
-        // "clips into a solid shape"). A faint translucent scrim INSIDE the same Capsule keeps the pill
-        // reading as tinted glass, not a slab, even against dead-flat colour.
-        .background(.white.opacity(0.06), in: Capsule())
-        // Soft top-lit rim instead of one hard hairline, so there's no crisp cut-out edge.
-        .overlay(
-            Capsule().strokeBorder(
-                LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.04)],
-                               startPoint: .top, endPoint: .bottom),
-                lineWidth: 0.75)
+        // A flat raised surface with a hairline edge — the prototype card aesthetic, no glass.
+        .background(
+            Capsule().fill(StrandPalette.surfaceRaised)
+                .overlay(Capsule().strokeBorder(StrandPalette.hairline, lineWidth: 1))
         )
-        // Lighter, wider shadow: real elevation without stamping a dark halo on the flat canvas.
-        .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 8)
+        .shadow(color: .black.opacity(0.22), radius: 16, x: 0, y: 6)
         .padding(.horizontal, 22)
         .padding(.bottom, 4)
     }
@@ -693,19 +680,5 @@ private struct FloatingTabBar: View {
         .accessibilityAddTraits(active ? [.isButton, .isSelected] : .isButton)
     }
 
-}
-
-// MARK: - Liquid Glass (iOS 26) with a Material fallback
-
-private extension View {
-    /// Real iOS 26 Liquid Glass where available; `.ultraThinMaterial` on iOS 17–25 — a clean
-    /// blended degrade so the bar stays modern on new OSes without breaking older ones.
-    @ViewBuilder func liquidGlass(in shape: some Shape) -> some View {
-        if #available(iOS 26.0, *) {
-            self.glassEffect(.regular, in: shape)
-        } else {
-            self.background(.ultraThinMaterial, in: shape)
-        }
-    }
 }
 #endif

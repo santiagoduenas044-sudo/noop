@@ -164,9 +164,11 @@ struct LiquidScaffoldSky: View {
     }
 }
 
-func liquidScaffoldSky(height: CGFloat = 240) -> AnyView {
-    AnyView(LiquidScaffoldSky(height: height))
-}
+// The day-cycle "liquid sky" behind scaffolds has been retired in favour of the flat, prototype-consistent
+// surfaceBase canvas. This now returns nil so every `ScreenScaffold(topBackground:)` call site renders flat
+// with theme-token headers, without touching each call site. (The LiquidScaffoldSky/LiquidSkyStatic bodies
+// above are retained but unused pending a follow-up cleanup pass.)
+func liquidScaffoldSky(height: CGFloat = 240) -> AnyView? { nil }
 
 /// A STATIC time-of-day sky, rendered ONCE (no TimelineView → CoreAnimation caches it as a stable layer,
 /// zero per-frame cost) for the scaffold backgrounds on the chart-heavy tabs. An always-animating Canvas
