@@ -40,9 +40,10 @@ struct RootTabView: View {
     @AppStorage(MoreSectionPrefs.storageKey) private var expandedMoreSectionsCSV = MoreSectionPrefs.defaultCSV
     private var expandedMoreSections: Set<String> { MoreSectionPrefs.decode(expandedMoreSectionsCSV) }
 
-    /// The Today tab root — the single Today home.
+    /// The Today tab root — the from-scratch redesign Home (RedesignHomeView). The classic `TodayView`
+    /// stays in the tree (macOS root / fallback) while the redesign is built out screen by screen.
     @ViewBuilder private var todayTabRoot: some View {
-        TodayView()
+        RedesignHomeView()
     }
 
     init() {
