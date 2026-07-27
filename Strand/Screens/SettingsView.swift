@@ -1795,15 +1795,24 @@ struct SettingsView: View {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? AppChangelog.currentVersion
     }
 
+    /// The exact build running: version · build date · git short hash. The date + hash are injected at
+    /// build time by CI (project.yml GitCommitSHA / BuildDate ← GIT_COMMIT_SHA / BUILD_DATE); a local dev
+    /// build shows the "dev"/"local" defaults. So you can always tell precisely which commit is installed.
+    private var buildIdentifierString: String {
+        let sha = (Bundle.main.infoDictionary?["GitCommitSHA"] as? String) ?? "dev"
+        let date = (Bundle.main.infoDictionary?["BuildDate"] as? String) ?? "local"
+        return "v\(bundleVersionString) · \(date) · \(sha)"
+    }
+
     private var aboutCard: some View {
         SettingsSection(
             icon: "info.circle.fill",
             title: "About",
-            blurb: "NOOP: all your data, none of the cloud."
+            blurb: "Loop: all your data, none of the cloud."
         ) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack(spacing: 10) {
-                    Text("NOOP")
+                    Text("Loop")
                         .font(StrandFont.title2)
                         .foregroundStyle(StrandPalette.textPrimary)
                     StatePill("v\(bundleVersionString)", tone: .neutral, showsDot: false)
@@ -1812,6 +1821,13 @@ struct SettingsView: View {
                         showWhatsNew = true
                     }
                 }
+
+                // Exact build identifier — version · build date · git short hash — so you always know
+                // precisely which commit is running on-device.
+                Text(buildIdentifierString)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .textSelection(.enabled)
 
                 // How NOOP works — the plain-English primer: how sleep is sorted, how scores +
                 // calibration work, what recording means, and where the provenance badges come

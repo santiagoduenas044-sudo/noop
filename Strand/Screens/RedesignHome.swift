@@ -169,7 +169,7 @@ struct RedesignHomeView: View {
             let t = Text(s); return c != nil ? t.foregroundColor(c!) : t.foregroundColor(StrandPalette.textPrimary)
         }
         guard let rec else {
-            return seg("NOOP is learning your baseline. Wear your strap a few nights — or import your WHOOP history in Settings to light everything up today.", StrandPalette.textSecondary)
+            return seg("Loop is learning your baseline. Wear your strap a few nights — or import your WHOOP history in Settings to light everything up today.", StrandPalette.textSecondary)
         }
         var out = seg("You ")
         if rec >= 67 { out = out + seg("recovered well overnight — recovery is strong at \(Int(rec.rounded()))", MetricAccent.recovery) }
