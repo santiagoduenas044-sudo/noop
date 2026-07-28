@@ -5,9 +5,10 @@ import SwiftUI
 
 // MARK: - Sparkline (§9.4 Today / Live HR tile)
 //
-// A tiny inline line for live HR (or any short numeric series). Gradient-stroked,
-// with an optional crisp leading dot at the latest sample and a faint area
-// wash (WHOOP-flat: no bloom). Designed to sit in a card/tile or the menu-bar popover.
+// A tiny inline line for live HR (or any short numeric series). FLAT single-colour stroke
+// (one colour per metric, not a value-graded rainbow across the line), with an optional crisp
+// leading dot at the latest sample and a faint area wash fading to clear — no gradient line, no
+// bloom. Designed to sit in a card/tile or the menu-bar popover.
 
 public struct Sparkline: View {
 
@@ -65,15 +66,16 @@ public struct Sparkline: View {
         return (lo - pad, hi + pad)
     }
 
-    /// The area-wash top colour (gradient sampled at 0.7, dimmed). Computed once per body eval instead of
-    /// re-sampling the gradient inside the ZStack on every draw.
-    private var areaWashColor: Color {
-        StrandPalette.sample(stops: gradient.stops, at: 0.7).opacity(0.22)
-    }
-    /// The head-dot ring colour (gradient sampled at its bright end). Computed once per body eval.
-    private var headColor: Color {
+    /// The line's single flat identity colour — the gradient's bright end, sampled ONCE and used
+    /// for the stroke, the head dot and the area wash. A sparkline reads as one quiet colour per
+    /// metric, not a rainbow blended across x. Computed once per body eval.
+    private var flatColor: Color {
         StrandPalette.sample(stops: gradient.stops, at: 1.0)
     }
+    /// The area-wash top colour — the flat line colour, dimmed.
+    private var areaWashColor: Color { flatColor.opacity(0.16) }
+    /// The head-dot ring colour — the same flat line colour.
+    private var headColor: Color { flatColor }
 
     public var body: some View {
         GeometryReader { geo in
@@ -98,7 +100,7 @@ public struct Sparkline: View {
                     if pts.count > 1 {
                         linePath(pts)
                             .stroke(
-                                LinearGradient(gradient: gradient, startPoint: .leading, endPoint: .trailing),
+                                flatColor,
                                 style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round)
                             )
                     }
@@ -157,11 +159,8 @@ public struct Sparkline: View {
         return String(localized: "Trend, \(values.count) points, latest \(valueFormat(last)), low \(valueFormat(lo)), high \(valueFormat(hi))", bundle: .module)
     }
 
-    /// The gradient colour at a sample's normalized position along the line.
-    private func sampleColor(forIndex idx: Int) -> Color {
-        let pos = values.count > 1 ? Double(idx) / Double(values.count - 1) : 1.0
-        return StrandPalette.sample(stops: gradient.stops, at: pos)
-    }
+    /// The hover-highlight colour for a sample — the line's one flat colour, not a per-position blend.
+    private func sampleColor(forIndex idx: Int) -> Color { flatColor }
 
     private func points(in size: CGSize) -> [CGPoint] {
         guard !values.isEmpty else { return [] }

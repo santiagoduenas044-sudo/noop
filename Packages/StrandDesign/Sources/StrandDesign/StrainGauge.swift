@@ -5,10 +5,9 @@ import SwiftUI
 
 // MARK: - Strain Gauge (§9.1 strain ramp)
 //
-// Blue Effort gauge for the strain/effort scale (WHOOP: the always-blue effort ramp,
-// no gold). Same open-gauge instrument language as the Recovery Ring, but cardiovascular
-// output instead of the value-based recovery scale. Filled to strain/outOf of a 240° arc,
-// flat and crisp (no bloom) with a clean leading bead at the tip.
+// Terracotta Effort gauge for the strain/effort scale — one flat colour, no value-based
+// rainbow. Same open-gauge instrument language as the Recovery Ring: a thin flat-colour arc,
+// filled to strain/outOf of a 240° span, no gradient, no bloom, no end-cap bead.
 //
 // `outOf` is the maximum of the scale the passed `strain` is ON (default 21 for the
 // WHOOP Day-Strain axis). The Effort hero gauge passes the value already converted to
@@ -39,7 +38,7 @@ public struct StrainGauge: View {
         outOf: Double = 21,
         supporting: String? = nil,
         diameter: CGFloat = 200,
-        lineWidth: CGFloat = 14,
+        lineWidth: CGFloat = 5,
         showsLabel: Bool = true,
         showsHover: Bool = true,
         valueFormat: @escaping (Double) -> String = { String(format: "Strain %.1f", $0) }
