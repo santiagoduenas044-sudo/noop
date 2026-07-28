@@ -108,18 +108,82 @@ struct RedesignHomeView: View {
 
     private var days: [DailyMetric] { repo.days }
 
+    /// Whether Loop has ANY real metric yet. A fresh app (new bundle id) starts empty, so this gates the
+    /// first-run onboarding (import history) vs the normal Home.
+    private var hasAnyData: Bool {
+        days.contains { $0.recovery != nil || $0.avgHrv != nil || $0.totalSleepMin != nil || $0.restingHr != nil }
+    }
+
+    // MARK: first-run onboarding (bring your history in)
+
+    private var onboardingCard: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("BRING YOUR HISTORY IN").strandMicro().padding(.bottom, 10)
+            Text("Loop is a fresh app")
+                .font(StrandFont.rounded(26, weight: .heavy)).foregroundStyle(StrandPalette.textPrimary)
+            Text("See your full history right now by importing your WHOOP data export — it brings in everything, not just the last few days. Or pair your strap and Loop will pull whatever it still holds (the strap only keeps what your WHOOP app hasn't already synced).")
+                .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 8)
+
+            NavigationLink { DataSourcesView() } label: {
+                onboardRow(icon: "square.and.arrow.down.fill", tint: MetricAccent.recovery,
+                           title: "Import your WHOOP history",
+                           sub: "app.whoop.com → Data → export (.zip)", primary: true)
+            }
+            .buttonStyle(.plain).padding(.top, 20)
+
+            NavigationLink { DevicesView() } label: {
+                onboardRow(icon: "dot.radiowaves.left.and.right", tint: MetricAccent.hrv,
+                           title: "Pair your WHOOP strap", sub: "syncs recent data over Bluetooth", primary: false)
+            }
+            .buttonStyle(.plain).padding(.top, 10)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 26, style: .continuous).fill(StrandPalette.surfaceRaised))
+        .noopSoftShadow()
+        .padding(.top, 8)
+    }
+
+    private func onboardRow(icon: String, tint: Color, title: LocalizedStringKey, sub: LocalizedStringKey, primary: Bool) -> some View {
+        HStack(spacing: 13) {
+            Image(systemName: icon).font(.system(size: 17, weight: .semibold))
+                .foregroundStyle(primary ? StrandPalette.surfaceBase : tint)
+                .frame(width: 40, height: 40)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(primary ? tint : tint.opacity(0.16)))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(StrandFont.subhead.weight(.semibold)).foregroundStyle(StrandPalette.textPrimary)
+                Text(sub).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(StrandPalette.surfaceInset))
+    }
+
     var body: some View {
         ZStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     header
-                    Text("Morning briefing").strandMicro().padding(.bottom, 12)
-                    briefing.font(StrandFont.title2.weight(.semibold)).lineSpacing(4)
-                        .fixedSize(horizontal: false, vertical: true)
-                    coachEntry
-                    Text("Right now").strandMicro().padding(.top, 34).padding(.bottom, 2)
-                    ForEach(homeMetrics) { spec in
-                        MetricRowView(spec: spec) { openMetric = spec }
+                    // Live strap-offload progress (isolated LiveState leaf) — self-hides unless a history
+                    // sync is running, so you can SEE Loop pulling your history instead of a blank screen.
+                    HomeOffloadProgress()
+                    if hasAnyData {
+                        Text("Morning briefing").strandMicro().padding(.bottom, 12)
+                        briefing.font(StrandFont.title2.weight(.semibold)).lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                        coachEntry
+                        Text("Right now").strandMicro().padding(.top, 34).padding(.bottom, 2)
+                        ForEach(homeMetrics) { spec in
+                            MetricRowView(spec: spec) { openMetric = spec }
+                        }
+                    } else {
+                        onboardingCard
                     }
                     Color.clear.frame(height: 110)
                 }
@@ -226,6 +290,20 @@ struct RedesignHomeView: View {
     }
     private func mean(_ xs: ArraySlice<Double>) -> Double? {
         xs.isEmpty ? nil : xs.reduce(0, +) / Double(xs.count)
+    }
+}
+
+// MARK: - Live strap-offload progress (isolated LiveState leaf)
+
+/// Shows the "syncing history from your strap" note ONLY while a history offload is running. Its own
+/// LiveState observer so the ~1 Hz backfill/HR ticks re-render just this leaf, never the whole Home.
+private struct HomeOffloadProgress: View {
+    @EnvironmentObject private var live: LiveState
+    var body: some View {
+        if live.backfilling {
+            SyncingHistoryNote(chunks: live.syncChunksThisSession)
+                .padding(.bottom, 14)
+        }
     }
 }
 
