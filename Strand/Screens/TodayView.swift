@@ -1320,6 +1320,21 @@ struct TodayView: View {
                     )
                     .staggeredAppear(index: 0)
                 #endif
+                // Bevel/WHOOP-style adaptive narrative card, back on the home screen (restored from
+                // behind the Charge-ring tap at the maintainer's request): the same `readinessCard`
+                // the sheet already used, now surfaced directly under the hero so the day's headline
+                // ("Take it easy" / "Looking good — let's build" / etc.) is visible without a tap.
+                // Additive only — the sheet version (chargeBreakdownSheet → readinessSheetBody) is
+                // untouched, and this hides itself under the same `.insufficient` gate the sheet uses,
+                // so a low-history account sees exactly what it saw before this change.
+                if readiness.level != .insufficient {
+                    readinessCard(readiness)
+                        .background(
+                            RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+                                .fill(readinessColor(readiness.level).opacity(0.06))
+                        )
+                        .staggeredAppear(index: 1)
+                }
                 synthesisSection.staggeredAppear(index: 1)
                 // S4: the SEPARATE Readiness block is no longer a home-screen card, it folded into the
                 // Charge-ring tap (chargeBreakdownSheet). A one-word readiness read (Push / Maintain / Rest,
