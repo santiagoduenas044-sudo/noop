@@ -1079,6 +1079,7 @@ struct SleepView: View {
             // WHOOP's hero pair: HOURS OF SLEEP + RESTORATIVE SLEEP (deep + REM), each against
             // its 30-day typical.
             sleepHeadline(s)
+            sleepStatusPills(s, night: night)
             // WHOOP's sleeping heart-rate chart above the rows: thin HR trace across the night.
             // Selecting a stage tints the trace + washes the chart columns during that stage.
             sleepHRChart(intervals: smoothed, origin: origin, span: span, night: night)
@@ -1148,6 +1149,33 @@ struct SleepView: View {
             Spacer()
         }
         .accessibilityElement(children: .combine)
+    }
+
+    /// Bevel-style status pills under the hero pair: how efficient the night was (time asleep vs
+    /// time in bed) and how much of it was restorative (deep + REM share). Tone follows the same
+    /// positive/warning/neutral banding the rest of the app uses (StatePill), not a bespoke chip —
+    /// so this reads as native chrome, not a bolted-on prototype widget. Bands are intentionally
+    /// generous (most real nights land "neutral"); WARNING only flags a genuinely rough night.
+    @ViewBuilder
+    private func sleepStatusPills(_ s: Stages, night: Night) -> some View {
+        let restorativeShare = s.total > 0 ? (s.deep + s.rem) / s.total : 0
+        HStack(spacing: 8) {
+            if let eff = efficiencyPct(night) {
+                StatePill(
+                    "\(Int(eff.rounded()))% \(String(localized: "efficient"))",
+                    tone: eff >= 90 ? .positive : (eff < 75 ? .warning : .neutral),
+                    showsDot: false
+                )
+            }
+            StatePill(
+                "\(Int((restorativeShare * 100).rounded()))% \(String(localized: "restorative"))",
+                tone: restorativeShare >= 0.3 ? .positive : (restorativeShare < 0.2 ? .warning : .neutral),
+                showsDot: false
+            )
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 2)
+        .padding(.bottom, 2)
     }
 
     /// The tonight-vs-typical line under the stage rows. Selected: "REM 2h 45m · typically
