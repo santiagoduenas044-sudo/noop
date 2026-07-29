@@ -233,6 +233,13 @@ struct ChargeBreakdownSection: View {
                 Spacer()
                 ConfidenceTierChip(confidence: confidence)
             }
+            // A compact diverging summary — every driver's signed points as a bar pushing LEFT (red,
+            // limiting) or RIGHT (green, supporting) from a centre axis, biggest mover first. Reads
+            // at a glance before the detailed value/baseline/verdict rows below spell each one out.
+            if drivers.count > 1 {
+                DivergingContributorChart(drivers: drivers)
+                    .padding(.bottom, NoopMetrics.space1)
+            }
             VStack(spacing: NoopMetrics.rowSpacing) {
                 let maxMag = drivers.map { abs($0.deltaPoints) }.max() ?? 1
                 ForEach(Array(drivers.enumerated()), id: \.offset) { _, driver in
@@ -245,6 +252,64 @@ struct ChargeBreakdownSection: View {
                 SkinTempDeviationRow(rel: rel)
                     .padding(.top, NoopMetrics.space1)
             }
+        }
+    }
+}
+
+/// The at-a-glance driver summary: every term as one thin diverging bar, biggest mover first, growing
+/// LEFT (red) from a centre axis when it limited the score and RIGHT (green) when it supported it —
+/// the same read as the detailed rows below, compressed to a single scannable block.
+struct DivergingContributorChart: View {
+    let drivers: [ChargeDriver]
+
+    private var ordered: [ChargeDriver] {
+        drivers.sorted { abs($0.deltaPoints) > abs($1.deltaPoints) }
+    }
+    private var maxMag: Double {
+        Double(max(1, drivers.map { abs($0.deltaPoints) }.max() ?? 1))
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            ForEach(Array(ordered.enumerated()), id: \.offset) { _, driver in
+                row(driver)
+            }
+        }
+        .accessibilityHidden(true) // the detailed rows below already carry the full VoiceOver read
+    }
+
+    @ViewBuilder
+    private func row(_ driver: ChargeDriver) -> some View {
+        let positive = driver.deltaPoints >= 0
+        let hue = ChargeBreakdownFormat.chipColor(deltaPoints: driver.deltaPoints)
+        let fraction = min(1, Double(abs(driver.deltaPoints)) / maxMag)
+        HStack(spacing: 10) {
+            Text(LocalizedStringKey(driver.label))
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 96, alignment: .trailing)
+                .lineLimit(1)
+            GeometryReader { geo in
+                let half = geo.size.width / 2
+                ZStack {
+                    Rectangle()
+                        .fill(StrandPalette.hairline)
+                        .frame(width: 1)
+                        .frame(maxWidth: .infinity)
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .fill(hue)
+                        .frame(width: max(2, half * fraction), height: 8)
+                        .position(
+                            x: positive ? half + (half * fraction) / 2 : half - (half * fraction) / 2,
+                            y: geo.size.height / 2
+                        )
+                }
+            }
+            .frame(height: 12)
+            Text(ChargeBreakdownFormat.chipLabel(deltaPoints: driver.deltaPoints))
+                .font(StrandFont.captionNumber)
+                .foregroundStyle(hue)
+                .frame(width: 40, alignment: .trailing)
         }
     }
 }
