@@ -1,0 +1,238 @@
+#if os(iOS)
+import SwiftUI
+import StrandDesign
+import WhoopStore
+
+/// Phase 2 · Coach — the prototype's conversational Coach, native SwiftUI driving the
+/// REAL `AICoachEngine` (`model.coach`): the actual chat history (`coach.messages`),
+/// live send (`coach.send`), the sending/typing state and error surface. Recovery-based
+/// forecast cards come from `repo`. Full provider/key/consent configuration is reached
+/// by presenting the existing `CoachView` in a sheet, so nothing about the AI coach is
+/// lost or reimplemented — only the chat surface is restyled to the approved design.
+struct PremiumCoachView: View {
+    @EnvironmentObject var coach: AICoachEngine
+    @EnvironmentObject var repo: Repository
+    @State private var draft = ""
+    @State private var showSettings = false
+
+    private var recovery: Double? {
+        for d in repo.days.reversed() { if let v = d.recovery { return v } }
+        return repo.today?.recovery
+    }
+
+    private let quickPrompts = ["How hard can I go today?", "Should I nap?",
+                                "Analyze my HRV", "Plan my week"]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollViewReader { proxy in
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 20) {
+                        header
+                        forecastStrip
+                        if coach.isConfigured {
+                            thread
+                        } else {
+                            setupCard
+                        }
+                        if let e = coach.errorText, !e.isEmpty {
+                            Text(e).font(StrandFont.footnote).foregroundStyle(StrandPalette.statusCritical)
+                        }
+                        Color.clear.frame(height: 4).id("bottom")
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 6)
+                    .padding(.bottom, 12)
+                }
+                .onChange(of: coach.messages.count) { _, _ in
+                    withAnimation(.easeOut(duration: 0.3)) { proxy.scrollTo("bottom", anchor: .bottom) }
+                }
+            }
+            if coach.isConfigured { composer }
+        }
+        .background(ambient.ignoresSafeArea())
+        .sheet(isPresented: $showSettings) {
+            NavigationStack { CoachView() }
+        }
+    }
+
+    private var ambient: some View {
+        ZStack {
+            StrandPalette.surfaceBase
+            RadialGradient(colors: [StrandPalette.gold.opacity(0.12), .clear],
+                           center: .init(x: 0.5, y: 0.0), startRadius: 0, endRadius: 320)
+        }
+    }
+
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("YOUR ON-DEVICE GUIDE").font(StrandFont.overline).tracking(1.4)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                Text("Coach").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
+            }
+            Spacer()
+            Button { showSettings = true } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(StrandPalette.accent)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(StrandPalette.surfaceRaised))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: Forecast strip (recovery-derived)
+
+    private var forecastStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 12) {
+                forecastCard("TODAY", recTitle, "flame.fill", StrandPalette.recoveryColor(80))
+                forecastCard("TOMORROW", "Recovery pending", "shield.fill", StrandPalette.sleepDeep)
+                forecastCard("THIS WEEK", "Build & balance", "chart.line.uptrend.xyaxis", StrandPalette.gold)
+            }
+        }
+    }
+    private func forecastCard(_ day: String, _ title: String, _ icon: String, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Image(systemName: icon).font(.system(size: 16, weight: .semibold)).foregroundStyle(tint)
+                .frame(width: 34, height: 34)
+                .background(RoundedRectangle(cornerRadius: 11, style: .continuous).fill(tint.opacity(0.16)))
+            Text(day).font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
+            Text(title).font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(width: 168, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+            .fill(StrandPalette.surfaceRaised))
+        .overlay(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+    }
+    private var recTitle: String {
+        guard let r = recovery else { return "Ease in" }
+        return r >= 67 ? "Ready to push" : r >= 34 ? "Train with care" : "Rest & restore"
+    }
+
+    // MARK: Thread
+
+    private var thread: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if coach.messages.isEmpty {
+                Text("Ask your coach anything about today's training, recovery or sleep.")
+                    .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
+                    .padding(.vertical, 8)
+            }
+            ForEach(coach.messages) { m in bubble(m) }
+            if coach.sending { typingBubble }
+            // Quick prompts
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(quickPrompts, id: \.self) { p in
+                        Button { send(p) } label: {
+                            Text(p).font(StrandFont.subhead)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                                .padding(.horizontal, 13).padding(.vertical, 8)
+                                .background(Capsule().fill(StrandPalette.surfaceRaised))
+                                .overlay(Capsule().strokeBorder(StrandPalette.hairline, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.top, 4)
+        }
+    }
+
+    private func bubble(_ m: ChatMessage) -> some View {
+        HStack {
+            if m.role == .user { Spacer(minLength: 44) }
+            Text(m.text)
+                .font(StrandFont.body)
+                .foregroundStyle(m.role == .user ? StrandPalette.goldDeepText : StrandPalette.textPrimary)
+                .padding(.horizontal, 14).padding(.vertical, 10)
+                .background(bubbleBackground(m.role))
+                .fixedSize(horizontal: false, vertical: true)
+            if m.role == .assistant { Spacer(minLength: 44) }
+        }
+    }
+
+    @ViewBuilder
+    private func bubbleBackground(_ role: ChatMessage.Role) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
+        if role == .user {
+            shape.fill(LinearGradient(gradient: StrandPalette.goldGradient,
+                                      startPoint: .topLeading, endPoint: .bottomTrailing))
+        } else {
+            shape.fill(StrandPalette.surfaceRaised)
+        }
+    }
+
+    private var typingBubble: some View {
+        HStack {
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { _ in
+                    Circle().fill(StrandPalette.textTertiary).frame(width: 7, height: 7)
+                }
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(StrandPalette.surfaceRaised))
+            Spacer(minLength: 44)
+        }
+    }
+
+    // MARK: Composer
+
+    private var composer: some View {
+        HStack(spacing: 8) {
+            TextField("Message your coach…", text: $draft, axis: .vertical)
+                .font(StrandFont.body)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 16).padding(.vertical, 11)
+                .background(Capsule().fill(StrandPalette.surfaceRaised))
+                .overlay(Capsule().strokeBorder(StrandPalette.hairline, lineWidth: 1))
+                .onSubmit { send(draft) }
+            Button { send(draft) } label: {
+                Image(systemName: "arrow.up")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(StrandPalette.goldDeepText)
+                    .frame(width: 40, height: 40)
+                    .background(Circle().fill(StrandPalette.accent))
+            }
+            .buttonStyle(.plain)
+            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || coach.sending)
+        }
+        .padding(.horizontal, 20).padding(.vertical, 10)
+        .background(StrandPalette.surfaceBase.opacity(0.9))
+    }
+
+    // MARK: Setup state
+
+    private var setupCard: some View {
+        StrandCard(tint: StrandPalette.accent) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Connect your AI coach").font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text("The coach runs against your own AI provider key and only sends what you allow. Add a provider and key to start chatting — everything stays under your control.")
+                    .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button { showSettings = true } label: {
+                    Text("Set up coach")
+                        .font(StrandFont.headline).foregroundStyle(StrandPalette.goldDeepText)
+                        .frame(maxWidth: .infinity).padding(.vertical, 12)
+                        .background(Capsule().fill(StrandPalette.accent))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func send(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        draft = ""
+        Task { await coach.send(t) }
+    }
+}
+#endif

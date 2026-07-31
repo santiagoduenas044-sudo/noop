@@ -467,7 +467,7 @@ private enum MoreDestination: Hashable {
         switch self {
         case .insightsHub:     InsightsHubView()
         case .intelligence:    IntelligenceView()
-        case .coach:           CoachView()
+        case .coach:           PremiumCoachView()
         case .insights:        InsightsView()
         case .explore:         MetricExplorerView()
         case .compare:         CompareView()
