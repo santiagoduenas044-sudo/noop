@@ -61,13 +61,33 @@
         rowToggle('x2', 'flask', 'PPG heart-rate estimate', 'Instrumentation only', false),
       ])}
 
-      <!-- About -->
+      <!-- About & version -->
+      <div class="section-title" data-reveal><h2 style="font-size:17px">About</h2></div>
+      <section class="card list" data-reveal><div class="rows">
+        <button class="row nav-row" data-route="whatsnew" style="--tint:var(--accent-gold)">
+          <span class="glyph tint">${icon('sparkles', 16)}</span>
+          <div class="r-body" style="text-align:left"><div class="r-title">What’s New</div>
+            <div class="r-sub">Milestone ${NOOP.build.milestone} · what changed this build</div></div>
+          <span class="chev">${icon('chevR', 16)}</span>
+        </button>
+        ${vrow('Prototype', NOOP.build.prototypeVersion)}
+        ${vrow('Commit', NOOP.build.commit)}
+        ${vrow('Build date', NOOP.build.buildDate)}
+        ${vrow('Native app', 'v' + NOOP.build.appVersion + ' · build ' + NOOP.build.iosBuild)}
+      </div></section>
+
       <section class="card about" data-reveal>
         <div class="about-logo">${icon('logo', 34)}</div>
         <div class="about-name">NOOP</div>
-        <div class="about-ver">Premium UI Prototype · v2.1.0</div>
+        <div class="about-ver">Premium Prototype ${NOOP.build.prototypeVersion} · Milestone ${NOOP.build.milestone}</div>
         <p class="about-note">Your strap. Your data. Your machine. Offline, on-device, no cloud.</p>
       </section>
+
+      <div class="ver-footer" data-reveal>
+        <div class="vf-name">NOOP PREMIUM PROTOTYPE</div>
+        <div class="vf-line">Prototype ${NOOP.build.prototypeVersion} · Milestone ${NOOP.build.milestone} · ${NOOP.build.commit}</div>
+        <div class="vf-line">Updated ${NOOP.build.updated}</div>
+      </div>
       <div style="height:8px"></div>`;
     },
 
@@ -105,6 +125,10 @@
   };
 
   /* ---- partials ---- */
+  function vrow(k, v) {
+    return `<div class="row"><div class="r-body"><div class="r-title" style="font-weight:500">${k}</div></div>
+      <div class="r-val" style="font-family:var(--font-mono);font-size:13px;color:var(--ink-2)">${v}</div></div>`;
+  }
   function group(title, rows) {
     return `<div class="section-title" data-reveal><h2 style="font-size:17px">${title}</h2></div>
       <section class="card list" data-reveal><div class="rows">${rows.join('')}</div></section>`;

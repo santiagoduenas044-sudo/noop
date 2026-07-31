@@ -250,5 +250,24 @@
 .privacy-hero { display: grid; place-items: center; color: var(--accent-recovery);
   filter: drop-shadow(0 0 18px color-mix(in oklab, var(--accent-recovery) 50%, transparent)); margin: 8px 0; }
 
+/* ============================== WHAT'S NEW ========================== */
+.wn-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-2); margin-bottom: 10px; }
+.wn-badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.wn-badge { font-size: var(--fs-micro); font-weight: var(--fw-bold); letter-spacing: 0.04em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 7px; white-space: nowrap;
+  color: var(--tint, var(--accent-gold));
+  background: color-mix(in oklab, var(--tint, var(--accent-gold)) 15%, transparent);
+  border: 1px solid color-mix(in oklab, var(--tint, var(--accent-gold)) 30%, transparent); }
+.wn-comp { font-size: var(--fs-h); font-weight: var(--fw-bold); color: var(--ink-1); }
+.wn-change { font-size: var(--fs-sm); color: var(--ink-3); line-height: 1.5; margin-top: 4px; }
+.wn-open { font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--tint, var(--accent-gold));
+  margin-top: 10px; display: inline-flex; align-items: center; gap: 4px; }
+
+/* Settings version footer */
+.ver-footer { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center;
+  padding: var(--s-5) 0 var(--s-2); }
+.ver-footer .vf-name { font-size: var(--fs-sm); font-weight: var(--fw-bold); letter-spacing: 0.1em; color: var(--ink-2); }
+.ver-footer .vf-line { font-size: var(--fs-xs); color: var(--ink-4); font-family: var(--font-mono); }
+
 /* Back button in header (hidden on root tabs) */
 .back-btn { display: none; }
