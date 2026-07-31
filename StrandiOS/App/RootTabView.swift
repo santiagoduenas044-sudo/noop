@@ -473,7 +473,7 @@ private enum MoreDestination: Hashable {
         case .compare:         CompareView()
         case .live:            LiveView()
         case .workouts:        WorkoutsView()
-        case .health:          HealthView()
+        case .health:          PremiumHeartView()
         case .labBook:         LabBookView()
         case .stress:          StressView()
         case .breathe:         BreathingView()
