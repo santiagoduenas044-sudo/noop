@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#06070A" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>NOOP — Premium UI</title>
+  <meta name="description" content="A premium, fully-offline health interface prototype for NOOP. Recovery, sleep, heart rate, coach, journal, trends & insights." />
+
+  <!-- Inline favicon (data URI — keeps the app fully self-contained/offline) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%23E8B84B' stroke-width='2.4'/%3E%3Ccircle cx='16' cy='16' r='5' fill='none' stroke='%2346E5A0' stroke-width='2.4'/%3E%3C/svg%3E" />
+
+  <!-- Design tokens first, then base, components, page layouts, animations -->
+  <link rel="stylesheet" href="styles/tokens.css" />
+  <link rel="stylesheet" href="styles/base.css" />
+  <link rel="stylesheet" href="styles/components.css" />
+  <link rel="stylesheet" href="styles/pages.css" />
+  <link rel="stylesheet" href="styles/animations.css" />
+</head>
+<body>
+  <!-- The device stage: an ambient backdrop cradling a phone-sized app frame. -->
+  <div class="stage">
+    <main class="device" role="application" aria-label="NOOP health app">
+
+      <!-- Living ambient background -->
+      <div class="ambient" aria-hidden="true">
+        <span class="orb a"></span>
+        <span class="orb b"></span>
+        <span class="orb c"></span>
+      </div>
+
+      <div class="app">
+        <!-- Top bar (title + actions; frosts on scroll) -->
+        <header class="topbar">
+          <button class="icon-btn back-btn" aria-label="Back">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <div class="greeting">
+            <span class="eyebrow">Thursday · Jul 31</span>
+            <span class="title">Today</span>
+          </div>
+          <div class="actions">
+            <button class="icon-btn" data-theme-toggle aria-label="Toggle theme">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5Z"/></svg>
+            </button>
+            <button class="icon-btn" aria-label="Notifications">
+              <span class="dot"></span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 5 2 6 2 6H4s2-1 2-6"/><path d="M10 19a2 2 0 0 0 4 0"/></svg>
+            </button>
+            <button class="avatar" aria-label="Profile" onclick="NOOP.router.go('settings')">SD</button>
+          </div>
+        </header>
+
+        <!-- Scroll region: the router mounts pages into #view -->
+        <div class="scroll">
+          <div id="view"></div>
+        </div>
+
+        <!-- Bottom navigation dock (built by the router) -->
+        <nav class="tabbar" aria-label="Primary">
+          <div class="dock"></div>
+        </nav>
+      </div>
+    </main>
+  </div>
+
+  <!-- Scripts: load order matters (namespace → data/icons → engine → pages → boot).
+       Plain scripts (not ES modules) so the app opens straight from file:// with
+       no server and no CORS friction — true to NOOP's offline, self-contained ethos. -->
+  <script src="scripts/data.js"></script>
+  <script src="scripts/icons.js"></script>
+  <script src="scripts/charts.js"></script>
+  <script src="scripts/components.js"></script>
+  <script src="scripts/router.js"></script>
+  <script src="pages/home.js"></script>
+  <script src="pages/sleep.js"></script>
+  <script src="pages/readiness.js"></script>
+  <script src="pages/heart.js"></script>
+  <script src="pages/coach.js"></script>
+  <script src="pages/journal.js"></script>
+  <script src="pages/trends.js"></script>
+  <script src="pages/insights.js"></script>
+  <script src="pages/settings.js"></script>
+  <script src="scripts/app.js"></script>
+</body>
+</html>

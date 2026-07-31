@@ -1,0 +1,78 @@
+/* ============================================================================
+   NOOP · Premium UI — Animations & keyframes
+   Page transitions, ambient motion, micro-interactions, chart reveals.
+   ============================================================================ */
+
+/* ---- Page transitions (router applies .enter / .leave) ------------------ */
+.page-view { will-change: transform, opacity; }
+.page-view.enter { animation: page-in var(--dur-3) var(--ease-out) both; }
+.page-view.enter-back { animation: page-in-back var(--dur-3) var(--ease-out) both; }
+.page-view.leave { animation: page-out var(--dur-2) var(--ease-inout) both; }
+
+@keyframes page-in { from { opacity: 0; transform: translateY(14px) scale(0.985); }
+  to { opacity: 1; transform: none; } }
+@keyframes page-in-back { from { opacity: 0; transform: translateX(-18px); }
+  to { opacity: 1; transform: none; } }
+@keyframes page-out { to { opacity: 0; transform: translateY(-8px) scale(0.99); } }
+
+/* ---- Staggered content reveal ------------------------------------------ */
+/* Elements with [data-reveal] fade+rise; JS sets --i for the stagger delay. */
+[data-reveal] { opacity: 0; transform: translateY(18px); }
+[data-reveal].in { animation: reveal var(--dur-4) var(--ease-out) forwards;
+  animation-delay: calc(var(--i, 0) * 62ms); }
+@keyframes reveal { to { opacity: 1; transform: none; } }
+
+/* ---- Ambient orbs ------------------------------------------------------- */
+@keyframes float-a { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(40px, 30px) scale(1.12); } }
+@keyframes float-b { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-34px, 46px) scale(1.08); } }
+@keyframes float-c { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(30px, -40px) scale(1.14); } }
+
+/* ---- Sheen sweep (AI card, liquid metal) -------------------------------- */
+@keyframes sheen { 0% { background-position: 220% 0; } 100% { background-position: -120% 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Heart pulse -------------------------------------------------------- */
+@keyframes pulse-beat {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.16); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.08); }
+  56% { transform: scale(1); }
+}
+.pulse-heart { animation: pulse-beat var(--beat, 0.92s) var(--ease-inout) infinite; transform-origin: center; }
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.6); opacity: 0.6; }
+  100% { transform: scale(1.8); opacity: 0; }
+}
+.pulse-halo { animation: pulse-ring var(--beat, 0.92s) var(--ease-out) infinite; }
+
+/* live blip that runs along the ECG line */
+@keyframes blip { 0%,100% { opacity: 0.4; transform: scale(1); } 50% { opacity: 1; transform: scale(1.6); } }
+
+/* ---- Ripple / toast ----------------------------------------------------- */
+@keyframes ripple { to { transform: scale(2.6); opacity: 0; } }
+@keyframes toast-in { to { transform: none; opacity: 1; } }
+
+/* ---- Bars ------------------------------------------------------------- */
+@keyframes grow-up { from { transform: scaleY(0); opacity: 0; } to { transform: scaleY(1); opacity: 1; } }
+@keyframes shimmer { to { background-position: -200% 0; } }
+
+/* ---- Score number breathing glow --------------------------------------- */
+@keyframes breathe { 0%,100% { filter: drop-shadow(0 0 18px var(--glow)); } 50% { filter: drop-shadow(0 0 34px var(--glow)); } }
+.breathe { animation: breathe 4.5s var(--ease-inout) infinite; }
+
+/* ---- Expandable card ---------------------------------------------------- */
+.expandable .expand-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows var(--dur-3) var(--ease-out); }
+.expandable.open .expand-body { grid-template-rows: 1fr; }
+.expandable .expand-body > .inner { overflow: hidden; }
+.expandable .expand-body > .inner > * { margin-top: var(--s-4); }
+.expandable .chev-tog { transition: transform var(--dur-3) var(--ease-spring); }
+.expandable.open .chev-tog { transform: rotate(180deg); }
+
+/* ---- Count-up guard: numbers get .counting while animating -------------- */
+.counting { }
+
+/* ---- Nav icon spring on route change ------------------------------------ */
+@keyframes tab-pop { 0% { transform: scale(1); } 45% { transform: scale(1.28) translateY(-2px); } 100% { transform: scale(1.06) translateY(-1px); } }
+.tab.just-active .t-ico { animation: tab-pop var(--dur-3) var(--ease-spring); }
