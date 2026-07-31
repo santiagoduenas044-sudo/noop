@@ -44,9 +44,11 @@ struct RootTabView: View {
     /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
     @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
 
-    /// The Today tab root, honouring the liquid/classic preference.
+    /// The Today tab root, honouring the liquid/classic preference. The Premium Home
+    /// (Phase-2 native rebuild of the approved prototype) is the default; the classic
+    /// TodayView remains the fallback when the user turns the liquid Today off.
     @ViewBuilder private var todayTabRoot: some View {
-        if liquidTodayEnabled { LiquidTodayView() } else { TodayView() }
+        if liquidTodayEnabled { PremiumHomeView() } else { TodayView() }
     }
 
     init() {
