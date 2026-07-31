@@ -30,8 +30,18 @@ struct PremiumReadinessView: View {
     private struct Driver { let name: String; let value: String; let frac: Double; let tint: Color; let note: String }
     private var drivers: [Driver] {
         var d: [Driver] = []
-        if let h = hrv { d.append(.init(name: "HRV", value: "\(Int(h.rounded())) ms", frac: min(1, h/140),
-            tint: StrandPalette.metricCyan, note: hrvNote(h))) }
+        if let h = hrv {
+            let base = repo.days.suffix(30).compactMap { $0.avgHrv }
+            let note: String
+            if let b = base.isEmpty ? nil : base.reduce(0,+)/Double(base.count) {
+                let pct = Int(((h - b) / b * 100).rounded())
+                note = "\(abs(pct))% \(pct >= 0 ? "above" : "below") your 30-day baseline of \(Int(b.rounded())) ms."
+            } else {
+                note = "Higher HRV signals a well-recovered nervous system."
+            }
+            d.append(.init(name: "HRV", value: "\(Int(h.rounded())) ms", frac: min(1, h/140),
+                           tint: StrandPalette.metricCyan, note: note))
+        }
         if let r = rhr { d.append(.init(name: "Resting HR", value: "\(r) bpm", frac: max(0, min(1, (80.0 - Double(r))/45)),
             tint: StrandPalette.metricRose, note: "Lower resting heart rate signals good recovery.")) }
         if let e = eff { d.append(.init(name: "Sleep", value: "\(Int(e))%", frac: e/100,
