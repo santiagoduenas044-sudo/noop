@@ -25,22 +25,28 @@
         ${miniStat('Restorative', s.restorative + '%', 'moon', 'strain')}
       </div>
 
-      <!-- Hypnogram -->
-      <div class="section-title" data-reveal><h2>Sleep stages</h2><span class="link">${s.inBed} – ${s.outBed}</span></div>
-      <section class="card" data-reveal>
-        <div class="hypno" data-hypno></div>
-        <div class="legend" style="margin-top:14px">
-          ${['deep','light','rem','awake'].map((k) => `<span class="k" style="--k:${stageColor(k)}"><i></i>${cap(k)}</span>`).join('')}
+      <!-- Stage breakdown (per-stage density lanes) -->
+      <div class="section-title" data-reveal><h2>Stage breakdown</h2><span class="link">${s.inBed} – ${s.outBed}</span></div>
+      <section class="card breakdown" data-reveal>
+        <div class="bd-cap">${fmtDur(s.inBedMin)} in bed · ${s.efficiency}% efficiency · <span class="bd-approx">stages approximate (on-device)</span></div>
+        <div class="bd-nums">
+          <div class="bd-num">
+            <div class="bd-big">${fmtDur(s.hoursMin)}</div>
+            <div class="bd-lab">Hours of sleep</div>
+            <div class="bd-typ">typically ${fmtDur(s.hoursTypicalMin)}</div>
+          </div>
+          <div class="bd-num restorative">
+            <div class="bd-big">${fmtDur(s.restorativeMin)}</div>
+            <div class="bd-lab">Restorative sleep</div>
+            <div class="bd-typ">typically ${fmtDur(s.restorativeTypicalMin)}</div>
+          </div>
         </div>
-        <div class="rows" style="margin-top:8px">
-          ${s.stages.map((st) => `
-            <div class="row">
-              <span class="glyph tint" style="--tint:${stageColor(st.key)};color:${stageColor(st.key)}">${icon(stageIcon(st.key), 16)}</span>
-              <div class="r-body"><div class="r-title">${st.stage}</div>
-                <div class="r-sub">${Math.round(st.minutes / s.asleep * 100)}% of sleep</div></div>
-              <div class="r-val">${fmtDur(st.minutes)}</div>
-            </div>`).join('')}
+        <div class="chart bd-depth" style="margin-top:16px"><canvas data-depth></canvas></div>
+        <div class="bd-lanes">
+          ${['awake','light','deep','rem'].map(laneRow).join('')}
         </div>
+        <div class="axis bd-axis"><span>${s.times.bed}</span><span>${s.times.mid}</span><span>${s.times.wake}</span></div>
+        <div class="bd-hint">${icon('info', 13)} Tap a stage to compare with your 30-day typical.</div>
       </section>
 
       <!-- Debt + consistency -->
@@ -79,11 +85,31 @@
     },
 
     mount(root) {
+      const s = data.sleep;
       ui.$$('[data-w]', root).forEach((i) => requestAnimationFrame(() => { i.style.width = i.dataset.w + '%'; }));
 
-      // hypnogram render
-      const hy = ui.$('[data-hypno]', root);
-      if (hy) renderHypno(hy);
+      // sleep-depth ribbon above the lanes
+      const dc = ui.$('[data-depth]', root);
+      if (dc) charts.area(dc, s.depth, { color: 'sleep', height: 132, min: 48, max: 104,
+        grid: true, markers: false,
+        labels: s.depth.map((_, i) => s.fmtTime(i)),
+        fmt: (v) => v >= 86 ? 'Awake' : v >= 74 ? 'REM' : v >= 64 ? 'Light' : 'Deep' });
+
+      // per-stage density lanes — place each stage's blocks at their times
+      const total = s.inBedMin;
+      ['awake', 'light', 'deep', 'rem'].forEach((key) => {
+        const track = root.querySelector(`[data-lane-track="${key}"]`);
+        if (!track) return;
+        const blocks = s.hypnogram.filter((seg) => seg.key === key);
+        track.innerHTML = blocks.map((seg, i) => {
+          const left = seg.from / total * 100, w = Math.max(0.7, (seg.to - seg.from) / total * 100);
+          return `<span class="lane-blk" style="left:${left}%;width:${w}%;background:${stageColor(key)};animation-delay:${i * 45}ms"></span>`;
+        }).join('');
+      });
+      // tap a lane → compare with 30-day typical
+      ui.$$('[data-lane]', root).forEach((b) => b.addEventListener('click', (e) => {
+        ui.ripple(e, b); openCompare(b.dataset.lane);
+      }));
 
       // trend chart with segment switching
       let series = data.sleepSeries.slice(-7);
@@ -104,20 +130,46 @@
   };
 
   /* ---- partials ---- */
-  function renderHypno(host) {
+  // One per-stage density lane: name · % of night · duration, over a hatched track.
+  function laneRow(key) {
     const s = data.sleep;
-    const total = s.hypnogram[s.hypnogram.length - 1].to;
-    const lanes = { awake: 0, rem: 1, light: 2, deep: 3 };
-    host.style.cssText = 'position:relative;height:120px;border-radius:14px;overflow:hidden;background:var(--surface);border:1px solid var(--hairline)';
-    const laneH = 100 / 4;
-    host.innerHTML = s.hypnogram.map((seg, i) => {
-      const lane = lanes[seg.key];
-      const left = seg.from / total * 100, w = (seg.to - seg.from) / total * 100;
-      return `<span style="position:absolute;left:${left}%;width:${w}%;top:${lane*laneH+8}%;height:${laneH-6}%;
-        background:${stageColor(seg.key)};border-radius:5px;opacity:0;transform:scaleX(.4);transform-origin:left;
-        box-shadow:0 0 14px ${stageColor(seg.key)}55;animation:grow-up .5s var(--ease-out) forwards;animation-delay:${i*45}ms"></span>`;
-    }).join('') +
-    ['Awake','REM','Light','Deep'].map((n, i) => `<span style="position:absolute;left:8px;top:${i*laneH+8}%;font-size:9px;font-weight:600;color:var(--ink-4);letter-spacing:.05em">${n}</span>`).join('');
+    const mins = s.byStage[key];
+    const pct = Math.round(mins / s.inBedMin * 100);
+    return `<button class="lane" data-lane="${key}" style="--tint:${stageColor(key)}">
+      <div class="lane-head">
+        <span class="lane-name">${cap(key)}</span>
+        <span class="lane-pct">${pct}%</span>
+        <span class="lane-dur">${fmtDur(mins)}</span>
+      </div>
+      <div class="lane-track" data-lane-track="${key}"></div>
+    </button>`;
+  }
+  // Tap a stage → a bottom-sheet comparing last night vs the 30-day typical.
+  function openCompare(key) {
+    const s = data.sleep;
+    const mins = s.byStage[key];
+    const pct = Math.round(mins / s.inBedMin * 100);
+    const typ = s.typical[key];
+    const diff = pct - typ;
+    const word = diff > 1 ? `${diff}% more` : diff < -1 ? `${-diff}% less` : 'right on';
+    const dir = key === 'awake' ? (diff <= 0 ? 'good' : 'watch') : (diff >= 0 ? 'good' : 'watch');
+    const body = `
+      <p class="ctr-note" style="margin:2px 0 16px">Last night you spent <b style="color:${stageColor(key)}">${fmtDur(mins)}</b> in ${cap(key)} — ${word} than your 30-day typical of ${typ}%.</p>
+      <div class="cmp-bars">
+        ${cmpBar('Last night', pct, stageColor(key), true)}
+        ${cmpBar('30-day typical', typ, 'var(--ink-4)', false)}
+      </div>
+      <div class="cmp-verdict ${dir}">${icon(dir === 'good' ? 'check' : 'info', 15)} ${dir === 'good' ? 'In a healthy range for you' : 'Slightly outside your usual'}</div>`;
+    ui.sheet(cap(key) + ' sleep', body);
+    // animate the compare bars once the sheet is up
+    setTimeout(() => ui.$$('.cmp-bars .bar > i', document).forEach((i) =>
+      requestAnimationFrame(() => { i.style.width = i.dataset.w + '%'; })), 60);
+  }
+  function cmpBar(label, pct, color, strong) {
+    return `<div class="cmp-row">
+      <div class="cmp-top"><span>${label}</span><span class="cmp-val">${pct}%</span></div>
+      <div class="bar"><i data-w="${pct}" style="width:0;background:${color};box-shadow:${strong ? `0 0 14px ${color}` : 'none'}"></i></div>
+    </div>`;
   }
   function miniStat(label, val, ic, tint) {
     return `<div class="card mini" data-reveal style="--tint:var(--accent-${tint})">

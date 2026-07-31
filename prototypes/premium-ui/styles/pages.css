@@ -48,7 +48,55 @@
 .hero-caption b { color: var(--ink-1); }
 
 .trend-head { display: flex; align-items: center; justify-content: space-between; }
-.hypno { }
+
+/* --- Stage breakdown (per-stage density lanes) --- */
+.bd-cap { font-size: var(--fs-xs); color: var(--ink-3); font-weight: var(--fw-medium); letter-spacing: 0.01em; }
+.bd-approx { color: var(--ink-4); }
+.bd-nums { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s-4); margin-top: var(--s-4); }
+.bd-num .bd-big { font-size: 34px; font-weight: var(--fw-heavy); letter-spacing: var(--tracking-tight);
+  line-height: 1; font-variant-numeric: tabular-nums; }
+.bd-num.restorative .bd-big { color: var(--accent-sleep);
+  text-shadow: 0 0 24px color-mix(in oklab, var(--accent-sleep) 35%, transparent); }
+.bd-num .bd-lab { font-size: var(--fs-xs); letter-spacing: var(--tracking-caps); text-transform: uppercase;
+  color: var(--ink-3); font-weight: var(--fw-semi); margin-top: 8px; }
+.bd-num .bd-typ { font-size: var(--fs-sm); color: var(--ink-4); font-weight: var(--fw-medium); margin-top: 4px; }
+.bd-depth { height: 132px; }
+
+.bd-lanes { display: flex; flex-direction: column; gap: var(--s-3); margin-top: var(--s-2); }
+.lane { width: 100%; text-align: left; display: block; padding: 10px 12px; border-radius: var(--r-md);
+  background: var(--surface); border: 1px solid var(--hairline);
+  transition: transform var(--dur-2) var(--ease-out), border-color var(--dur-2); }
+.lane:hover { border-color: color-mix(in oklab, var(--tint) 45%, var(--hairline)); }
+.lane:active { transform: scale(0.99); }
+.lane-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+.lane-name { font-size: var(--fs-sm); font-weight: var(--fw-bold); letter-spacing: 0.06em; text-transform: uppercase; }
+.lane-pct { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--tint); font-variant-numeric: tabular-nums; }
+.lane-dur { margin-left: auto; font-size: var(--fs-sm); font-weight: var(--fw-semi); color: var(--ink-2);
+  font-variant-numeric: tabular-nums; }
+/* the hatched track each stage's blocks sit on */
+.lane-track { position: relative; height: 26px; border-radius: 7px; overflow: hidden;
+  background-color: var(--surface-2);
+  background-image: repeating-linear-gradient(-45deg,
+    color-mix(in oklab, var(--ink-1) 5%, transparent) 0 1px,
+    transparent 1px 7px); }
+.lane-blk { position: absolute; top: 3px; bottom: 3px; border-radius: 4px; opacity: 0;
+  transform: scaleX(0.35); transform-origin: left;
+  box-shadow: 0 0 12px color-mix(in oklab, var(--tint) 55%, transparent);
+  animation: grow-up var(--dur-3) var(--ease-out) forwards; }
+.bd-axis { margin-top: 12px; }
+.bd-hint { display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-4);
+  font-weight: var(--fw-medium); margin-top: 14px; }
+.bd-hint svg { flex: none; }
+
+/* compare sheet */
+.cmp-bars { display: flex; flex-direction: column; gap: var(--s-4); }
+.cmp-row .cmp-top { display: flex; justify-content: space-between; font-size: var(--fs-sm);
+  color: var(--ink-2); font-weight: var(--fw-medium); margin-bottom: 8px; }
+.cmp-row .cmp-val { font-weight: var(--fw-bold); color: var(--ink-1); font-variant-numeric: tabular-nums; }
+.cmp-verdict { display: flex; align-items: center; gap: 8px; margin-top: var(--s-5); padding: 12px 14px;
+  border-radius: var(--r-md); font-size: var(--fs-sm); font-weight: var(--fw-semi); }
+.cmp-verdict.good { color: var(--band-high); background: color-mix(in oklab, var(--band-high) 12%, transparent); }
+.cmp-verdict.watch { color: var(--band-mid); background: color-mix(in oklab, var(--band-mid) 12%, transparent); }
 
 /* ============================== READINESS ============================== */
 .ctr-row { display: flex; align-items: center; gap: var(--s-3); width: 100%; padding: var(--s-3) 0; }

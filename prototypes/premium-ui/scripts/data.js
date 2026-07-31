@@ -75,34 +75,78 @@
     return pts;
   }
 
-  // Sleep stages for last night → minutes per stage + a hypnogram
+  // ---- Sleep: a realistic multi-cycle night, everything derived from it ----
+  // A genuine hypnogram (deep-heavy early, REM-heavy toward morning, brief wakes)
+  // so each per-stage density lane populates with well-distributed blocks.
+  const SLEEP_START = 23 * 60 + 16; // 11:16 PM (minutes past midnight)
+  function buildHypnogram() {
+    const segs = []; let t = 0;
+    const push = (key, dur) => { segs.push({ key, from: t, to: t + dur }); t += dur; };
+    push('awake', 8);                       // sleep onset
+    // [light, deep, light, rem, wake-after] per ~90-min cycle
+    [[12, 42, 8, 16, 3], [16, 34, 10, 24, 0], [16, 24, 12, 28, 5],
+     [18, 16, 12, 32, 2], [18, 10, 10, 34, 7]].forEach(([l1, d, l2, r, aw]) => {
+      push('light', l1); push('deep', d); push('light', l2); push('rem', r);
+      if (aw) push('awake', aw);
+    });
+    push('light', 9);                        // drift before waking
+    return segs;
+  }
+  // Inverted-depth curve (higher = lighter/restless, lower = deep) at 1-min res —
+  // the wavy ribbon that sits above the lanes.
+  function buildDepthCurve(segs, total) {
+    const center = { awake: 92, rem: 80, light: 69, deep: 58 };
+    const out = [];
+    for (let m = 0; m < total; m++) {
+      const seg = segs.find((s) => m >= s.from && m < s.to) || segs[segs.length - 1];
+      const n = seg.key === 'awake' ? rr(-4, 9) : rr(-3.2, 3.2);
+      out.push(Math.max(53, Math.min(100, Math.round(center[seg.key] + n))));
+    }
+    return out;
+  }
+  function fmtSleepTime(elapsed) {
+    let mm = (SLEEP_START + Math.round(elapsed)) % 1440;
+    let h = Math.floor(mm / 60), m = mm % 60, ap = h < 12 ? 'AM' : 'PM', hh = h % 12 || 12;
+    return `${hh}:${String(m).padStart(2, '0')} ${ap}`;
+  }
+
+  const _hyp = buildHypnogram();
+  const _inBed = _hyp[_hyp.length - 1].to;
+  const _by = { awake: 0, light: 0, deep: 0, rem: 0 };
+  _hyp.forEach((s) => { _by[s.key] += s.to - s.from; });
+  const _asleep = _inBed - _by.awake;
+  const _restMin = _by.deep + _by.rem;
+
   const sleep = {
-    inBed: '11:12 PM', outBed: '7:04 AM',
-    asleep: 449,           // minutes
+    startMin: SLEEP_START,
+    inBed: fmtSleepTime(0), outBed: fmtSleepTime(_inBed),
+    inBedMin: _inBed,
+    asleep: _asleep,               // minutes asleep
+    hoursMin: _asleep,             // alias for the "Hours of sleep" headline
     needed: 498,
-    efficiency: 93,
+    efficiency: Math.round(_asleep / _inBed * 100),
     latency: 9,
     consistency: 82,
-    debt: 42,              // minutes accumulated
-    restorative: 71,       // % (deep+rem)
-    stages: [              // {stage, minutes}  awake/light/rem/deep
-      { stage: 'Awake', minutes: 31,  key: 'awake' },
-      { stage: 'REM',   minutes: 118, key: 'rem' },
-      { stage: 'Light', minutes: 205, key: 'light' },
-      { stage: 'Deep',  minutes: 126, key: 'deep' },
+    debt: 42,                      // minutes accumulated
+    restorative: Math.round(_restMin / _asleep * 100), // % of sleep (deep+rem)
+    restorativeMin: _restMin,
+    // 30-day typical baselines for the "typically …" comparisons
+    hoursTypicalMin: 413,          // 6h 53m
+    restorativeTypicalMin: 273,    // 4h 33m
+    byStage: _by,                  // minutes per stage
+    // typical stage mix (% of time in bed) for tap-to-compare
+    typical: { awake: 8, light: 40, deep: 20, rem: 22 },
+    times: { bed: fmtSleepTime(0), mid: fmtSleepTime(_inBed / 2), wake: fmtSleepTime(_inBed) },
+    stages: [                      // awake/rem/light/deep (order kept for consumers)
+      { stage: 'Awake', minutes: _by.awake, key: 'awake' },
+      { stage: 'REM',   minutes: _by.rem,   key: 'rem' },
+      { stage: 'Light', minutes: _by.light, key: 'light' },
+      { stage: 'Deep',  minutes: _by.deep,  key: 'deep' },
     ],
-    // hypnogram: sequence of {key, from(min index), to} across ~475 min
-    hypnogram: buildHypnogram(),
+    hypnogram: _hyp,               // [{key, from(min), to(min)}]
+    depth: buildDepthCurve(_hyp, _inBed),
+    fmtTime: fmtSleepTime,
   };
-
-  function buildHypnogram() {
-    const order = ['awake','rem','light','deep'];
-    const rows = []; let t = 0; const total = 475;
-    const pattern = ['light','deep','light','rem','light','deep','light','rem','light','awake','rem','light','rem','awake'];
-    const segLen = total / pattern.length;
-    pattern.forEach((k) => { rows.push({ key: k, from: t, to: t + segLen }); t += segLen; });
-    return rows;
-  }
 
   // Recovery / readiness contributors (name, contribution %, direction, note)
   const drivers = [
