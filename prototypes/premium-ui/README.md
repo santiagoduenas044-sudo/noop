@@ -26,6 +26,20 @@ Best viewed in a Chromium/WebKit browser. On desktop it renders inside a phone
 frame; on a phone it goes edge-to-edge. There's a light/dark toggle in the header
 (the ☾ icon) and an accent picker in **Settings → Appearance**.
 
+### Single-file build (for hosting / sharing)
+
+`node build-single.js` bundles the whole prototype into one self-contained file
+at `dist/index.html` (no external requests — everything inlined). Drop that single
+file on any static host, or open it directly. `dist/` is git-ignored since it's
+regenerable.
+
+### Deploy to GitHub Pages
+
+`.github/workflows/deploy-premium-ui.yml` publishes this folder to Pages on push.
+It needs Pages enabled once by a repo admin (**Settings → Pages → Source: "GitHub
+Actions"**) — the Actions token can't enable Pages on its own. After that, the site
+serves at `https://<owner>.github.io/<repo>/`.
+
 ## What's in it
 
 Nine fully-interactive screens, reachable from the bottom dock and via in-page links:
