@@ -359,6 +359,7 @@ struct RootTabView: View {
                     MoreRow("Shortcuts Export", "square.and.arrow.up.fill", .shortcutsExport)
                 }
                 moreSection("App") {
+                    MoreRow("What’s New", "sparkles", .whatsNew)
                     // #805/#811: the v7.3.1 #766 alarm consolidation moved Smart Alarm under a single
                     // "Alarms" sidebar entry (RootView .smartAlarm) but the regression dropped the row
                     // from the iPhone More list, leaving Alarms unreachable on iPhone. Restore it here
@@ -461,7 +462,7 @@ private enum MoreDestination: Hashable {
     case insightsHub, intelligence, coach, insights, explore, compare
     case live, workouts, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport
-    case alarms, automations, testCentre, siriShortcuts, settings
+    case alarms, automations, testCentre, siriShortcuts, settings, whatsNew
 
     @ViewBuilder var destination: some View {
         switch self {
@@ -490,6 +491,7 @@ private enum MoreDestination: Hashable {
         case .testCentre:      TestCentreView()
         case .siriShortcuts:   SiriShortcutsSettingsView()
         case .settings:        SettingsView()
+        case .whatsNew:        PremiumWhatsNewView()
         }
     }
 }
