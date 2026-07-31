@@ -1,0 +1,46 @@
+# Deploys the NOOP Premium UI prototype (prototypes/premium-ui) to GitHub Pages.
+# Pages is enabled automatically on first run via actions/configure-pages
+# (enablement: true), so no manual repo-settings toggle is required.
+# The prototype is a self-contained static site (HTML/CSS/JS, mock data only).
+name: Deploy Premium UI to Pages
+
+on:
+  push:
+    branches: [claude/noop-premium-ui-jhlhvg]
+    paths: ['prototypes/premium-ui/**', '.github/workflows/deploy-premium-ui.yml']
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; newer pushes cancel in-progress runs.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure Pages (enables Pages if needed)
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload prototype as the Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Serve the prototype at the site root: <pages-url>/index.html
+          path: prototypes/premium-ui
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
