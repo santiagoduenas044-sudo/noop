@@ -1,0 +1,209 @@
+#if os(iOS)
+import SwiftUI
+import StrandDesign
+import WhoopStore
+
+/// Phase 2 · Sleep — the approved prototype's Sleep screen, native SwiftUI on real
+/// `Repository`/`DailyMetric` data: an efficiency score ring, the dual "Hours of sleep /
+/// Restorative sleep" headline with 30-day-typical baselines, per-stage breakdown lanes
+/// (Deep / REM / Light / Awake) sized from the real recorded stage minutes, and a weekly
+/// sleep-hours trend.
+///
+/// Stage *timing* (a true time-resolved hypnogram) lives in the existing SleepView's async
+/// session pipeline; this screen shows the real stage *proportions* from DailyMetric, with
+/// awake derived from sleep efficiency. All numbers are real — nothing hardcoded.
+struct PremiumSleepView: View {
+    @EnvironmentObject var repo: Repository
+    @Environment(\.scrollToTopSignal) private var scrollToTopSignal
+
+    private func latest<T>(_ key: (DailyMetric) -> T?) -> T? {
+        for d in repo.days.reversed() { if let v = key(d) { return v } }
+        return repo.today.flatMap(key)
+    }
+    private func mean(_ key: (DailyMetric) -> Double?) -> Double? {
+        let xs = repo.days.suffix(30).compactMap(key)
+        return xs.isEmpty ? nil : xs.reduce(0, +) / Double(xs.count)
+    }
+
+    private var efficiency: Double? { latest { $0.efficiency } }
+    private var sleepMin: Double  { latest { $0.totalSleepMin } ?? 0 }
+    private var deepMin: Double   { latest { $0.deepMin } ?? 0 }
+    private var remMin: Double    { latest { $0.remMin } ?? 0 }
+    private var lightMin: Double  { latest { $0.lightMin } ?? 0 }
+    private var restorativeMin: Double { deepMin + remMin }
+    private var inBedMin: Double {
+        guard let e = efficiency, e > 0 else { return sleepMin }
+        return sleepMin / (e / 100.0)
+    }
+    private var awakeMin: Double { max(0, inBedMin - sleepMin) }
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 22) {
+                    Color.clear.frame(height: 1).id("top")
+                    header
+                    scoreHero
+                    breakdownCard
+                    trendCard
+                    Color.clear.frame(height: 8)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 6)
+                .padding(.bottom, 96)
+            }
+            .background(ambient.ignoresSafeArea())
+            .onChange(of: scrollToTopSignal) { _, _ in
+                withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
+            }
+        }
+    }
+
+    private var ambient: some View {
+        ZStack {
+            StrandPalette.surfaceBase
+            RadialGradient(colors: [StrandPalette.sleepDeep.opacity(0.16), .clear],
+                           center: .init(x: 0.5, y: 0.0), startRadius: 0, endRadius: 360)
+            RadialGradient(colors: [StrandPalette.sleepREM.opacity(0.10), .clear],
+                           center: .init(x: 1.0, y: 0.3), startRadius: 0, endRadius: 300)
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("LAST NIGHT").font(StrandFont.overline).tracking(1.4)
+                .foregroundStyle(StrandPalette.textTertiary)
+            Text("Sleep").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Score hero ring
+
+    private var scoreHero: some View {
+        let frac = min(1, max(0, (efficiency ?? 0) / 100))
+        return VStack(spacing: 14) {
+            ZStack {
+                Circle().stroke(StrandPalette.surfaceInset, lineWidth: 14)
+                Circle().trim(from: 0, to: frac)
+                    .stroke(LinearGradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep],
+                                           startPoint: .topTrailing, endPoint: .bottomLeading),
+                            style: StrokeStyle(lineWidth: 14, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .shadow(color: StrandPalette.sleepDeep.opacity(0.5), radius: 10)
+                VStack(spacing: 2) {
+                    Text(efficiency.map { "\(Int($0.rounded()))" } ?? "—")
+                        .font(.system(size: 58, weight: .heavy)).monospacedDigit()
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    Text("EFFICIENCY").font(StrandFont.overline).tracking(1.4)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+            .frame(width: 208, height: 208)
+            Text("\(durText(sleepMin)) asleep · \(durText(inBedMin)) in bed")
+                .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: Stage breakdown
+
+    private var breakdownCard: some View {
+        StrandCard {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Stage breakdown").font(StrandFont.title2)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                // Dual headline: hours + restorative, each with a typical baseline.
+                HStack(alignment: .top, spacing: 16) {
+                    dualStat(title: "Hours of sleep", value: durText(sleepMin),
+                             typical: mean { $0.totalSleepMin }.map { "typically \(durText($0))" },
+                             tint: StrandPalette.textPrimary)
+                    dualStat(title: "Restorative", value: durText(restorativeMin),
+                             typical: restorativeTypicalText, tint: StrandPalette.sleepDeep)
+                }
+                stageLane("Awake", awakeMin, StrandPalette.sleepAwake)
+                stageLane("Light", lightMin, StrandPalette.sleepLight)
+                stageLane("Deep", deepMin, StrandPalette.sleepDeep)
+                stageLane("REM", remMin, StrandPalette.sleepREM)
+                Text("Stage proportions from your recorded sleep · on-device")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
+    }
+
+    private var restorativeTypicalText: String? {
+        guard let d = mean({ $0.deepMin }), let r = mean({ $0.remMin }) else { return nil }
+        return "typically \(durText(d + r))"
+    }
+
+    private func dualStat(title: String, value: String, typical: String?, tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value).font(.system(size: 30, weight: .heavy)).monospacedDigit()
+                .foregroundStyle(tint)
+            Text(title.uppercased()).font(StrandFont.overline).tracking(1.2)
+                .foregroundStyle(StrandPalette.textTertiary)
+            if let t = typical {
+                Text(t).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// One per-stage density lane: name · % of night · duration, over a hatched track with a
+    /// proportional filled block. (Proportional, not time-resolved — see the file header.)
+    private func stageLane(_ name: String, _ minutes: Double, _ color: Color) -> some View {
+        let total = max(1, inBedMin)
+        let pct = Int((minutes / total * 100).rounded())
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Text(name.uppercased()).font(StrandFont.overline).tracking(0.8)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text("\(pct)%").font(StrandFont.captionNumber).foregroundStyle(color)
+                Spacer()
+                Text(durText(minutes)).font(StrandFont.captionNumber)
+                    .foregroundStyle(StrandPalette.textSecondary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .fill(StrandPalette.surfaceInset)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(color)
+                        .frame(width: max(3, geo.size.width * CGFloat(minutes / total)))
+                        .shadow(color: color.opacity(0.5), radius: 6)
+                        .padding(3)
+                }
+            }
+            .frame(height: 26)
+        }
+    }
+
+    // MARK: Trend
+
+    private var trendCard: some View {
+        let hours = Array(repo.days.suffix(90).compactMap { $0.totalSleepMin }.map { $0 / 60 }.suffix(14))
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("Sleep hours · last 14 days").font(StrandFont.title2)
+                .foregroundStyle(StrandPalette.textPrimary)
+            StrandCard {
+                if hours.count >= 2 {
+                    Sparkline(values: hours,
+                              gradient: Gradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep]),
+                              lineWidth: 2.5, showsArea: true, showsHead: true, showsHover: true,
+                              valueFormat: { String(format: "%.1f h", $0) })
+                        .frame(height: 120)
+                } else {
+                    Text("Not enough nights yet").font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .frame(maxWidth: .infinity, minHeight: 120)
+                }
+            }
+        }
+    }
+
+    private func durText(_ minutes: Double) -> String {
+        let m = Int(minutes.rounded()); let h = m / 60, mm = m % 60
+        return h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
+    }
+}
+#endif
