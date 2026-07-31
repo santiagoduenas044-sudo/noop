@@ -17,6 +17,7 @@ struct PremiumHomeView: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var router: NavRouter
     @Environment(\.scrollToTopSignal) private var scrollToTopSignal
+    @State private var showReadiness = false
 
     // MARK: Data helpers (real Repository data)
 
@@ -52,7 +53,7 @@ struct PremiumHomeView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     Color.clear.frame(height: 1).id("top")
                     header
-                    hero
+                    hero.contentShape(Rectangle()).onTapGesture { showReadiness = true }
                     storyCard
                     vitalsSection
                     sleepCard
@@ -67,6 +68,19 @@ struct PremiumHomeView: View {
             .background(ambient.ignoresSafeArea())
             .onChange(of: scrollToTopSignal) { _, _ in
                 withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
+            }
+            .sheet(isPresented: $showReadiness) {
+                NavigationStack {
+                    PremiumReadinessView()
+                        .navigationTitle("Readiness")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") { showReadiness = false }
+                                    .foregroundStyle(StrandPalette.accent)
+                            }
+                        }
+                }
             }
         }
     }
