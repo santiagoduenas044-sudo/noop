@@ -75,7 +75,7 @@ struct RootTabView: View {
             // native TabView still drives content + per-tab nav state; only its bar is hidden.
             TabView(selection: $selectedTab) {
                 tab(todayTabRoot, "Today", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
-                tab(TrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
+                tab(PremiumTrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
                 tab(PremiumSleepView(), "Sleep", "bed.double", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
                 moreTab(path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
             }
