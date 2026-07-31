@@ -68,12 +68,12 @@ public enum StrandPalette {
 
     // MARK: Surfaces — deep navy canvas, tinted frosted cards
     // Background is a near-black navy (NOT pure black); cards float just above it.
-    public static let surfaceBase    = Color(light: "#F2F2F7", dark: "#121518") // WHOOP dark blue-grey canvas (sampled)
-    public static let surfaceRaised  = Color(light: "#FFFFFF", dark: "#25292C") // WHOOP grey list-card fill (sampled)
-    public static let surfaceOverlay = Color(light: "#FFFFFF", dark: "#1C1F26") // popovers / sheets / tooltips
-    public static let surfaceInset   = Color(light: "#E9E9EE", dark: "#1F2229") // wells / chart insets / segmented track
-    public static let hairline       = Color(light: "#D8D0BD", dark: "#21304A") // soft 1px border (stronger on light for card edges)
-    public static let hairlineStrong = Color(light: "#C7BCA4", dark: "#2E3C57") // hover / emphasis border
+    public static let surfaceBase    = Color(light: "#EEF0F6", dark: "#0A0C11") // WHOOP dark blue-grey canvas (sampled)
+    public static let surfaceRaised  = Color(light: "#FFFFFF", dark: "#15181F") // WHOOP grey list-card fill (sampled)
+    public static let surfaceOverlay = Color(light: "#FFFFFF", dark: "#14181F") // popovers / sheets / tooltips
+    public static let surfaceInset   = Color(light: "#E9E9EE", dark: "#171B22") // wells / chart insets / segmented track
+    public static let hairline       = Color(light: "#D8D0BD", dark: "#232733") // soft 1px border (stronger on light for card edges)
+    public static let hairlineStrong = Color(light: "#C7BCA4", dark: "#333A46") // hover / emphasis border
 
     // MARK: Text — deep navy-ink on paper / cool off-white on navy
     public static let textPrimary    = Color(light: "#1A2230", dark: "#F4F6F8")
@@ -96,9 +96,9 @@ public enum StrandPalette {
     // MARK: Accent — chrome anchor (links, selection, focus, generic accent). On DARK this is the brand
     // GOLD; on LIGHT it shifts to the deep brand BLUE so gold is reserved for the recovery/Charge world
     // and the gold FAB — keeping the light theme from reading as wall-to-wall gold (the maintainer 2026-06-16).
-    public static let accent         = Color(light: "#234F9E", dark: "#60A0E0") // WHOOP link/action blue (gold killed 2026-06-22)
-    public static let accentHover    = Color(light: "#1C3F80", dark: "#8FBEEC")
-    public static let accentMuted    = Color(light: "#E4ECF6", dark: "#16233A") // selected-row tint (pale blue / dark blue)
+    public static let accent         = Color(light: "#B8871F", dark: "#E8B84B") // WHOOP link/action blue (gold killed 2026-06-22)
+    public static let accentHover    = Color(light: "#946B14", dark: "#F0CE6E")
+    public static let accentMuted    = Color(light: "#F5ECD2", dark: "#2A2410") // selected-row tint (pale blue / dark blue)
     /// Focus ring color (blue on both schemes — WHOOP has no gold).
     public static let focusRing      = Color(light: "#2F6FCB", dark: "#60A0E0")
     /// Opacity for dimmed/disabled sections (shared so screens don't invent their own value).
@@ -160,8 +160,8 @@ public enum StrandPalette {
     public static let recovery000 = Color(light: "#C0392B", dark: "#E0463C") // depleted — WHOOP red
     public static let recovery030 = Color(light: "#D9682A", dark: "#E8743C") // low — red-orange
     public static let recovery055 = Color(light: "#C99A00", dark: "#F9DF4A") // moderate — WHOOP yellow
-    public static let recovery078 = Color(light: "#6FB23A", dark: "#8FD86A") // primed — yellow-green
-    public static let recovery100 = Color(light: "#0F9D62", dark: "#03E095") // peak — WHOOP green
+    public static let recovery078 = Color(light: "#4FBE7A", dark: "#7CE0A0") // primed — yellow-green
+    public static let recovery100 = Color(light: "#12B981", dark: "#46E5A0") // peak — WHOOP green
 
     /// Ordered gradient stops for the recovery scale (Titanium gold ramp, or the Classic red→green).
     public static var recoveryStops: [Gradient.Stop] {
@@ -203,9 +203,9 @@ public enum StrandPalette {
     // #AE5BEF — because the previous three near-identical blues made a fragmented on-device
     // hypnogram unreadable. Light-mode variants are the same hues darkened for contrast on white.
     public static var sleepAwake: Color { isClassic ? cSleepAwake : Color(light: "#8E949E", dark: "#CAC8CB") }
-    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#7B78E0", dark: "#A7A4F4") }
-    public static var sleepDeep:  Color { isClassic ? cSleepDeep  : Color(light: "#C13EC1", dark: "#FD96FD") }
-    public static var sleepREM:   Color { isClassic ? cSleepREM   : Color(light: "#8E3BD6", dark: "#AE5BEF") }
+    public static var sleepLight: Color { isClassic ? cSleepLight : Color(light: "#4C63E6", dark: "#6E8BFF") }
+    public static var sleepDeep:  Color { isClassic ? cSleepDeep  : Color(light: "#6E52E0", dark: "#9C7BFF") }
+    public static var sleepREM:   Color { isClassic ? cSleepREM   : Color(light: "#2FA9B4", dark: "#4FD6E0") }
 
     // MARK: HR zones — Titanium cool→warm (no green), or the Classic grey→green→yellow→orange→red.
     public static var zone1: Color { isClassic ? cZone1 : Color(light: "#3A80D6", dark: "#4A90E2") }
@@ -220,12 +220,12 @@ public enum StrandPalette {
     // MARK: Status — Titanium gold/amber/orange, or the Classic green/amber/red.
     public static var statusPositive: Color { isClassic ? Color(light: "#2E9E4F", dark: "#46B45A") : Color(light: "#1F8A5B", dark: "#03E095") }
     public static var statusWarning:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C2792E", dark: "#F0A020") }
-    public static var statusCritical: Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#C84E1E", dark: "#E0662F") }
+    public static var statusCritical: Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#E5405E", dark: "#FF6B81") }
 
     // MARK: Per-metric accents — HRV / SpO₂ / energy / risk. Classic leans the traditional hues (purple HRV, red risk).
-    public static var metricCyan:   Color { isClassic ? Color(light: "#2E92B4", dark: "#3FA9C9") : Color(light: "#2E92B4", dark: "#3FA9C9") }
-    public static var metricPurple: Color { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#3A80D6", dark: "#4A90E2") }
-    public static var metricAmber:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#C2792E", dark: "#D98A3D") }
+    public static var metricCyan:   Color { isClassic ? Color(light: "#2E92B4", dark: "#3FA9C9") : Color(light: "#2FA9B4", dark: "#4FD6E0") }
+    public static var metricPurple: Color { isClassic ? Color(light: "#6A4FC0", dark: "#8E6FD6") : Color(light: "#4C63E6", dark: "#6E8BFF") }
+    public static var metricAmber:  Color { isClassic ? Color(light: "#CFA528", dark: "#F2C53D") : Color(light: "#B8871F", dark: "#E8B84B") }
     public static var metricRose:   Color { isClassic ? Color(light: "#CB3A2F", dark: "#E5483B") : Color(light: "#C84E1E", dark: "#E0662F") }
 
     // MARK: - Titanium & Gold domain "colour worlds" (NEW)
@@ -288,11 +288,11 @@ public enum StrandPalette {
 
     /// Brand gold — primary accent. Gold FILLS stay bright (dark text on them is legible in both schemes);
     /// only a hair deeper on light so the fill doesn't wash out against white.
-    public static let gold          = Color(light: "#3A78C8", dark: "#60A0E0") // repointed to WHOOP blue (gold killed 2026-06-22)
+    public static let gold          = Color(light: "#B8871F", dark: "#E8B84B") // repointed to WHOOP blue (gold killed 2026-06-22)
     /// Bright blue — accent highlight / hover (was champagne).
-    public static let goldLight     = Color(light: "#6FA8E0", dark: "#9FC8F0")
+    public static let goldLight     = Color(light: "#D8A73F", dark: "#F2D488")
     /// Deep blue — accent low stop (was bronze).
-    public static let goldDeep      = Color(light: "#2A5C9E", dark: "#3A78C8")
+    public static let goldDeep      = Color(light: "#8C6416", dark: "#C8902F")
     /// Near-black brown — text / icons placed ON gold surfaces (scheme-invariant; gold fills stay gold).
     public static let goldDeepText  = Color(hex: "#FFFFFF") // white text/icons on accent fills (WHOOP, gold killed)
     /// The bright core dot at a gauge arc tip / sparkline head. White reads as a highlight on the dark
