@@ -314,6 +314,68 @@
     return { stop: () => cancelAnimationFrame(raf) };
   }
 
+  /* --------------------------------------------------------- Overnight scrub chart */
+  // A compact area/line chart whose CURSOR is driven externally (by a shared
+  // scrubber), so several charts + a hypnogram can be synchronised on one timeline.
+  // No internal pointer handlers. Returns { valueAt(frac), setCursor(frac|null) }.
+  function overnight(canvas, data, opts = {}) {
+    const height = opts.height || 64;
+    const color = opts.color || 'heart';
+    const [c1] = tint(color);
+    const pad = opts.pad || { l: 0, r: 0, t: 10, b: 6 };
+    const rangePad = (Math.max(...data) - Math.min(...data)) * 0.18 + 0.4;
+    const min = opts.min != null ? opts.min : Math.min(...data) - rangePad;
+    const max = opts.max != null ? opts.max : Math.max(...data) + rangePad;
+    let raf, start;
+    const render = (progress) => {
+      const { ctx, w, h } = prep(canvas, height);
+      const pts = scalePoints(data, w, h, pad, min, max);
+      const shown = Math.max(2, Math.floor(pts.length * easeOut(progress)));
+      const vis = pts.slice(0, shown);
+      ctx.beginPath(); smoothPath(ctx, vis);
+      ctx.lineTo(vis[vis.length - 1].x, h - pad.b); ctx.lineTo(vis[0].x, h - pad.b); ctx.closePath();
+      const g = ctx.createLinearGradient(0, pad.t, 0, h);
+      g.addColorStop(0, hexA(c1, 0.24)); g.addColorStop(1, hexA(c1, 0));
+      ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); smoothPath(ctx, vis);
+      ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = c1;
+      ctx.save(); ctx.shadowColor = hexA(c1, 0.4); ctx.shadowBlur = 6; ctx.stroke(); ctx.restore();
+      canvas._pts = pts;
+    };
+    const anim = (ts) => { if (!start) start = ts; const p = clamp((ts - start) / (opts.dur || 800), 0, 1); render(p); if (p < 1) raf = requestAnimationFrame(anim); };
+    onVisible(canvas, () => { start = 0; cancelAnimationFrame(raf); raf = requestAnimationFrame(anim); });
+
+    function overlay() {
+      let ov = canvas._ov;
+      if (!ov) { ov = document.createElement('canvas'); ov.style.cssText = 'position:absolute;inset:0;pointer-events:none';
+        canvas.parentElement.style.position = 'relative'; canvas.parentElement.appendChild(ov); canvas._ov = ov; }
+      return ov;
+    }
+    function pointAt(frac) {
+      const pts = canvas._pts; if (!pts) return null;
+      const t = clamp(frac, 0, 1) * (pts.length - 1), i = Math.floor(t), f = t - i;
+      const a = pts[i], b = pts[Math.min(pts.length - 1, i + 1)];
+      return { x: lerp(a.x, b.x, f), y: lerp(a.y, b.y, f) };
+    }
+    return {
+      valueAt(frac) {
+        const t = clamp(frac, 0, 1) * (data.length - 1), i = Math.floor(t), f = t - i;
+        return lerp(data[i], data[Math.min(data.length - 1, i + 1)], f);
+      },
+      setCursor(frac) {
+        const ov = overlay(), dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+        ov.width = canvas.width; ov.height = canvas.height;
+        ov.style.width = canvas.clientWidth + 'px'; ov.style.height = canvas.clientHeight + 'px';
+        const ctx = ov.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, ov.clientWidth, ov.clientHeight);
+        if (frac == null) return;
+        const p = pointAt(frac); if (!p) return;
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4.2, 0, 7); ctx.fillStyle = cssVar('--bg-1'); ctx.fill();
+        ctx.lineWidth = 2.4; ctx.strokeStyle = c1; ctx.stroke();
+      },
+    };
+  }
+
   /* --------------------------------------------------------- Hover plumbing */
   function attachHover(canvas, color, opts = {}) {
     const tip = ensureTip(canvas);
@@ -417,5 +479,5 @@
       if (r.top < window.innerHeight && r.bottom > 0) cb(); });
   }
 
-  NS.charts = { area, bars, spark, heartDay, liveECG, tint, hexA };
+  NS.charts = { area, bars, spark, heartDay, liveECG, overnight, tint, hexA };
 })(window.NOOP = window.NOOP || {});

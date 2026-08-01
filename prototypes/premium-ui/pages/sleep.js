@@ -22,6 +22,17 @@
     awake: { name: 'Awake', sub: 'In bed', color: 'var(--accent-heart)' },
   };
 
+  // The overnight signals charted below the hypnogram. `hb` = higher-is-better (for
+  // baseline-delta colouring); temp is neutral (signed). All read from data.sleep.overnight.
+  const NIGHT = [
+    { key: 'hr',   name: 'Heart rate',   unit: 'bpm', tint: 'heart',    dec: 0, hb: false },
+    { key: 'hrv',  name: 'HRV',          unit: 'ms',  tint: 'hrv',      dec: 0, hb: true },
+    { key: 'resp', name: 'Respiratory',  unit: 'rpm', tint: 'recovery', dec: 1, hb: false },
+    { key: 'spo2', name: 'Blood oxygen', unit: '%',   tint: 'strain',   dec: 0, hb: true },
+    { key: 'temp', name: 'Wrist temp',   unit: '°C',  tint: 'gold',     dec: 2, hb: null, signed: true },
+  ];
+  const nfmt = (v, mc) => (mc.signed && v >= 0 ? '+' : '') + (mc.dec ? (+v).toFixed(mc.dec) : Math.round(v));
+
   NS.pages.sleep = {
     title: 'Sleep', eyebrow: 'Last night · Aug 1', tint: 'sleep',
     render() {
@@ -81,6 +92,10 @@
           <div class="il-body"><b>${fmtDur(restMin)} restorative</b> (${restPct}% of sleep) — Deep and REM combined are trending +8% this week, a good sign your recovery is being earned overnight.</div></div>
       </section>
 
+      <!-- Overnight physiology (synchronized, scrubbable) -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Overnight</h2><span class="link">Drag to explore</span></div>
+      ${nightPanel(sl, total)}
+
       <!-- 7-day trend -->
       <div class="section-title" data-reveal><h2 style="font-size:19px">Last 7 nights</h2><span class="link">Hours asleep</span></div>
       <section class="card" data-reveal>
@@ -102,9 +117,10 @@
     },
 
     mount(root) {
-      const d = data;
+      const d = data, sl = d.sleep, total = sl.hypnogram[sl.hypnogram.length - 1].to;
       ui.$$('[data-w]', root).forEach((i) => requestAnimationFrame(() => { i.style.width = i.dataset.w + '%'; }));
       ui.$$('.stage-tap', root).forEach((el) => el.addEventListener('click', (e) => { ui.ripple(e, el); openStage(el.dataset.stage); }));
+      wireNight(root, sl, total);
       const c7 = ui.$('[data-sleep7]', root);
       if (c7) {
         const hrs = d.sleepSeries.slice(-7).map((v) => Math.round((6 + v / 100 * 2.6) * 10) / 10);
@@ -133,6 +149,85 @@
       light: 'Core (light) sleep is the connective tissue of the night — the transitions between deeper stages.',
       awake: 'Brief awakenings are normal. What matters is how quickly you settle back down.',
     })[k];
+  }
+
+  // The synchronized overnight panel: a compact full-width hypnogram + one mini
+  // chart per signal, a shared cursor line, a live readout, and per-metric stats.
+  function nightPanel(sl, total) {
+    const ov = sl.overnight;
+    const order = ['awake', 'rem', 'light', 'deep'];
+    return `
+    <section class="card night-panel" data-night data-reveal>
+      <div class="np-readout">
+        <div class="np-time" data-np-time>Drag across any chart</div>
+        <span class="np-stage" data-np-stage></span>
+      </div>
+      <div class="np-legend">
+        ${['deep','rem','light','awake'].map((k) => `<span class="lg" data-lg="${k}"><i style="background:${STAGE[k].color}"></i>${STAGE[k].name}</span>`).join('')}
+      </div>
+      <div class="np-stack" data-np-stack>
+        <div class="np-hyp" data-np-hyp>
+          ${order.map((k) => `<div class="hyp2">${sl.hypnogram.filter((s) => s.key === k).map((s) => `<span class="hyp2-blk" data-from="${s.from}" data-to="${s.to}" style="left:${s.from/total*100}%;width:${(s.to-s.from)/total*100}%;background:${STAGE[k].color};color:${STAGE[k].color}"></span>`).join('')}</div>`).join('')}
+        </div>
+        <div class="np-rows">
+          ${NIGHT.map((mc) => {
+            const arr = ov[mc.key], avg = data.round(data.mean(arr), mc.dec), lo = Math.min(...arr), hi = Math.max(...arr);
+            const base = ov.baseline[mc.key], delta = data.round(avg - base, mc.dec);
+            const good = mc.hb == null ? null : ((delta > 0) === mc.hb);
+            const dcol = mc.hb == null || Math.abs(delta) < (mc.dec ? 0.05 : 0.5) ? 'var(--ink-3)' : good ? 'var(--band-high)' : 'var(--band-low)';
+            return `<div class="np-row" data-metric="${mc.key}" style="--tint:var(--accent-${mc.tint})">
+              <div class="np-head">
+                <span class="np-name">${mc.name}</span>
+                <span class="np-live" data-live="${mc.key}"></span>
+                <span class="np-stat">avg ${nfmt(avg, mc)} · ${nfmt(lo, mc)}–${nfmt(hi, mc)} ${mc.unit} · <b style="color:${dcol}">${nfmt(delta, mc)} vs base</b></span>
+              </div>
+              <div class="chart" style="height:60px"><canvas data-np-chart="${mc.key}"></canvas></div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div class="np-cursor" data-np-cursor></div>
+      </div>
+      <div class="axis" style="margin-top:8px"><span>${sl.times.bed}</span><span>${sl.times.mid}</span><span>${sl.times.wake}</span></div>
+      <p class="note" style="margin-top:12px">Overnight heart rate, HRV, respiratory rate, blood oxygen and wrist temperature from Apple Health, aligned to your sleep stages. Drag to read any moment.</p>
+    </section>`;
+  }
+
+  function wireNight(root, sl, total) {
+    const stack = ui.$('[data-np-stack]', root); if (!stack) return;
+    const cursor = ui.$('[data-np-cursor]', root);
+    const timeEl = ui.$('[data-np-time]', root), stageEl = ui.$('[data-np-stage]', root);
+    const hyp = ui.$('[data-np-hyp]', root), blks = ui.$$('.hyp2-blk', hyp), legs = ui.$$('[data-lg]', root);
+    const inst = {};
+    NIGHT.forEach((mc) => { const cv = ui.$(`[data-np-chart="${mc.key}"]`, root);
+      if (cv) inst[mc.key] = charts.overnight(cv, sl.overnight[mc.key], { color: mc.tint, height: 60 }); });
+
+    function scrub(frac) {
+      frac = Math.max(0, Math.min(1, frac));
+      const minute = Math.round(frac * total), k = sl.stageAt(minute);
+      cursor.style.left = (frac * 100) + '%'; cursor.style.opacity = '1';
+      timeEl.textContent = sl.fmtTime(minute);
+      stageEl.textContent = STAGE[k].name; stageEl.style.setProperty('--k', STAGE[k].color); stageEl.classList.add('show');
+      hyp.classList.add('np-dim');
+      blks.forEach((b) => b.classList.toggle('active', minute >= +b.dataset.from && minute < +b.dataset.to));
+      legs.forEach((l) => l.classList.toggle('active', l.dataset.lg === k));
+      NIGHT.forEach((mc) => { if (!inst[mc.key]) return; inst[mc.key].setCursor(frac);
+        const live = ui.$(`[data-live="${mc.key}"]`, root);
+        if (live) live.textContent = nfmt(inst[mc.key].valueAt(frac), mc) + ' ' + mc.unit; });
+    }
+    function clear() {
+      cursor.style.opacity = '0'; timeEl.textContent = 'Drag across any chart';
+      stageEl.classList.remove('show'); hyp.classList.remove('np-dim');
+      blks.forEach((b) => b.classList.remove('active')); legs.forEach((l) => l.classList.remove('active'));
+      NIGHT.forEach((mc) => { if (!inst[mc.key]) return; inst[mc.key].setCursor(null);
+        const live = ui.$(`[data-live="${mc.key}"]`, root); if (live) live.textContent = ''; });
+    }
+    const fracFrom = (e) => { const r = stack.getBoundingClientRect();
+      const x = (e.touches ? e.touches[0].clientX : e.clientX) - r.left; return x / r.width; };
+    let dragging = false;
+    stack.addEventListener('pointerdown', (e) => { dragging = true; scrub(fracFrom(e)); try { stack.setPointerCapture(e.pointerId); } catch {} });
+    stack.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' || dragging) scrub(fracFrom(e)); });
+    stack.addEventListener('pointerup', () => { dragging = false; });      // touch keeps the last reading
+    stack.addEventListener('pointerleave', () => { if (!dragging) clear(); }); // mouse-out resets to summary
   }
 
   function hyp(sl, total) {

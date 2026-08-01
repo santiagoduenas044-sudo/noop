@@ -148,6 +148,42 @@
     fmtTime: fmtSleepTime,
   };
 
+  // The sleep stage active at a given minute-offset into the night.
+  sleep.stageAt = function (minute) {
+    const seg = _hyp.find((s) => minute >= s.from && minute < s.to) || _hyp[_hyp.length - 1];
+    return seg.key;
+  };
+
+  // ---- Overnight physiological series (mock), sampled every `step` minutes and
+  //      ALIGNED to the sleep timeline so they can be scrubbed against the stages.
+  //      Values track the stage the body was in (HR dips in deep, HRV rises, etc.).
+  (function buildOvernight() {
+    const step = 3, n = Math.ceil(_inBed / step);
+    const cHR   = { awake: 66, rem: 58, light: 54, deep: 49 };
+    const cHRV  = { awake: 52, rem: 62, light: 70, deep: 82 };
+    const cRESP = { awake: 15.4, rem: 15.1, light: 14.0, deep: 13.4 };
+    const cSPO2 = { awake: 97, rem: 96, light: 96, deep: 95 };
+    const hr = [], hrv = [], resp = [], spo2 = [], temp = [], minutes = [];
+    let dHR = 0, dHRV = 0;   // slow drifts so the lines wander realistically
+    for (let i = 0; i < n; i++) {
+      const m = i * step, k = sleep.stageAt(m), frac = m / _inBed;
+      dHR = Math.max(-3, Math.min(3, dHR + rr(-0.6, 0.6)));
+      dHRV = Math.max(-4, Math.min(4, dHRV + rr(-0.8, 0.8)));
+      minutes.push(m);
+      hr.push(Math.round(cHR[k] + dHR + rr(-1.4, 1.4)));
+      hrv.push(Math.round(cHRV[k] + dHRV + rr(-3, 3)));
+      resp.push(Math.round((cRESP[k] + rr(-0.5, 0.5)) * 10) / 10);
+      spo2.push(Math.max(93, Math.min(99, Math.round(cSPO2[k] + rr(-0.6, 0.9)))));
+      // wrist temp deviation: settles below baseline mid-night, rises toward waking
+      const t = -0.15 + 0.5 * frac - 0.3 * Math.sin(frac * Math.PI);
+      temp.push(Math.round((t + rr(-0.05, 0.05)) * 100) / 100);
+    }
+    sleep.overnight = {
+      step, n, minutes, hr, hrv, resp, spo2, temp,
+      baseline: { hr: 52, hrv: 68, resp: 14.2, spo2: 96, temp: 0.0 },
+    };
+  })();
+
   // Recovery / readiness contributors (name, contribution %, direction, note)
   const drivers = [
     { name: 'HRV',            value: 96,  unit: 'ms', pct: 88, dir: 'up',   tint: 'hrv',      note: '12% above your 30-day baseline' },
