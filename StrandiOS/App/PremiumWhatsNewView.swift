@@ -33,9 +33,9 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Insights", component: "“Why” cards", change: "Computed from real trends.", status: .connected),
             Item(screen: "Journal", component: "Mood + grouped behaviour log", change: "Real MoodStore + JournalCatalogStore; FAB \"Log journal\" opens it natively.", status: .connected),
             Item(screen: "Settings", component: "Profile, appearance, health sources, data & privacy, experimental, about", change: "Real ProfileStore/LiveState/AppearanceMode/ChartStyle + nav to Devices/Apple Health/Backup/Automations. Classic Settings stays reachable via \"Advanced settings\".", status: .connected),
+            Item(screen: "Sleep", component: "Time-resolved hypnogram", change: "Real stage timeline via SleepView.decodedIntervals over the day's main-night session — the same decode + winner logic the classic Sleep screen uses.", status: .connected),
         ]),
         Group(emoji: "🚧", name: "Partially connected", tint: StrandPalette.effortColor, items: [
-            Item(screen: "Sleep", component: "Stage breakdown", change: "Real stage proportions; time-resolved hypnogram pending.", status: .partial),
             Item(screen: "Heart", component: "Live pulse + day HR", change: "Real HR; ECG + zone-shaded ribbon pending.", status: .partial),
         ]),
         Group(emoji: "❌", name: "Not started", tint: StrandPalette.metricRose, items: [

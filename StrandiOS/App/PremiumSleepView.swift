@@ -4,17 +4,22 @@ import StrandDesign
 import WhoopStore
 
 /// Phase 2 · Sleep — the approved prototype's Sleep screen, native SwiftUI on real
-/// `Repository`/`DailyMetric` data: an efficiency score ring, the dual "Hours of sleep /
-/// Restorative sleep" headline with 30-day-typical baselines, per-stage breakdown lanes
-/// (Deep / REM / Light / Awake) sized from the real recorded stage minutes, and a weekly
-/// sleep-hours trend.
+/// `Repository`/`DailyMetric` data: an efficiency score ring, a time-resolved hypnogram of last
+/// night's real stage timeline, the dual "Hours of sleep / Restorative sleep" headline with
+/// 30-day-typical baselines, per-stage breakdown lanes (Deep / REM / Light / Awake) sized from
+/// the real recorded stage minutes, and a weekly sleep-hours trend.
 ///
-/// Stage *timing* (a true time-resolved hypnogram) lives in the existing SleepView's async
-/// session pipeline; this screen shows the real stage *proportions* from DailyMetric, with
-/// awake derived from sleep efficiency. All numbers are real — nothing hardcoded.
+/// The hypnogram reuses `SleepView.decodedIntervals` — the SAME tested stage-segment decode the
+/// classic Sleep screen's timeline uses — over the day's real main-night session (picked by
+/// `SleepView.mainNightSession`, the same learned-timing winner logic), rather than re-deriving
+/// that decode. Falls back to the proportional lanes alone when a night has no time-resolved
+/// data (an imported night stores only stage minutes, no segment timing).
 struct PremiumSleepView: View {
     @EnvironmentObject var repo: Repository
     @Environment(\.scrollToTopSignal) private var scrollToTopSignal
+
+    @State private var hypnogramIntervals: [SleepInterval] = []
+    @State private var hypnogramNightStart: Date?
 
     private func latest<T>(_ key: (DailyMetric) -> T?) -> T? {
         for d in repo.days.reversed() { if let v = key(d) { return v } }
@@ -44,6 +49,7 @@ struct PremiumSleepView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     scoreHero
+                    hypnogramCard
                     breakdownCard
                     trendCard
                     Color.clear.frame(height: 8)
@@ -56,6 +62,52 @@ struct PremiumSleepView: View {
             .onChange(of: scrollToTopSignal) { _, _ in
                 withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
             }
+        }
+        .task(id: repo.refreshSeq) { await loadHypnogram() }
+    }
+
+    // MARK: - Hypnogram (real, time-resolved)
+
+    @ViewBuilder private var hypnogramCard: some View {
+        if !hypnogramIntervals.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Sleep stages").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    Hypnogram(intervals: hypnogramIntervals, height: 160,
+                              nightStart: hypnogramNightStart, showsTimeAxis: hypnogramNightStart != nil)
+                }
+            }
+        }
+    }
+
+    /// The most recent night's real stage timeline: group sessions by the calendar day they END on
+    /// (mirroring `SleepView.navDays`), take the newest day, pick its main-night session (the same
+    /// learned-timing winner `SleepView` uses), and decode its stored segment JSON into the
+    /// `Hypnogram`'s `[SleepInterval]` domain. Empty when the newest night has no time-resolved data
+    /// (an imported night stores only stage minutes) — `hypnogramCard` hides itself in that case, and
+    /// `breakdownCard`'s proportional lanes below still show the real per-stage minutes either way.
+    private func loadHypnogram() async {
+        let sessions = await repo.allSleepSessions()
+        guard !sessions.isEmpty else {
+            await MainActor.run { hypnogramIntervals = []; hypnogramNightStart = nil }
+            return
+        }
+        let habitual = await repo.habitualMidsleepSec()
+        let cal = Calendar.current
+        let groups = Dictionary(grouping: sessions) { s in
+            cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(s.endTs)))
+        }
+        guard let newestDay = groups.keys.max(),
+              let main = SleepView.mainNightSession(groups[newestDay] ?? [], habitualMidsleepSec: habitual)
+        else {
+            await MainActor.run { hypnogramIntervals = []; hypnogramNightStart = nil }
+            return
+        }
+        let intervals = SleepView.decodedIntervals(main.stagesJSON, sessionStart: main.effectiveStartTs) ?? []
+        let start = Date(timeIntervalSince1970: TimeInterval(main.effectiveStartTs))
+        await MainActor.run {
+            hypnogramIntervals = intervals
+            hypnogramNightStart = intervals.isEmpty ? nil : start
         }
     }
 
@@ -125,7 +177,9 @@ struct PremiumSleepView: View {
                 stageLane("Light", lightMin, StrandPalette.sleepLight)
                 stageLane("Deep", deepMin, StrandPalette.sleepDeep)
                 stageLane("REM", remMin, StrandPalette.sleepREM)
-                Text("Stage proportions from your recorded sleep · on-device")
+                Text(hypnogramIntervals.isEmpty
+                     ? "Stage proportions from your recorded sleep · on-device"
+                     : "Per-stage totals from the hypnogram above · on-device")
                     .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
             }
         }

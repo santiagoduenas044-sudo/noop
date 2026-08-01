@@ -2489,6 +2489,15 @@ struct SleepView: View {
             ?? 0
     }
 
+    /// The real, time-resolved stage timeline for one session's stored `stagesJSON` — the same decode
+    /// `decodedAsleepMinutes` uses, exposed for callers that need the `[SleepInterval]` itself (the
+    /// `Hypnogram`'s domain), not just a total. Nil for the imported minutes-only format (no timing) or
+    /// when there's nothing to decode. Internal (not private) so `PremiumSleepView` renders the same
+    /// on-device-computed timeline this screen does, without re-deriving the segment decode.
+    static func decodedIntervals(_ json: String?, sessionStart: Int) -> [SleepInterval]? {
+        decodeSegments(json, sessionStart: sessionStart)?.intervals
+    }
+
     /// Decode the imported stagesJSON dict of MINUTES {"light","deep","rem","awake"}.
     private static func decodeStages(_ json: String?) -> Stages? {
         guard let json, let data = json.data(using: .utf8) else { return nil }
