@@ -254,7 +254,7 @@ struct PremiumSettingsView: View {
 
     // MARK: - Shared row/group helpers
 
-    private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+    private func settingsGroup<Content: View>(_ title: String, @ViewBuilder content: @escaping () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             PremiumSectionHeader(title: title)
             StrandCard { VStack(alignment: .leading, spacing: 12, content: content) }
