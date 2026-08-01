@@ -39,6 +39,8 @@ struct PremiumHomeView: View {
     private var resp: Double?     { latest { $0.respRateBpm } }
     private var spo2: Double?     { latest { $0.spo2Pct } }
     private var skinTemp: Double? { latest { $0.skinTempDevC } }
+    private var activeKcal: Double? { latest { $0.activeKcalEst } }
+    private var steps: Int?         { latest { $0.steps } }
     /// `DailyMetric.efficiency` is stored as a FRACTION in [0,1] (see `SleepStageTotals.DailySleep`'s
     /// own doc), not a 0-100 percentage — normalized here (same defensive `<= 1.0 ? *100 : as-is`
     /// conversion `SleepView.efficiencyPct` uses) so a raw 0.92 reads "92%", not "1%".
@@ -57,7 +59,7 @@ struct PremiumHomeView: View {
                 VStack(alignment: .leading, spacing: 22) {
                     Color.clear.frame(height: 1).id("top")
                     header
-                    hero.contentShape(Rectangle()).onTapGesture { showReadiness = true }
+                    hero
                     storyCard
                     vitalsSection
                     sleepCard
@@ -128,13 +130,20 @@ struct PremiumHomeView: View {
 
     private var hero: some View {
         HStack(alignment: .center, spacing: 16) {
+            // Tapping the recovery ring opens the Readiness detail sheet (unchanged); the strain stat
+            // deep-links into the native Strain screen so each hero element has its own destination.
             RecoveryRing(score: recovery ?? 0, diameter: 168, lineWidth: 13,
                          showsWordmark: false, showsHover: false)
+                .contentShape(Circle())
+                .onTapGesture { showReadiness = true }
             VStack(alignment: .leading, spacing: 18) {
-                heroStat(label: "Day Strain", value: strain,
-                         format: { strain == nil ? "—" : String(format: "%.1f", $0) },
-                         fraction: (strain ?? 0) / 21.0,
-                         tint: StrandPalette.effortColor, sub: "of 21")
+                NavigationLink(value: PremiumRoute.strain) {
+                    heroStat(label: "Day Strain", value: strain,
+                             format: { strain == nil ? "—" : String(format: "%.1f", $0) },
+                             fraction: (strain ?? 0) / 21.0,
+                             tint: StrandPalette.effortColor, sub: "of 21", showsChevron: true)
+                }
+                .buttonStyle(.plain)
                 heroStat(label: "Sleep", value: efficiency,
                          format: { efficiency == nil ? "—" : "\(Int($0))%" },
                          fraction: (efficiency ?? 0) / 100.0,
@@ -145,10 +154,17 @@ struct PremiumHomeView: View {
     }
 
     private func heroStat(label: String, value: Double?, format: @escaping (Double) -> String,
-                          fraction: Double, tint: Color, sub: String) -> some View {
+                          fraction: Double, tint: Color, sub: String, showsChevron: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label.uppercased()).font(StrandFont.overline).tracking(1.2)
-                .foregroundStyle(StrandPalette.textTertiary)
+            HStack(spacing: 5) {
+                Text(label.uppercased()).font(StrandFont.overline).tracking(1.2)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                if showsChevron {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
             CountUpText(value: value ?? 0, format: format,
                         font: .system(size: 30, weight: .heavy, design: .default),
                         color: StrandPalette.textPrimary)
@@ -198,40 +214,60 @@ struct PremiumHomeView: View {
                                 GridItem(.flexible(), spacing: 14)], spacing: 14) {
                 vitalCard(icon: "heart.fill", tint: StrandPalette.metricRose, label: "Resting HR",
                           value: rhr.map(String.init) ?? "—", unit: "bpm",
-                          spark: series { $0.restingHr.map(Double.init) })
+                          spark: series { $0.restingHr.map(Double.init) }, route: .metric(.restingHr))
                 vitalCard(icon: "waveform.path.ecg", tint: StrandPalette.metricCyan, label: "HRV",
                           value: hrv.map { String(Int($0.rounded())) } ?? "—", unit: "ms",
-                          spark: series { $0.avgHrv })
+                          spark: series { $0.avgHrv }, route: .metric(.hrv))
                 vitalCard(icon: "lungs.fill", tint: StrandPalette.recoveryColor(80), label: "Respiratory",
                           value: resp.map { String(format: "%.1f", $0) } ?? "—", unit: "rpm",
-                          spark: series { $0.respRateBpm })
+                          spark: series { $0.respRateBpm }, route: .metric(.respiratory))
                 vitalCard(icon: "drop.fill", tint: StrandPalette.metricPurple, label: "Blood oxygen",
                           value: spo2.map { String(Int($0.rounded())) } ?? "—", unit: "%",
-                          spark: series { $0.spo2Pct })
+                          spark: series { $0.spo2Pct }, route: .bloodOxygen)
+                vitalCard(icon: "flame.fill", tint: StrandPalette.metricAmber, label: "Active energy",
+                          value: activeKcal.map { String(Int($0.rounded())) } ?? "—", unit: "kcal",
+                          spark: series { $0.activeKcalEst }, route: .energy)
+                vitalCard(icon: "figure.walk", tint: StrandPalette.recoveryColor(80), label: "Steps",
+                          value: steps.map(String.init) ?? "—", unit: "",
+                          spark: series { $0.steps.map(Double.init) }, route: .metric(.steps))
             }
         }
     }
 
-    private func vitalCard(icon: String, tint: Color, label: String, value: String, unit: String, spark: [Double]) -> some View {
-        StrandCard {
-            VStack(alignment: .leading, spacing: 8) {
-                iconTile(icon, tint: tint)
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text(value).font(.system(size: 28, weight: .heavy)).monospacedDigit()
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Text(unit).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
-                }
-                Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
-                if spark.count >= 2 {
-                    Sparkline(values: spark,
-                              gradient: Gradient(colors: [tint, tint.opacity(0.55)]),
-                              lineWidth: 2, showsArea: true, showsHead: true, showsHover: false)
-                        .frame(height: 34)
-                } else {
-                    Color.clear.frame(height: 34)
+    /// One tappable vital tile. `route` deep-links into the matching Premium detail screen (metric detail,
+    /// energy, blood oxygen) via the tab's `NavigationStack` — registered by `.premiumRouteDestinations()`.
+    private func vitalCard(icon: String, tint: Color, label: String, value: String, unit: String,
+                           spark: [Double], route: PremiumRoute) -> some View {
+        NavigationLink(value: route) {
+            StrandCard {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        iconTile(icon, tint: tint)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    }
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text(value).font(.system(size: 28, weight: .heavy)).monospacedDigit()
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        if !unit.isEmpty {
+                            Text(unit).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                    }
+                    Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
+                    if spark.count >= 2 {
+                        Sparkline(values: spark,
+                                  gradient: Gradient(colors: [tint, tint.opacity(0.55)]),
+                                  lineWidth: 2, showsArea: true, showsHead: true, showsHover: false)
+                            .frame(height: 34)
+                    } else {
+                        Color.clear.frame(height: 34)
+                    }
                 }
             }
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: Sleep summary

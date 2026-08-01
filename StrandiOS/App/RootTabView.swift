@@ -296,6 +296,9 @@ struct RootTabView: View {
                 .background(StrandPalette.surfaceBase.ignoresSafeArea())
                 .toolbar(.hidden, for: .navigationBar)
                 .tabRouteDestinations()
+                // iOS-only Premium deep screens (metric detail, energy, blood oxygen, strain). Separate
+                // registration from the shared TabRoute one above so the iOS-only views never touch macOS.
+                .premiumRouteDestinations()
         }
         // Drive this tab's root scroll-to-top on an at-root re-tap (#198 follow-up); read by ScreenScaffold
         // / LiquidTodayView inside. Only THIS tab's token changes on its reselect, so the others don't scroll.
@@ -379,6 +382,9 @@ struct RootTabView: View {
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbarBackground(.hidden, for: .navigationBar)
             }
+            // The More index also reaches the iOS-only Premium deep screens (e.g. a metric row deep-links
+            // into a detail); register the same destinations on its stack.
+            .premiumRouteDestinations()
         }
         // Scroll the More index to the top on an at-root re-tap (#198 follow-up); read by its ScreenScaffold.
         .environment(\.scrollToTopSignal, scrollSignal)
