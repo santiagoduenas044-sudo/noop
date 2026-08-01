@@ -236,28 +236,57 @@ struct PremiumHomeView: View {
 
     // MARK: Sleep summary
 
+    /// Sleep-score ring fill — draws in on appear/change, the same `StrandMotion.drawIn` curve the
+    /// Sleep tab's own hero ring uses (matches the HTML's Home sleep-row ring, previously text-only here).
+    @State private var animatedSleepRingFraction: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var sleepCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             sectionTitle("Sleep")
             StrandCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack(alignment: .center, spacing: 16) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(sleepHoursText).font(.system(size: 26, weight: .heavy)).monospacedDigit()
+                    HStack(alignment: .center, spacing: 18) {
+                        sleepRing
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(sleepHoursText).font(.system(size: 22, weight: .heavy)).monospacedDigit()
                                 .foregroundStyle(StrandPalette.textPrimary)
-                            Text("asleep · \(efficiency.map { "\(Int($0))% efficient" } ?? "—")")
-                                .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
+                            stageKey("Deep", StrandPalette.sleepDeep, deepMin)
+                            stageKey("REM", StrandPalette.sleepREM, remMin)
+                            stageKey("Light", StrandPalette.sleepLight, lightMin)
                         }
-                        Spacer()
+                        Spacer(minLength: 0)
                     }
                     stageBar
-                    HStack(spacing: 14) {
-                        stageKey("Deep", StrandPalette.sleepDeep, deepMin)
-                        stageKey("REM", StrandPalette.sleepREM, remMin)
-                        stageKey("Light", StrandPalette.sleepLight, lightMin)
-                    }
                 }
             }
+        }
+    }
+
+    private var sleepRing: some View {
+        let frac = min(1, max(0, (efficiency ?? 0) / 100))
+        return ZStack {
+            Circle().stroke(StrandPalette.surfaceInset, lineWidth: 10)
+            Circle().trim(from: 0, to: animatedSleepRingFraction)
+                .stroke(LinearGradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep],
+                                       startPoint: .topTrailing, endPoint: .bottomLeading),
+                        style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .shadow(color: StrandPalette.sleepDeep.opacity(0.4), radius: 6)
+            VStack(spacing: 0) {
+                CountUpText(value: efficiency ?? 0,
+                            format: { efficiency == nil ? "—" : "\(Int($0))" },
+                            font: .system(size: 26, weight: .heavy),
+                            color: StrandPalette.textPrimary)
+                    .monospacedDigit()
+                Text("SCORE").font(.system(size: 8, weight: .bold)).tracking(0.6)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
+        .frame(width: 96, height: 96)
+        .onAppear { withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { animatedSleepRingFraction = frac } }
+        .onChange(of: frac) { _, new in
+            withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { animatedSleepRingFraction = new }
         }
     }
 

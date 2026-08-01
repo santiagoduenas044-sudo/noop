@@ -84,21 +84,9 @@ struct RootTabView: View {
             // Tab crossfade — README §Motion: ~240ms opacity swap between tab roots, global calm
             // easing cubic-bezier(0.22,1,0.36,1).
             .animation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24), value: selectedTab)
-            // Swipe left/right anywhere to move between tabs (2026-07-02). Simultaneous so vertical
-            // scrolling still works; only a decisive horizontal flick switches tabs.
-            .simultaneousGesture(
-                DragGesture(minimumDistance: 24)
-                    .onEnded { v in
-                        // Home (tab 0) uses horizontal swipe to change DAYS, so tab-swipe is off there.
-                        guard selectedTab != 0 else { return }
-                        let dx = v.translation.width, dy = v.translation.height
-                        guard abs(dx) > 60, abs(dx) > abs(dy) * 1.6 else { return }
-                        let next = min(5, max(0, selectedTab + (dx < 0 ? 1 : -1)))
-                        if next != selectedTab {
-                            withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = next }
-                        }
-                    }
-            )
+            // Swipe-anywhere-to-change-tabs was removed: it fired on ordinary vertical/diagonal scroll
+            // gestures inside a screen's content (e.g. scrolling Home) and switched tabs unintentionally.
+            // Tab changes now go ONLY through the explicit FloatingTabBar taps below.
 
             FloatingTabBar(selection: $selectedTab, onReselect: { tag in
                 // Re-tapping the active tab refreshes that page's data (2026-07-02) and, from a
