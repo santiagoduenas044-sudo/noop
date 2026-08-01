@@ -203,8 +203,8 @@ struct RootTabView: View {
                 // this keeps the switch exhaustive and falls back to Today if it ever reaches the host.
                 case .liveSession: LiquidTodayView()
                 // .journal opens through the quick-action Journal sheet (handled above); this keeps the
-                // switch exhaustive and falls back to the journal's Insights host if it ever reaches here.
-                case .journal: InsightsView()
+                // switch exhaustive and falls back to the native Journal screen if it ever reaches here.
+                case .journal: PremiumJournalView()
                 }
             }
             // The Trends/Today fallbacks above emit TabRoute value pushes (#198), which need a
@@ -249,7 +249,7 @@ struct RootTabView: View {
         case .workout:
             quickScreen(WorkoutsView())
         case .journal:
-            quickScreen(InsightsView())
+            quickScreen(PremiumJournalView())
         case .breathe:
             quickScreen(BreathingView())
         }
@@ -334,6 +334,7 @@ struct RootTabView: View {
                     MoreRow("Intelligence", "brain.head.profile", .intelligence)
                     MoreRow("Coach", "sparkles", .coach)
                     MoreRow("Insights", "lightbulb.fill", .insights)
+                    MoreRow("Behaviour Log", "list.bullet.clipboard.fill", .behaviourLog)
                     MoreRow("Explore", "square.grid.2x2.fill", .explore)
                     MoreRow("Compare", "rectangle.split.2x1.fill", .compare)
                 }
@@ -459,7 +460,7 @@ struct RootTabView: View {
 /// per-screen chrome the old inline links applied lives at the single `navigationDestination(for:)`
 /// registration in `moreTab`.
 private enum MoreDestination: Hashable {
-    case insightsHub, intelligence, coach, insights, explore, compare
+    case insightsHub, intelligence, coach, insights, behaviourLog, explore, compare
     case live, workouts, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport
     case alarms, automations, testCentre, siriShortcuts, settings, whatsNew
@@ -470,6 +471,10 @@ private enum MoreDestination: Hashable {
         case .intelligence:    IntelligenceView()
         case .coach:           PremiumCoachView()
         case .insights:        PremiumInsightsView()
+        // The classic full Insights screen (behaviour effect ranking + activity cost + relationships,
+        // plus its own embedded journal/mood/caffeine logging) — kept reachable here, unchanged, now that
+        // the FAB's "Log journal" quick action points at the dedicated native `PremiumJournalView` instead.
+        case .behaviourLog:    InsightsView()
         case .explore:         MetricExplorerView()
         case .compare:         CompareView()
         case .live:            LiveView()

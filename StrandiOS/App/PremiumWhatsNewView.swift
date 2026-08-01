@@ -31,6 +31,7 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Coach", component: "Chat on real AICoachEngine", change: "Live send/history/typing.", status: .connected),
             Item(screen: "Trends", component: "Metric picker + charts", change: "Real repo.days series.", status: .connected),
             Item(screen: "Insights", component: "“Why” cards", change: "Computed from real trends.", status: .connected),
+            Item(screen: "Journal", component: "Mood + grouped behaviour log", change: "Real MoodStore + JournalCatalogStore; FAB \"Log journal\" opens it natively.", status: .connected),
             Item(screen: "Settings", component: "Build identifier", change: "Version/build/commit/date visible.", status: .connected),
         ]),
         Group(emoji: "🚧", name: "Partially connected", tint: StrandPalette.effortColor, items: [
@@ -38,7 +39,6 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Heart", component: "Live pulse + day HR", change: "Real HR; ECG + zone-shaded ribbon pending.", status: .partial),
         ]),
         Group(emoji: "🎨", name: "Prototype only", tint: StrandPalette.sleepDeep, items: [
-            Item(screen: "Journal", component: "Mood + log grid + behaviours", change: "In HTML; native migration in progress.", status: .prototype),
             Item(screen: "Settings", component: "Full prototype layout", change: "Native uses classic + build card.", status: .prototype),
         ]),
         Group(emoji: "❌", name: "Not started", tint: StrandPalette.metricRose, items: [
@@ -47,6 +47,7 @@ struct PremiumWhatsNewView: View {
         Group(emoji: "⚠️", name: "Known limitations", tint: StrandPalette.gold, items: [
             Item(screen: "Global", component: "Animation parity", change: "Count-ups / draw-on / ripples are HTML-only so far.", status: .limitation),
             Item(screen: "Coach", component: "AI provider key", change: "Chat needs your own API key (real requirement).", status: .limitation),
+            Item(screen: "Journal", component: "Quick-log tiles + photo + note", change: "The HTML mock's canned Training/Caffeine/Alcohol option sheets, photo attach, and freeform day note have no real on-device field, so they're intentionally left out rather than faked. Real behaviours (yes/no + numeric, grouped) are fully wired.", status: .limitation),
         ])]
     }
 
