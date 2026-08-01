@@ -459,11 +459,15 @@ struct RootTabView: View {
 /// (#198): a closure-destination push would bypass the path and be un-poppable on tab re-tap. The
 /// per-screen chrome the old inline links applied lives at the single `navigationDestination(for:)`
 /// registration in `moreTab`.
-private enum MoreDestination: Hashable {
+/// Not `private`: `PremiumSettingsView` (a separate file) pushes its own rows onto the SAME More-tab
+/// NavigationStack via `NavigationLink(value: MoreDestination.xxx)`, resolved by this enum's
+/// `.navigationDestination(for:)` registration in `moreTab()` below — that registration covers the
+/// whole stack, including views pushed deeper (like a Settings row pushing Apple Health).
+enum MoreDestination: Hashable {
     case insightsHub, intelligence, coach, insights, behaviourLog, explore, compare
     case live, workouts, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport
-    case alarms, automations, testCentre, siriShortcuts, settings, whatsNew
+    case alarms, automations, testCentre, siriShortcuts, settings, advancedSettings, whatsNew
 
     @ViewBuilder var destination: some View {
         switch self {
@@ -495,7 +499,12 @@ private enum MoreDestination: Hashable {
         case .automations:     AutomationsView()
         case .testCentre:      TestCentreView()
         case .siriShortcuts:   SiriShortcutsSettingsView()
-        case .settings:        SettingsView()
+        // The prototype-migrated native Settings home (profile, appearance, notifications, health
+        // sources, data & privacy, experimental, about) — real toggles/nav rows throughout.
+        case .settings:        PremiumSettingsView()
+        // The full classic Settings screen (units, HRV window, strap diagnostics, and everything else
+        // PremiumSettingsView doesn't restate) — kept reachable, unchanged, via a row inside Premium Settings.
+        case .advancedSettings: SettingsView()
         case .whatsNew:        PremiumWhatsNewView()
         }
     }

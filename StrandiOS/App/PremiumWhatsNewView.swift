@@ -32,14 +32,11 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Trends", component: "Metric picker + charts", change: "Real repo.days series.", status: .connected),
             Item(screen: "Insights", component: "“Why” cards", change: "Computed from real trends.", status: .connected),
             Item(screen: "Journal", component: "Mood + grouped behaviour log", change: "Real MoodStore + JournalCatalogStore; FAB \"Log journal\" opens it natively.", status: .connected),
-            Item(screen: "Settings", component: "Build identifier", change: "Version/build/commit/date visible.", status: .connected),
+            Item(screen: "Settings", component: "Profile, appearance, health sources, data & privacy, experimental, about", change: "Real ProfileStore/LiveState/AppearanceMode/ChartStyle + nav to Devices/Apple Health/Backup/Automations. Classic Settings stays reachable via \"Advanced settings\".", status: .connected),
         ]),
         Group(emoji: "🚧", name: "Partially connected", tint: StrandPalette.effortColor, items: [
             Item(screen: "Sleep", component: "Stage breakdown", change: "Real stage proportions; time-resolved hypnogram pending.", status: .partial),
             Item(screen: "Heart", component: "Live pulse + day HR", change: "Real HR; ECG + zone-shaded ribbon pending.", status: .partial),
-        ]),
-        Group(emoji: "🎨", name: "Prototype only", tint: StrandPalette.sleepDeep, items: [
-            Item(screen: "Settings", component: "Full prototype layout", change: "Native uses classic + build card.", status: .prototype),
         ]),
         Group(emoji: "❌", name: "Not started", tint: StrandPalette.metricRose, items: [
             Item(screen: "Navigation", component: "5-tab bar (Home·Sleep·Heart·Coach·Trends)", change: "Heart/Coach reachable via More for now.", status: .notStarted),
@@ -48,6 +45,7 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Global", component: "Animation parity", change: "Count-ups / draw-on / ripples are HTML-only so far.", status: .limitation),
             Item(screen: "Coach", component: "AI provider key", change: "Chat needs your own API key (real requirement).", status: .limitation),
             Item(screen: "Journal", component: "Quick-log tiles + photo + note", change: "The HTML mock's canned Training/Caffeine/Alcohol option sheets, photo attach, and freeform day note have no real on-device field, so they're intentionally left out rather than faked. Real behaviours (yes/no + numeric, grouped) are fully wired.", status: .limitation),
+            Item(screen: "Settings", component: "App lock + 6-dot accent picker", change: "Face ID/passcode app-lock and a user-swappable brand accent don't exist as real features, so they're omitted rather than faked. \"Accent\" is replaced by the real Chart style toggle.", status: .limitation),
         ])]
     }
 
