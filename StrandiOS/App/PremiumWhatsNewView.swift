@@ -34,9 +34,7 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Journal", component: "Mood + grouped behaviour log", change: "Real MoodStore + JournalCatalogStore; FAB \"Log journal\" opens it natively.", status: .connected),
             Item(screen: "Settings", component: "Profile, appearance, health sources, data & privacy, experimental, about", change: "Real ProfileStore/LiveState/AppearanceMode/ChartStyle + nav to Devices/Apple Health/Backup/Automations. Classic Settings stays reachable via \"Advanced settings\".", status: .connected),
             Item(screen: "Sleep", component: "Time-resolved hypnogram", change: "Real stage timeline via SleepView.decodedIntervals over the day's main-night session — the same decode + winner logic the classic Sleep screen uses.", status: .connected),
-        ]),
-        Group(emoji: "🚧", name: "Partially connected", tint: StrandPalette.effortColor, items: [
-            Item(screen: "Heart", component: "Live pulse + day HR", change: "Real HR; ECG + zone-shaded ribbon pending.", status: .partial),
+            Item(screen: "Heart", component: "Zone-shaded HR ribbon", change: "Real, age-personalized zones (Tanaka max-HR via HRZones — the same engine workoutZoneMinutes uses) shade the day's real HR line and drive real time-in-zone.", status: .connected),
         ]),
         Group(emoji: "❌", name: "Not started", tint: StrandPalette.metricRose, items: [
             Item(screen: "Navigation", component: "5-tab bar (Home·Sleep·Heart·Coach·Trends)", change: "Heart/Coach reachable via More for now.", status: .notStarted),
@@ -46,6 +44,7 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Coach", component: "AI provider key", change: "Chat needs your own API key (real requirement).", status: .limitation),
             Item(screen: "Journal", component: "Quick-log tiles + photo + note", change: "The HTML mock's canned Training/Caffeine/Alcohol option sheets, photo attach, and freeform day note have no real on-device field, so they're intentionally left out rather than faked. Real behaviours (yes/no + numeric, grouped) are fully wired.", status: .limitation),
             Item(screen: "Settings", component: "App lock + 6-dot accent picker", change: "Face ID/passcode app-lock and a user-swappable brand accent don't exist as real features, so they're omitted rather than faked. \"Accent\" is replaced by the real Chart style toggle.", status: .limitation),
+            Item(screen: "Heart", component: "ECG waveform", change: "WHOOP straps use PPG, not ECG electrodes — there is no real cardiac-electrical signal to show. The mock's ECG canvas is a synthetic animation with no data behind it, so it's intentionally not reproduced; the real upgrade is the zone-shaded ribbon above.", status: .limitation),
         ])]
     }
 
