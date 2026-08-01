@@ -20,6 +20,12 @@ struct PremiumSleepView: View {
 
     @State private var hypnogramIntervals: [SleepInterval] = []
     @State private var hypnogramNightStart: Date?
+    @State private var hypnogramNightEnd: Date?
+    /// Real overnight heart-rate samples across the main-night window (downsampled buckets). Heart rate is
+    /// the ONLY per-time overnight signal NOOP stores on-device — HRV / respiratory / SpO₂ are nightly
+    /// aggregates, so the scrubber charts HR honestly and shows the others as nightly-average references,
+    /// never fabricated overnight curves.
+    @State private var overnightHR: [OvernightSample] = []
 
     private func latest<T>(_ key: (DailyMetric) -> T?) -> T? {
         for d in repo.days.reversed() { if let v = key(d) { return v } }
@@ -59,6 +65,7 @@ struct PremiumSleepView: View {
                     header
                     scoreHero
                     hypnogramCard
+                    overnightCard
                     breakdownCard
                     trendCard
                     Color.clear.frame(height: 8)
@@ -98,7 +105,7 @@ struct PremiumSleepView: View {
     private func loadHypnogram() async {
         let sessions = await repo.allSleepSessions()
         guard !sessions.isEmpty else {
-            await MainActor.run { hypnogramIntervals = []; hypnogramNightStart = nil }
+            await MainActor.run { clearNight() }
             return
         }
         let habitual = await repo.habitualMidsleepSec()
@@ -109,14 +116,52 @@ struct PremiumSleepView: View {
         guard let newestDay = groups.keys.max(),
               let main = SleepView.mainNightSession(groups[newestDay] ?? [], habitualMidsleepSec: habitual)
         else {
-            await MainActor.run { hypnogramIntervals = []; hypnogramNightStart = nil }
+            await MainActor.run { clearNight() }
             return
         }
         let intervals = SleepView.decodedIntervals(main.stagesJSON, sessionStart: main.effectiveStartTs) ?? []
         let start = Date(timeIntervalSince1970: TimeInterval(main.effectiveStartTs))
+        let end = Date(timeIntervalSince1970: TimeInterval(main.endTs))
+        // Real overnight heart rate across the main-night window, 2-minute buckets (aggregated in SQL so a
+        // whole night never loads the raw ~1 Hz rows). Zero-bpm gaps are dropped so the line reflects only
+        // recorded beats.
+        let buckets = await repo.hrBuckets(from: main.effectiveStartTs, to: main.endTs, bucketSeconds: 120)
+        let hr = buckets.compactMap { b -> OvernightSample? in
+            guard b.bpm > 0 else { return nil }
+            return OvernightSample(t: Date(timeIntervalSince1970: TimeInterval(b.ts)), bpm: b.bpm)
+        }
         await MainActor.run {
             hypnogramIntervals = intervals
             hypnogramNightStart = intervals.isEmpty ? nil : start
+            hypnogramNightEnd = intervals.isEmpty ? nil : end
+            overnightHR = hr
+        }
+    }
+
+    private func clearNight() {
+        hypnogramIntervals = []; hypnogramNightStart = nil; hypnogramNightEnd = nil; overnightHR = []
+    }
+
+    // MARK: - Overnight physiology (synchronized scrubber)
+
+    /// The interactive overnight panel: a scrubbable heart-rate line synchronized to the same night timeline
+    /// as the hypnogram above, with a stage ribbon beneath it and nightly-average references for the signals
+    /// NOOP only stores as aggregates. Shown only when the night has both a time-resolved stage timeline and
+    /// real overnight HR.
+    @ViewBuilder private var overnightCard: some View {
+        if let start = hypnogramNightStart, let end = hypnogramNightEnd,
+           overnightHR.count >= 3, end > start {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Overnight").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    SleepOvernightPanel(samples: overnightHR, intervals: hypnogramIntervals,
+                                        nightStart: start, nightEnd: end,
+                                        restingHr: latest { $0.restingHr },
+                                        nightlyHRV: latest { $0.avgHrv },
+                                        nightlyResp: latest { $0.respRateBpm },
+                                        nightlySpO2: latest { $0.spo2Pct })
+                }
+            }
         }
     }
 
@@ -278,6 +323,236 @@ struct PremiumSleepView: View {
     private func durText(_ minutes: Double) -> String {
         let m = Int(minutes.rounded()); let h = m / 60, mm = m % 60
         return h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
+    }
+}
+
+// MARK: - Overnight sample + synchronized scrubber
+
+/// One real overnight heart-rate reading (bucketed mean) at a wall-clock time.
+struct OvernightSample: Identifiable {
+    let t: Date
+    let bpm: Double
+    var id: TimeInterval { t.timeIntervalSince1970 }
+}
+
+/// WHOOP-style interactive overnight panel. Draws the REAL overnight heart-rate curve on the same time
+/// domain as the hypnogram, a stage ribbon beneath it, and a shared cursor the user taps/drags to read the
+/// exact bpm, clock time and sleep stage at any moment. HRV / respiratory / SpO₂ are shown as the night's
+/// AVERAGES (the only form NOOP stores for them) — labelled as averages, never drawn as invented curves.
+private struct SleepOvernightPanel: View {
+    let samples: [OvernightSample]
+    let intervals: [SleepInterval]
+    let nightStart: Date
+    let nightEnd: Date
+    let restingHr: Int?
+    let nightlyHRV: Double?
+    let nightlyResp: Double?
+    let nightlySpO2: Double?
+
+    /// Cursor position as a fraction of the night [0,1]; nil = not scrubbing (readout shows the average).
+    @State private var cursorFrac: Double? = nil
+
+    private var span: Double { max(1, nightEnd.timeIntervalSince(nightStart)) }
+    private var bpms: [Double] { samples.map(\.bpm) }
+    private var lo: Double { (bpms.min() ?? 40) - 4 }
+    private var hi: Double { (bpms.max() ?? 120) + 4 }
+    private var avgBpm: Double { bpms.isEmpty ? 0 : bpms.reduce(0, +) / Double(bpms.count) }
+
+    private func fracOf(_ s: OvernightSample) -> Double { min(1, max(0, s.t.timeIntervalSince(nightStart) / span)) }
+    private func stageAt(_ frac: Double) -> SleepStage? {
+        let sec = frac * span
+        return intervals.first { $0.start <= sec && sec < $0.end }?.stage
+    }
+    private func sampleAt(_ frac: Double) -> OvernightSample? {
+        guard !samples.isEmpty else { return nil }
+        return samples.min(by: { abs(fracOf($0) - frac) < abs(fracOf($1) - frac) })
+    }
+    private func stageColor(_ st: SleepStage) -> Color {
+        switch st {
+        case .awake: return StrandPalette.sleepAwake
+        case .light: return StrandPalette.sleepLight
+        case .deep:  return StrandPalette.sleepDeep
+        case .rem:   return StrandPalette.sleepREM
+        }
+    }
+    private let tint = StrandPalette.metricRose
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            readout
+            GeometryReader { geo in
+                let w = geo.size.width
+                VStack(spacing: 6) {
+                    hrChart.frame(height: 118)
+                    ribbon.frame(height: 14)
+                }
+                .overlay(alignment: .leading) {
+                    if let f = cursorFrac {
+                        Rectangle().fill(StrandPalette.textSecondary.opacity(0.55))
+                            .frame(width: 1).frame(maxHeight: .infinity)
+                            .offset(x: w * CGFloat(f))
+                    }
+                }
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { v in cursorFrac = min(1, max(0, Double(v.location.x / max(1, w)))) }
+                )
+            }
+            .frame(height: 118 + 6 + 14)
+            axisRow
+            referenceChips
+        }
+    }
+
+    // MARK: Readout
+
+    private var readout: some View {
+        let bpm = cursorFrac.flatMap { sampleAt($0)?.bpm } ?? avgBpm
+        let stage = cursorFrac.flatMap { stageAt($0) }
+        let label = cursorFrac.map { timeLabel(at: $0) } ?? "AVG OVERNIGHT · TAP OR DRAG"
+        return HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(label).font(StrandFont.overline).tracking(1.2)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text("\(Int(bpm.rounded()))").font(.system(size: 30, weight: .heavy)).monospacedDigit()
+                        .foregroundStyle(tint)
+                    Text("bpm").font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                    if let st = stage { stageChip(st) }
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                miniStat("AVG", avgBpm)
+                miniStat("MIN", bpms.min() ?? 0)
+                miniStat("MAX", bpms.max() ?? 0)
+            }
+        }
+    }
+
+    private func miniStat(_ label: String, _ v: Double) -> some View {
+        HStack(spacing: 5) {
+            Text(label).font(.system(size: 9, weight: .bold)).tracking(0.6)
+                .foregroundStyle(StrandPalette.textTertiary)
+            Text("\(Int(v.rounded()))").font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
+        }
+    }
+
+    private func stageChip(_ st: SleepStage) -> some View {
+        Text(st.label).font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(stageColor(st))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(stageColor(st).opacity(0.16)))
+    }
+
+    // MARK: HR chart (Canvas)
+
+    private var hrChart: some View {
+        Canvas { ctx, size in
+            guard samples.count >= 2, hi > lo else { return }
+            func pt(_ s: OvernightSample) -> CGPoint {
+                let x = CGFloat(fracOf(s)) * size.width
+                let y = CGFloat(1 - (s.bpm - lo) / (hi - lo)) * size.height
+                return CGPoint(x: x, y: y)
+            }
+            let pts = samples.map(pt)
+            var line = Path(); line.addLines(pts)
+            var area = line
+            area.addLine(to: CGPoint(x: pts.last!.x, y: size.height))
+            area.addLine(to: CGPoint(x: pts.first!.x, y: size.height))
+            area.closeSubpath()
+            ctx.fill(area, with: .linearGradient(
+                Gradient(colors: [tint.opacity(0.30), tint.opacity(0.02)]),
+                startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: size.height)))
+            ctx.stroke(line, with: .color(tint), lineWidth: 2)
+            // Resting-HR baseline (real), dashed, when it's within the drawn range.
+            if let rhr = restingHr, Double(rhr) >= lo, Double(rhr) <= hi {
+                let y = CGFloat(1 - (Double(rhr) - lo) / (hi - lo)) * size.height
+                var base = Path(); base.move(to: CGPoint(x: 0, y: y)); base.addLine(to: CGPoint(x: size.width, y: y))
+                ctx.stroke(base, with: .color(StrandPalette.metricCyan.opacity(0.5)),
+                           style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
+            }
+            // Cursor dot on the line at the scrub position.
+            if let f = cursorFrac, let s = sampleAt(f) {
+                let p = pt(s)
+                let r: CGFloat = 4.5
+                ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
+                         with: .color(tint))
+                ctx.stroke(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
+                           with: .color(StrandPalette.surfaceBase), lineWidth: 1.5)
+            }
+        }
+    }
+
+    // MARK: Stage ribbon (synchronized)
+
+    private var ribbon: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous).fill(StrandPalette.surfaceInset)
+                ForEach(intervals) { iv in
+                    let x0 = CGFloat(min(1, max(0, iv.start / span))) * geo.size.width
+                    let x1 = CGFloat(min(1, max(0, iv.end / span))) * geo.size.width
+                    Rectangle().fill(stageColor(iv.stage).opacity(0.9))
+                        .frame(width: max(1, x1 - x0))
+                        .offset(x: x0)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        }
+    }
+
+    // MARK: Axis + references
+
+    private var axisRow: some View {
+        HStack {
+            Text(clock(nightStart)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            Spacer()
+            Text(clock(nightStart.addingTimeInterval(span / 2))).font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+            Spacer()
+            Text(clock(nightEnd)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+        }
+    }
+
+    private var referenceChips: some View {
+        // Nightly AVERAGES for the signals NOOP stores only as aggregates — shown as reference values, not
+        // fabricated overnight curves.
+        let items: [(String, String, Color)] = [
+            nightlyHRV.map { ("HRV", "\(Int($0.rounded())) ms", StrandPalette.metricCyan) },
+            nightlyResp.map { ("Respiratory", String(format: "%.1f rpm", $0), StrandPalette.recoveryColor(80)) },
+            nightlySpO2.map { ("SpO₂", "\(Int($0.rounded()))%", StrandPalette.metricPurple) },
+        ].compactMap { $0 }
+        return VStack(alignment: .leading, spacing: 8) {
+            if !items.isEmpty {
+                HStack(spacing: 8) {
+                    ForEach(Array(items.enumerated()), id: \.offset) { _, it in
+                        HStack(spacing: 5) {
+                            Circle().fill(it.2).frame(width: 7, height: 7)
+                            Text("\(it.0) \(it.1)").font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(StrandPalette.textSecondary)
+                            Text("avg").font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(StrandPalette.textTertiary)
+                        }
+                        .padding(.horizontal, 9).padding(.vertical, 5)
+                        .background(Capsule().fill(StrandPalette.surfaceInset))
+                    }
+                }
+            }
+            Text("Heart rate is measured continuously overnight. HRV, respiratory rate and blood oxygen are stored as nightly averages, so they're shown as reference values — never as invented minute-by-minute curves.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: Formatting
+
+    private func clock(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: d)
+    }
+    private func timeLabel(at frac: Double) -> String {
+        clock(nightStart.addingTimeInterval(frac * span))
     }
 }
 #endif
