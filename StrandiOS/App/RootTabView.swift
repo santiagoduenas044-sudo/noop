@@ -40,16 +40,13 @@ struct RootTabView: View {
     @AppStorage(MoreSectionPrefs.storageKey) private var expandedMoreSectionsCSV = MoreSectionPrefs.defaultCSV
     private var expandedMoreSections: Set<String> { MoreSectionPrefs.decode(expandedMoreSectionsCSV) }
 
-    /// V8 liquid redesign is the default Today; the Settings toggle lets a user fall back to the classic
-    /// Today if they prefer it (keyed identically to the SettingsView toggle). Default ON.
-    @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
-
-    /// The Today tab root, honouring the liquid/classic preference. The Premium Home
-    /// (Phase-2 native rebuild of the approved prototype) is the default; the classic
-    /// TodayView remains the fallback when the user turns the liquid Today off.
-    @ViewBuilder private var todayTabRoot: some View {
-        if liquidTodayEnabled { PremiumHomeView() } else { TodayView() }
-    }
+    /// The Home tab root. On iOS the Premium Home (the native rebuild of the approved prototype) is now
+    /// the ONLY Home — it is no longer gated behind the legacy `noop.liquidTodayEnabled` toggle. That
+    /// toggle survives a sideload from a prior install, so a user who once switched it off would upgrade
+    /// to the new build and find every screen redesigned EXCEPT Home, which silently fell back to the
+    /// classic `TodayView` (the reported "Home is still the old one"). The redesign is the product, so
+    /// Home is unconditional here; the classic dashboard stays reachable via the More → Advanced flow.
+    private var todayTabRoot: some View { PremiumHomeView() }
 
     init() {
         // Plain Titanium bar: pin the background to `surfaceBase` and clear the system

@@ -10,13 +10,13 @@
   NS.build = {
     prototypeVersion: '0.3.0',
     milestone: 4,
-    milestoneName: 'Native migration · Settings, Sleep hypnogram, Heart zones, 5-tab nav, animation',
+    milestoneName: 'Native migration + fixes · efficiency scale, swipe removal, Home ring, Home gating',
     commit: '__COMMIT__',
     buildDate: 'Aug 1, 2026',
     updated: '__UPDATED__',
     // The native app these milestones migrate into.
     appVersion: '9.1.3',
-    iosBuild: 210,
+    iosBuild: 211,
     bundleId: 'com.noopapp.noop',
   };
   if (NS.build.commit.indexOf('__') === 0) NS.build.commit = '7d7914e';
