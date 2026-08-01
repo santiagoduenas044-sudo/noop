@@ -35,9 +35,7 @@ struct PremiumWhatsNewView: View {
             Item(screen: "Settings", component: "Profile, appearance, health sources, data & privacy, experimental, about", change: "Real ProfileStore/LiveState/AppearanceMode/ChartStyle + nav to Devices/Apple Health/Backup/Automations. Classic Settings stays reachable via \"Advanced settings\".", status: .connected),
             Item(screen: "Sleep", component: "Time-resolved hypnogram", change: "Real stage timeline via SleepView.decodedIntervals over the day's main-night session — the same decode + winner logic the classic Sleep screen uses.", status: .connected),
             Item(screen: "Heart", component: "Zone-shaded HR ribbon", change: "Real, age-personalized zones (Tanaka max-HR via HRZones — the same engine workoutZoneMinutes uses) shade the day's real HR line and drive real time-in-zone.", status: .connected),
-        ]),
-        Group(emoji: "❌", name: "Not started", tint: StrandPalette.metricRose, items: [
-            Item(screen: "Navigation", component: "5-tab bar (Home·Sleep·Heart·Coach·Trends)", change: "Heart/Coach reachable via More for now.", status: .notStarted),
+            Item(screen: "Navigation", component: "5-tab bar", change: "Home·Sleep·Heart·Coach·Trends are primary tabs, matching the prototype's dock exactly; a 6th More tab keeps NOOP's much larger real screen set (the prototype never needed one) reachable.", status: .connected),
         ]),
         Group(emoji: "⚠️", name: "Known limitations", tint: StrandPalette.gold, items: [
             Item(screen: "Global", component: "Animation parity", change: "Count-ups / draw-on / ripples are HTML-only so far.", status: .limitation),

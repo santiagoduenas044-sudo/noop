@@ -26,12 +26,12 @@ struct RootTabView: View {
     /// root view alive, so an at-root re-tap keeps scroll position and never re-runs `.task`
     /// (#198; the #197 resetID/`.id()` rebuild reset both). Requires the tab roots' first-hop
     /// links to push `TabRoute`/`MoreDestination` VALUES — closure-destination links bypass the path.
-    @State private var tabPaths: [NavigationPath] = Array(repeating: NavigationPath(), count: 4)
+    @State private var tabPaths: [NavigationPath] = Array(repeating: NavigationPath(), count: 6)
     /// One scroll-to-top token per tab. Bumped when the user re-taps the active tab while it's ALREADY
     /// at its root — the other half of the iOS convention #197/#198 left unserved (an at-root re-tap was
     /// a no-op). Threaded into each tab's root via `\.scrollToTopSignal`; ScreenScaffold / LiquidTodayView
     /// scroll to their top anchor when their tab's token changes.
-    @State private var scrollTop: [Int] = Array(repeating: 0, count: 4)
+    @State private var scrollTop: [Int] = Array(repeating: 0, count: 6)
     /// Which More-tab groups are expanded (S2). Insights + Body stay open at rest; Data + App collapse to
     /// just their header until tapped. Persisted (#860 item 2): the user's open/closed choice must SURVIVE
     /// leaving and re-entering the More tab (and relaunch), not reset to the seed every visit. Backed by an
@@ -66,18 +66,18 @@ struct RootTabView: View {
     }
 
     var body: some View {
-        // The native TabView keeps every existing destination + system gesture; the signature
-        // raised gold FAB is overlaid on top, bottom-centre, floating ~20pt above the bar (a
-        // native TabView can't host a centre item that overflows the bar, so we float it).
+        // The native TabView keeps every existing destination + system gesture; a custom floating
+        // glass-capsule bar (FloatingTabBar) replaces its native chrome — the native TabView still
+        // drives content + per-tab nav state, only its bar is hidden. The quick-action "+" lives in
+        // each screen's own header, not in this bar (see FloatingTabBar's doc comment).
         ZStack(alignment: .bottom) {
-            // A custom floating bar — two frosted "glass" islands with the gold action button nested
-            // cleanly in the gap between them — replaces the native tab bar: no overlap, no glow. The
-            // native TabView still drives content + per-tab nav state; only its bar is hidden.
             TabView(selection: $selectedTab) {
-                tab(todayTabRoot, "Today", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
-                tab(PremiumTrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
-                tab(PremiumSleepView(), "Sleep", "bed.double", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
-                moreTab(path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
+                tab(todayTabRoot, "Home", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
+                tab(PremiumSleepView(), "Sleep", "bed.double", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
+                tab(PremiumHeartView(), "Heart", "heart.fill", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
+                tab(PremiumCoachView(), "Coach", "sparkles", path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
+                tab(PremiumTrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
+                moreTab(path: $tabPaths[5], scrollSignal: scrollTop[5]).tag(5)
             }
             .tint(StrandPalette.accent)
             .toolbar(.hidden, for: .tabBar)
@@ -89,11 +89,11 @@ struct RootTabView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 24)
                     .onEnded { v in
-                        // Today (tab 0) uses horizontal swipe to change DAYS, so tab-swipe is off there.
+                        // Home (tab 0) uses horizontal swipe to change DAYS, so tab-swipe is off there.
                         guard selectedTab != 0 else { return }
                         let dx = v.translation.width, dy = v.translation.height
                         guard abs(dx) > 60, abs(dx) > abs(dy) * 1.6 else { return }
-                        let next = min(3, max(0, selectedTab + (dx < 0 ? 1 : -1)))
+                        let next = min(5, max(0, selectedTab + (dx < 0 ? 1 : -1)))
                         if next != selectedTab {
                             withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = next }
                         }
@@ -150,7 +150,7 @@ struct RootTabView: View {
                 router.requestedDestination = nil
             case .trends:
                 // Trends is a primary tab on iPhone (not a pillar sheet) — switch to it.
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 1 }
+                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 4 }
                 router.requestedDestination = nil
             case .activeWorkout:
                 // The Today active-workout indicator opens Live through the quick-action Live sheet; once
@@ -330,18 +330,18 @@ struct RootTabView: View {
                            onRefresh: { await repo.refresh() },
                            topBackground: liquidScaffoldSky()) {
                 moreSection("Insights") {
+                    // Coach is now a primary tab (Home·Sleep·Heart·Coach·Trends); no More row needed.
                     MoreRow("What Moves You", "wand.and.sparkles", .insightsHub)
                     MoreRow("Intelligence", "brain.head.profile", .intelligence)
-                    MoreRow("Coach", "sparkles", .coach)
                     MoreRow("Insights", "lightbulb.fill", .insights)
                     MoreRow("Behaviour Log", "list.bullet.clipboard.fill", .behaviourLog)
                     MoreRow("Explore", "square.grid.2x2.fill", .explore)
                     MoreRow("Compare", "rectangle.split.2x1.fill", .compare)
                 }
                 moreSection("Body") {
+                    // Heart is now a primary tab (Home·Sleep·Heart·Coach·Trends); no More row needed.
                     MoreRow("Live", "waveform.path.ecg", .live)
                     MoreRow("Workouts", "figure.run", .workouts)
-                    MoreRow("Health", "heart.text.square.fill", .health)
                     MoreRow("Lab Book", "books.vertical.fill", .labBook)
                     MoreRow("Stress", "bolt.heart.fill", .stress)
                     MoreRow("Breathe", "wind", .breathe)
@@ -464,8 +464,9 @@ struct RootTabView: View {
 /// `.navigationDestination(for:)` registration in `moreTab()` below — that registration covers the
 /// whole stack, including views pushed deeper (like a Settings row pushing Apple Health).
 enum MoreDestination: Hashable {
-    case insightsHub, intelligence, coach, insights, behaviourLog, explore, compare
-    case live, workouts, health, labBook, stress, breathe, intervals, rhythm
+    // Coach and Heart are primary tabs (Home·Sleep·Heart·Coach·Trends), not More destinations.
+    case insightsHub, intelligence, insights, behaviourLog, explore, compare
+    case live, workouts, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport
     case alarms, automations, testCentre, siriShortcuts, settings, advancedSettings, whatsNew
 
@@ -473,7 +474,6 @@ enum MoreDestination: Hashable {
         switch self {
         case .insightsHub:     InsightsHubView()
         case .intelligence:    IntelligenceView()
-        case .coach:           PremiumCoachView()
         case .insights:        PremiumInsightsView()
         // The classic full Insights screen (behaviour effect ranking + activity cost + relationships,
         // plus its own embedded journal/mood/caffeine logging) — kept reachable here, unchanged, now that
@@ -483,7 +483,6 @@ enum MoreDestination: Hashable {
         case .compare:         CompareView()
         case .live:            LiveView()
         case .workouts:        WorkoutsView()
-        case .health:          PremiumHeartView()
         case .labBook:         LabBookView()
         case .stress:          StressView()
         case .breathe:         BreathingView()
@@ -642,28 +641,29 @@ private struct QuickActionSheet: View {
 
 // MARK: - Floating tab bar
 
-/// The signature bottom bar: two frosted "glass" islands (Today·Trends / Sleep·More) with the gold
-/// action button nested cleanly in the gap between them — no overlap, no glow. Real iOS 26 Liquid
-/// Glass where available, a `.ultraThinMaterial` fallback below. Replaces the hidden native tab bar.
+/// The signature bottom bar: one frosted "glass" capsule with the prototype's 5 primary tabs
+/// (Home·Sleep·Heart·Coach·Trends) plus a 6th "More" tab for the rest of NOOP's real screens, which
+/// the prototype's smaller mock never needed to represent. Real iOS 26 Liquid Glass where available,
+/// a `.ultraThinMaterial` fallback below. Replaces the hidden native tab bar. The quick-action "+"
+/// lives in the top-right of each screen's header (balancing the profile avatar on the left), not in
+/// this bar.
 private struct FloatingTabBar: View {
     @Binding var selection: Int
     /// Fires when the user taps the ALREADY-active tab (2026-07-02: re-tap should refresh).
     var onReselect: (Int) -> Void = { _ in }
 
     private struct Item: Identifiable { let title: LocalizedStringKey; let icon: String; let tag: Int; var id: Int { tag } }
-    private let nav = [Item(title: "Today", icon: "square.grid.2x2", tag: 0),
-                       Item(title: "Trends", icon: "chart.line.uptrend.xyaxis", tag: 1),
-                       Item(title: "Sleep", icon: "bed.double", tag: 2),
-                       Item(title: "More", icon: "ellipsis", tag: 3)]
+    private let nav = [Item(title: "Home", icon: "square.grid.2x2", tag: 0),
+                       Item(title: "Sleep", icon: "bed.double", tag: 1),
+                       Item(title: "Heart", icon: "heart.fill", tag: 2),
+                       Item(title: "Coach", icon: "sparkles", tag: 3),
+                       Item(title: "Trends", icon: "chart.line.uptrend.xyaxis", tag: 4),
+                       Item(title: "More", icon: "ellipsis", tag: 5)]
 
     var body: some View {
-        // One frosted glass bar, four evenly-spaced tabs. The quick-action "+" now lives in the
-        // top-right of each screen's header (balancing the profile avatar on the left).
+        // One frosted glass bar, six evenly-spaced tabs.
         HStack(spacing: 2) {
-            tabButton(nav[0])
-            tabButton(nav[1])
-            tabButton(nav[2])
-            tabButton(nav[3])
+            ForEach(nav) { tabButton($0) }
         }
         .padding(.vertical, 7)
         .padding(.horizontal, 8)
@@ -682,7 +682,7 @@ private struct FloatingTabBar: View {
         )
         // Lighter, wider shadow: real elevation without stamping a dark halo on the flat canvas.
         .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 8)
-        .padding(.horizontal, 22)
+        .padding(.horizontal, 14)
         .padding(.bottom, 4)
     }
 
@@ -697,9 +697,11 @@ private struct FloatingTabBar: View {
         } label: {
             VStack(spacing: 3) {
                 Image(systemName: item.icon)
-                    .font(.system(size: 18, weight: active ? .semibold : .regular))
+                    .font(.system(size: 17, weight: active ? .semibold : .regular))
                 Text(item.title)
-                    .font(.system(size: 10, weight: active ? .semibold : .medium))
+                    .font(.system(size: 9.5, weight: active ? .semibold : .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             }
             .foregroundStyle(active ? StrandPalette.accent : StrandPalette.textSecondary)
             .frame(maxWidth: .infinity)
