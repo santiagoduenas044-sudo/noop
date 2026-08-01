@@ -13,7 +13,7 @@ enum BuildInfo {
     static let builtAtRaw = "BUILDDATE_PLACEHOLDER"
 
     /// Redesign milestone this build corresponds to (matches the HTML prototype).
-    static let milestone = 3
+    static let milestone = 4
     static let prototypeVersion = "0.3.0"
 
     static var version: String { (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "—" }

@@ -9,14 +9,14 @@
   'use strict';
   NS.build = {
     prototypeVersion: '0.3.0',
-    milestone: 3,
-    milestoneName: 'HTML-first · What’s New, version info & changelog',
+    milestone: 4,
+    milestoneName: 'Native migration · Settings, Sleep hypnogram, Heart zones, 5-tab nav, animation',
     commit: '__COMMIT__',
-    buildDate: 'Jul 31, 2026',
+    buildDate: 'Aug 1, 2026',
     updated: '__UPDATED__',
     // The native app these milestones migrate into.
     appVersion: '9.1.3',
-    iosBuild: 209,
+    iosBuild: 210,
     bundleId: 'com.noopapp.noop',
   };
   if (NS.build.commit.indexOf('__') === 0) NS.build.commit = '7d7914e';
