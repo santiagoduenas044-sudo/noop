@@ -132,26 +132,37 @@ struct PremiumSleepView: View {
 
     // MARK: Score hero ring
 
+    /// Animated ring fill — draws in on appear/change, the same `StrandMotion.drawIn` curve
+    /// `RecoveryRing` uses, instead of snapping straight to the target fraction.
+    @State private var animatedRingFraction: Double = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var scoreHero: some View {
         let frac = min(1, max(0, (efficiency ?? 0) / 100))
         return VStack(spacing: 14) {
             ZStack {
                 Circle().stroke(StrandPalette.surfaceInset, lineWidth: 14)
-                Circle().trim(from: 0, to: frac)
+                Circle().trim(from: 0, to: animatedRingFraction)
                     .stroke(LinearGradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep],
                                            startPoint: .topTrailing, endPoint: .bottomLeading),
                             style: StrokeStyle(lineWidth: 14, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .shadow(color: StrandPalette.sleepDeep.opacity(0.5), radius: 10)
                 VStack(spacing: 2) {
-                    Text(efficiency.map { "\(Int($0.rounded()))" } ?? "—")
-                        .font(.system(size: 58, weight: .heavy)).monospacedDigit()
-                        .foregroundStyle(StrandPalette.textPrimary)
+                    CountUpText(value: efficiency ?? 0,
+                                format: { efficiency == nil ? "—" : "\(Int($0.rounded()))" },
+                                font: .system(size: 58, weight: .heavy),
+                                color: StrandPalette.textPrimary)
+                        .monospacedDigit()
                     Text("EFFICIENCY").font(StrandFont.overline).tracking(1.4)
                         .foregroundStyle(StrandPalette.textTertiary)
                 }
             }
             .frame(width: 208, height: 208)
+            .onAppear { withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { animatedRingFraction = frac } }
+            .onChange(of: frac) { _, new in
+                withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { animatedRingFraction = new }
+            }
             Text("\(durText(sleepMin)) asleep · \(durText(inBedMin)) in bed")
                 .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
         }

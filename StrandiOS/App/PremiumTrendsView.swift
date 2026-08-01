@@ -93,9 +93,12 @@ struct PremiumTrendsView: View {
         StrandCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(average.map(metric.fmt) ?? "—")
-                        .font(.system(size: 40, weight: .heavy)).monospacedDigit()
-                        .foregroundStyle(StrandPalette.textPrimary)
+                    CountUpText(value: average ?? 0,
+                                format: { average == nil ? "—" : metric.fmt($0) },
+                                font: .system(size: 40, weight: .heavy),
+                                color: StrandPalette.textPrimary)
+                        .monospacedDigit()
+                        .id(metric.id)
                     Text(metric.unit).font(StrandFont.headline).foregroundStyle(StrandPalette.textTertiary)
                     Spacer()
                     trendDelta

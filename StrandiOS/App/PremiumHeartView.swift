@@ -125,8 +125,11 @@ struct PremiumHeartView: View {
         StrandCard {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    Text(value.map(String.init) ?? "—").font(.system(size: 24, weight: .heavy))
-                        .monospacedDigit().foregroundStyle(StrandPalette.textPrimary)
+                    CountUpText(value: value.map(Double.init) ?? 0,
+                                format: { value == nil ? "—" : "\(Int($0.rounded()))" },
+                                font: .system(size: 24, weight: .heavy),
+                                color: StrandPalette.textPrimary)
+                        .monospacedDigit()
                     Text(unit).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                 }
                 Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)

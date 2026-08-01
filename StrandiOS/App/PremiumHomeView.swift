@@ -127,12 +127,12 @@ struct PremiumHomeView: View {
             RecoveryRing(score: recovery ?? 0, diameter: 168, lineWidth: 13,
                          showsWordmark: false, showsHover: false)
             VStack(alignment: .leading, spacing: 18) {
-                heroStat(label: "Day Strain",
-                         value: strain.map { String(format: "%.1f", $0) } ?? "—",
+                heroStat(label: "Day Strain", value: strain,
+                         format: { strain == nil ? "—" : String(format: "%.1f", $0) },
                          fraction: (strain ?? 0) / 21.0,
                          tint: StrandPalette.effortColor, sub: "of 21")
-                heroStat(label: "Sleep",
-                         value: efficiency.map { "\(Int($0))%" } ?? "—",
+                heroStat(label: "Sleep", value: efficiency,
+                         format: { efficiency == nil ? "—" : "\(Int($0))%" },
                          fraction: (efficiency ?? 0) / 100.0,
                          tint: StrandPalette.sleepDeep, sub: sleepHoursText)
             }
@@ -140,12 +140,15 @@ struct PremiumHomeView: View {
         }
     }
 
-    private func heroStat(label: String, value: String, fraction: Double, tint: Color, sub: String) -> some View {
+    private func heroStat(label: String, value: Double?, format: @escaping (Double) -> String,
+                          fraction: Double, tint: Color, sub: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label.uppercased()).font(StrandFont.overline).tracking(1.2)
                 .foregroundStyle(StrandPalette.textTertiary)
-            Text(value).font(.system(size: 30, weight: .heavy, design: .default))
-                .monospacedDigit().foregroundStyle(StrandPalette.textPrimary)
+            CountUpText(value: value ?? 0, format: format,
+                        font: .system(size: 30, weight: .heavy, design: .default),
+                        color: StrandPalette.textPrimary)
+                .monospacedDigit()
             MiniBar(fraction: fraction, tint: tint)
             Text(sub).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
         }
