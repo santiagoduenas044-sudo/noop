@@ -19,7 +19,10 @@ struct PremiumReadinessView: View {
     private var recovery: Double? { latest { $0.recovery } }
     private var hrv: Double?  { latest { $0.avgHrv } }
     private var rhr: Int?     { latest { $0.restingHr } }
-    private var eff: Double?  { latest { $0.efficiency } }
+    // DailyMetric.efficiency is a FRACTION in [0,1] (see SleepStageTotals.DailySleep's doc), not a
+    // 0-100 percentage — normalized here (same defensive `<= 1.0 ? *100 : as-is` guard SleepView.
+    // efficiencyPct uses) so "\(Int(e))%" reads "92%", not "0%", and `frac: e/100` stays a real 0...1.
+    private var eff: Double?  { latest { $0.efficiency }.map { $0 <= 1.0 ? $0 * 100 : $0 } }
     private var resp: Double? { latest { $0.respRateBpm } }
     private var skin: Double? { latest { $0.skinTempDevC } }
     private var priorStrain: Double? {

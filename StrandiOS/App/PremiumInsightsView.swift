@@ -44,7 +44,12 @@ struct PremiumInsightsView: View {
                 body: "Your recovery moved from about \(Int(a.rounded()))% to \(Int(b.rounded()))% over the last two weeks. \(up ? "Whatever you're doing is working — keep it steady." : "Look at sleep debt and recent strain to bring it back up.")",
                 tags: ["Recovery", "14-day"]))
         }
-        if let e = latest({ $0.efficiency }), let base = mean({ $0.efficiency }) {
+        // DailyMetric.efficiency is a FRACTION in [0,1] (see SleepStageTotals.DailySleep's doc), not a
+        // 0-100 percentage — normalize both before use, same defensive `<= 1.0 ? *100 : as-is` guard
+        // SleepView.efficiencyPct uses, or "efficiency was 92%" would read "was 0%".
+        if let eRaw = latest({ $0.efficiency }), let baseRaw = mean({ $0.efficiency }) {
+            let e = eRaw <= 1.0 ? eRaw * 100 : eRaw
+            let base = baseRaw <= 1.0 ? baseRaw * 100 : baseRaw
             let diff = Int((e - base).rounded())
             out.append(.init(icon: "moon.zzz.fill", tint: StrandPalette.sleepDeep,
                 title: diff >= 0 ? "Sleep efficiency is solid" : "Restless nights lately",

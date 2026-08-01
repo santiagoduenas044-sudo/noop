@@ -23,8 +23,11 @@ struct PremiumTrendsView: View {
                 key: { $0.avgHrv }, fmt: { "\(Int($0.rounded()))" }),
          Metric(name: "Strain", unit: "", tint: StrandPalette.effortColor, higherBetter: true,
                 key: { $0.strain }, fmt: { String(format: "%.1f", $0) }),
+         // efficiency is a FRACTION in [0,1] (see SleepStageTotals.DailySleep's doc), not a 0-100
+         // percentage — normalized here (same defensive `<= 1.0 ? *100 : as-is` guard SleepView.
+         // efficiencyPct uses) so the "%" unit reads "92%", not "1%".
          Metric(name: "Sleep", unit: "%", tint: StrandPalette.sleepDeep, higherBetter: true,
-                key: { $0.efficiency }, fmt: { "\(Int($0.rounded()))" }),
+                key: { $0.efficiency.map { $0 <= 1.0 ? $0 * 100 : $0 } }, fmt: { "\(Int($0.rounded()))" }),
          Metric(name: "Rest HR", unit: "bpm", tint: StrandPalette.metricRose, higherBetter: false,
                 key: { $0.restingHr.map(Double.init) }, fmt: { "\(Int($0.rounded()))" })]
     }

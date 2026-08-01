@@ -30,14 +30,23 @@ struct PremiumSleepView: View {
         return xs.isEmpty ? nil : xs.reduce(0, +) / Double(xs.count)
     }
 
-    private var efficiency: Double? { latest { $0.efficiency } }
+    /// `DailyMetric.efficiency` (like `CachedSleepSession.efficiency`) is stored as a FRACTION in [0,1]
+    /// — see `SleepStageTotals.DailySleep`'s own doc ("efficiency is asleep / in-bed … in [0,1]") — not
+    /// a 0-100 percentage. Treating it as already-percent here previously divided it by 100 a second
+    /// time, which for `inBedMin` (dividing sleep minutes by a ~100x-too-small fraction) inflated "time
+    /// in bed" into the hundreds of hours, and for the ring display rounded a value like 0.92 to "1".
+    /// Normalized ONCE here — the same defensive `<= 1.0 ? *100 : as-is` conversion `SleepView.
+    /// efficiencyPct` uses (some import paths already write 0-100) — so every consumer below works in
+    /// one consistent 0-100 scale.
+    private var efficiencyRaw: Double? { latest { $0.efficiency } }
+    private var efficiencyPct: Double? { efficiencyRaw.map { $0 <= 1.0 ? $0 * 100 : $0 } }
     private var sleepMin: Double  { latest { $0.totalSleepMin } ?? 0 }
     private var deepMin: Double   { latest { $0.deepMin } ?? 0 }
     private var remMin: Double    { latest { $0.remMin } ?? 0 }
     private var lightMin: Double  { latest { $0.lightMin } ?? 0 }
     private var restorativeMin: Double { deepMin + remMin }
     private var inBedMin: Double {
-        guard let e = efficiency, e > 0 else { return sleepMin }
+        guard let e = efficiencyPct, e > 0 else { return sleepMin }
         return sleepMin / (e / 100.0)
     }
     private var awakeMin: Double { max(0, inBedMin - sleepMin) }
@@ -138,7 +147,7 @@ struct PremiumSleepView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var scoreHero: some View {
-        let frac = min(1, max(0, (efficiency ?? 0) / 100))
+        let frac = min(1, max(0, (efficiencyPct ?? 0) / 100))
         return VStack(spacing: 14) {
             ZStack {
                 Circle().stroke(StrandPalette.surfaceInset, lineWidth: 14)
@@ -149,8 +158,8 @@ struct PremiumSleepView: View {
                     .rotationEffect(.degrees(-90))
                     .shadow(color: StrandPalette.sleepDeep.opacity(0.5), radius: 10)
                 VStack(spacing: 2) {
-                    CountUpText(value: efficiency ?? 0,
-                                format: { efficiency == nil ? "—" : "\(Int($0.rounded()))" },
+                    CountUpText(value: efficiencyPct ?? 0,
+                                format: { efficiencyPct == nil ? "—" : "\(Int($0.rounded()))" },
                                 font: .system(size: 58, weight: .heavy),
                                 color: StrandPalette.textPrimary)
                         .monospacedDigit()

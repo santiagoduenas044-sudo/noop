@@ -39,7 +39,11 @@ struct PremiumHomeView: View {
     private var resp: Double?     { latest { $0.respRateBpm } }
     private var spo2: Double?     { latest { $0.spo2Pct } }
     private var skinTemp: Double? { latest { $0.skinTempDevC } }
-    private var efficiency: Double? { latest { $0.efficiency } }
+    /// `DailyMetric.efficiency` is stored as a FRACTION in [0,1] (see `SleepStageTotals.DailySleep`'s
+    /// own doc), not a 0-100 percentage — normalized here (same defensive `<= 1.0 ? *100 : as-is`
+    /// conversion `SleepView.efficiencyPct` uses) so a raw 0.92 reads "92%", not "1%".
+    private var efficiencyRaw: Double? { latest { $0.efficiency } }
+    private var efficiency: Double? { efficiencyRaw.map { $0 <= 1.0 ? $0 * 100 : $0 } }
     private var sleepMin: Double? { latest { $0.totalSleepMin } }
     private var deepMin: Double  { latest { $0.deepMin } ?? 0 }
     private var remMin: Double   { latest { $0.remMin } ?? 0 }
