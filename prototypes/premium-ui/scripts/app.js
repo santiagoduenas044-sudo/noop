@@ -51,6 +51,9 @@
 
   function boot() {
     restorePrefs();
+    // Stamp the new NOOP mark into the header (hidden on detail pages by the router).
+    const brand = NS.ui.$('.topbrand');
+    if (brand && NS.logomark) brand.innerHTML = NS.logomark(26, 'var(--accent-sleep)');
     NS.router.buildDock();
     NS.router.bindScroll();
     globalInteractions();

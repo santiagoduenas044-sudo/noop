@@ -20,6 +20,8 @@
   --accent-hrv:      #4FD6E0;   /* aqua — HRV                                */
   --accent-gold:     #E8B84B;   /* liquid-metal signature — brand / coach    */
   --accent-gold-2:   #C8902F;
+  --accent-flame:    #FF9D4D;   /* warm orange — energy / active calories    */
+  --accent-flame-2:  #F5722E;
 
   /* Score bands — the universal recovery language */
   --band-high:  #46E5A0;

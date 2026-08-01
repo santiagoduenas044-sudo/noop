@@ -22,6 +22,7 @@
       heart:    ['--accent-heart', '--accent-heart-2'],
       hrv:      ['--accent-hrv', '--accent-hrv'],
       gold:     ['--accent-gold', '--accent-gold-2'],
+      flame:    ['--accent-flame', '--accent-flame-2'],
     };
     const [a, b] = map[name] || map.gold;
     return [cssVar(a), cssVar(b)];

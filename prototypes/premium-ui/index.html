@@ -9,14 +9,15 @@
   <title>NOOP — Premium UI</title>
   <meta name="description" content="A premium, fully-offline health interface prototype for NOOP. Recovery, sleep, heart rate, coach, journal, trends & insights." />
 
-  <!-- Inline favicon (data URI — keeps the app fully self-contained/offline) -->
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='14' fill='none' stroke='%23E8B84B' stroke-width='2.4'/%3E%3Ccircle cx='16' cy='16' r='5' fill='none' stroke='%2346E5A0' stroke-width='2.4'/%3E%3C/svg%3E" />
+  <!-- Inline favicon (data URI — new NOOP mark: violet tile + open recovery-arc + node) -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='2' y='2' width='60' height='60' rx='15' fill='%236E52E0'/%3E%3Cpath d='M32 12a20 20 0 1 1 -14.1 5.9' fill='none' stroke='%23fff' stroke-width='6' stroke-linecap='round'/%3E%3Ccircle cx='32' cy='12' r='5' fill='%23fff'/%3E%3Ccircle cx='32' cy='32' r='4' fill='%23fff' fill-opacity='0.92'/%3E%3C/svg%3E" />
 
-  <!-- Design tokens first, then base, components, page layouts, animations -->
+  <!-- Design tokens first, then base, components, page layouts, expanded, animations -->
   <link rel="stylesheet" href="styles/tokens.css" />
   <link rel="stylesheet" href="styles/base.css" />
   <link rel="stylesheet" href="styles/components.css" />
   <link rel="stylesheet" href="styles/pages.css" />
+  <link rel="stylesheet" href="styles/expanded.css" />
   <link rel="stylesheet" href="styles/animations.css" />
 </head>
 <body>
@@ -34,6 +35,7 @@
       <div class="app">
         <!-- Top bar (title + actions; frosts on scroll) -->
         <header class="topbar">
+          <span class="topbrand bl-mark" aria-hidden="true"></span>
           <button class="icon-btn back-btn" aria-label="Back">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
           </button>
@@ -78,11 +80,17 @@
   <script src="pages/home.js"></script>
   <script src="pages/sleep.js"></script>
   <script src="pages/readiness.js"></script>
+  <script src="pages/strain.js"></script>
+  <script src="pages/energy.js"></script>
+  <script src="pages/spo2.js"></script>
+  <script src="pages/stress.js"></script>
+  <script src="pages/metric.js"></script>
   <script src="pages/heart.js"></script>
   <script src="pages/coach.js"></script>
   <script src="pages/journal.js"></script>
   <script src="pages/trends.js"></script>
   <script src="pages/insights.js"></script>
+  <script src="pages/more.js"></script>
   <script src="pages/settings.js"></script>
   <script src="pages/whatsnew.js"></script>
   <script src="scripts/app.js"></script>

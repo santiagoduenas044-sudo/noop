@@ -1,97 +1,83 @@
 /* ============================================================================
-   NOOP · Premium UI — Readiness / Recovery
-   A large premium readiness score, a plain-language explanation, every
-   contributor with its bar, a 30-day recovery history, and a 3-day forecast.
+   NOOP · Premium UI — Recovery (v2, expanded)
+   The readiness score, then the WHY: each contributor (HRV, Resting HR, Sleep,
+   Respiratory) with its share of the score, its value, direction and reason —
+   every one tappable into the reusable Metric Detail. Plus the recent baseline,
+   a 7-day and 30-day trend, and a plain-language "why today changed" summary.
    ============================================================================ */
 (function (NS) {
   'use strict';
   const { ui, data, charts, icon } = NS;
 
   NS.pages.readiness = {
-    title: 'Readiness', eyebrow: 'Recovery', tint: 'recovery',
+    title: 'Recovery', eyebrow: 'Readiness · today', tint: 'recovery',
     render() {
-      const d = data, band = d.band(d.recovery);
-      const word = band === 'high' ? 'primed to perform' : band === 'mid' ? 'ready with care' : 'in need of rest';
+      const d = data;
+      const band = d.band(d.recovery);
+      const label = band === 'high' ? 'Recovered' : band === 'mid' ? 'Moderate' : 'Low';
+      const base7 = Math.round(d.mean(d.recSeries.slice(-7)));
       return `
-      <section class="hero-score" data-reveal>
+      <section class="home-hero" data-reveal>
         <div class="hero-glow" style="--g:var(--accent-recovery)"></div>
-        ${ui.ring({ value: d.recovery, size: 232, stroke: 16, tint: 'recovery', unit: '%', cap: 'Recovered', numFs: 70 })}
-        <p class="hero-caption" style="max-width:280px">Your body is <b style="color:var(--ink-1)">${word}</b>. Recovery is driven mostly by a strong HRV and a low resting heart rate this morning.</p>
+        <div class="hero-rings">${ui.ring({ value: d.recovery, size: 216, stroke: 15, tint: 'recovery', unit: '%', cap: label, numFs: 64 })}</div>
       </section>
 
-      <!-- Contributors -->
-      <div class="section-title" data-reveal><h2>Contributors</h2></div>
+      <section class="card" data-reveal style="--tint:var(--accent-recovery)">
+        <div class="insight-line"><span class="il-ic">${icon('sparkles',16)}</span>
+          <div class="il-body">You're <b>${d.recovery}% recovered</b> — in the green. HRV led the way (12% above baseline) while sleep held steady. Your body can take on a strain of 14–16 today without denting tomorrow.</div></div>
+      </section>
+
+      <!-- Why: contributions -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Why today's recovery</h2><span class="link">Tap to explore</span></div>
       <section class="card" data-reveal>
-        ${d.drivers.map((c, i) => `
-        <div class="expandable ${i===0?'open':''}" style="--tint:var(--accent-${c.tint})">
-          <button class="ctr-row" data-toggle>
-            <span class="glyph tint">${icon(driverIcon(c.name), 16)}</span>
-            <div class="ctr-main">
-              <div class="ctr-top"><span class="ctr-name">${c.name}</span>
-                <span class="ctr-val">${c.value}<small> ${c.unit}</small></span></div>
-              <div class="bar" style="margin-top:8px"><i data-w="${c.pct}"></i></div>
-            </div>
-            <span class="chev-tog">${icon('chevD', 16)}</span>
-          </button>
-          <div class="expand-body"><div class="inner"><p class="ctr-note">${c.note}</p></div></div>
-        </div>`).join('')}
+        ${d.recoveryContribs.map((c) => `
+          <div class="contrib2" data-open-metric="${c.key}" style="--tint:var(--accent-${c.tint});cursor:pointer">
+            <div class="c2-name"><span class="cg">${icon(metricIcon(c.key),16)}</span>${c.name}
+              <span class="tchip ${c.dir==='up'?'pos':c.dir==='down'?'neg':''}" style="margin-left:4px">${c.share}%</span></div>
+            <div class="c2-val">${c.value}<small>${c.unit?' '+c.unit:''}</small> ${icon('chevR',14)}</div>
+            <div class="c2-bar bar" style="--tint:var(--accent-${c.tint})"><i style="width:${c.share/38*100}%"></i></div>
+            <div class="c2-note">${c.note}</div>
+          </div>`).join('')}
       </section>
 
-      <!-- Stress / balance dial -->
-      <div class="grid-2" data-reveal>
-        ${miniStat('Stress load', 'Low', 'wave', 'hrv', '2.4 / 10')}
-        ${miniStat('Skin temp', '+0.3°C', 'thermo', 'gold', 'vs baseline')}
+      <!-- Baseline + trend -->
+      <div class="dual" data-reveal style="margin-top:var(--s-4)">
+        <section class="card"><div class="figure"><div class="f-val">${base7}%</div><div class="f-cap">7-day baseline</div>
+          <div class="f-sub">${d.recovery - base7 >= 0 ? '+' : ''}${d.recovery - base7} pts today</div></div></section>
+        <section class="card"><div class="figure"><div class="f-val">5</div><div class="f-cap">Green streak</div>
+          <div class="f-sub">days recovered ≥ 67%</div></div></section>
       </div>
 
-      <!-- History -->
-      <div class="section-title" data-reveal><h2>Recovery history</h2>
-        <div class="segment" data-seg><button class="active" data-value="14">14d</button><button data-value="30">30d</button></div>
-      </div>
+      <div class="section-title" data-reveal><h2 style="font-size:19px">30-day recovery</h2></div>
       <section class="card" data-reveal>
-        <div class="chart"><canvas data-rec-hist></canvas></div>
-        <div class="axis" data-axis></div>
-      </section>
-
-      <!-- Forecast -->
-      <div class="section-title" data-reveal><h2>Forecast</h2></div>
-      <section class="card" data-reveal>
-        <div class="forecast">
-          ${forecast('Tonight', 'If you sleep by 11 PM', 84, 'sleep')}
-          ${forecast('Tomorrow', 'With Zone 2 today', 81, 'recovery')}
-          ${forecast('Sunday', 'Projected', 74, 'gold')}
+        <div class="chart" style="height:180px"><canvas data-rec-chart></canvas></div>
+        <div class="axis"><span>30d</span><span>20d</span><span>10d</span><span>today</span></div>
+        <div class="stat3" style="margin-top:var(--s-4)">
+          ${statBlk('Average', Math.round(d.mean(d.recSeries)) + '%')}
+          ${statBlk('Lowest', Math.min(...d.recSeries) + '%')}
+          ${statBlk('Highest', Math.max(...d.recSeries) + '%')}
         </div>
-        <p class="ctr-note" style="margin-top:14px">Forecast blends your recent recovery trend, tonight's projected sleep and planned strain. It updates as you log the day.</p>
+      </section>
+
+      <div class="section-title" data-reveal><h2 style="font-size:19px">What moved it</h2></div>
+      <section class="card" data-reveal>
+        <div class="kv"><span class="k">${gi('arrowUp','hrv')} Earlier bedtime</span><span class="v" style="color:var(--band-high)">+6%</span></div>
+        <div class="kv"><span class="k">${gi('arrowUp','recovery')} Cool sleeping room</span><span class="v" style="color:var(--band-high)">+4%</span></div>
+        <div class="kv"><span class="k">${gi('arrowDn','gold')} Skin temp +0.3°C</span><span class="v" style="color:var(--band-low)">−2%</span></div>
+        <div class="kv"><span class="k">${gi('arrowDn','strain')} Prior-day strain 15.1</span><span class="v" style="color:var(--band-low)">−3%</span></div>
       </section>
       <div style="height:8px"></div>`;
     },
 
     mount(root) {
-      ui.$$('[data-w]', root).forEach((i) => requestAnimationFrame(() => { i.style.width = i.dataset.w + '%'; }));
-      const cv = ui.$('[data-rec-hist]', root), axis = ui.$('[data-axis]', root);
-      const draw = (n) => {
-        const s = data.recSeries.slice(-n);
-        charts.area(cv, s, { color: 'recovery', height: 170, min: 0, max: 100,
-          labels: s.map((_, i) => '−' + (n - 1 - i) + 'd'), fmt: (v) => v + '%' });
-        if (axis) axis.innerHTML = (n === 14 ? ['2w', '1w', 'today'] : ['30d', '20d', '10d', 'today'])
-          .map((l) => `<span>${l}</span>`).join('');
-      };
-      draw(14);
-      ui.initSegments(root, (i, v) => draw(+v));
+      const d = data;
+      const cv = ui.$('[data-rec-chart]', root);
+      if (cv) charts.area(cv, d.recSeries, { color: 'recovery', height: 180, min: 20, max: 100, fmt: (v) => Math.round(v) + '%' });
+      ui.$$('[data-open-metric]', root).forEach((el) => el.addEventListener('click', (e) => { ui.ripple(e, el); NS.openMetric(el.dataset.openMetric); }));
     },
   };
 
-  function miniStat(label, val, ic, tint, sub) {
-    return `<div class="card mini" data-reveal style="--tint:var(--accent-${tint})">
-      <span class="glyph tint" style="margin-bottom:10px">${icon(ic, 16)}</span>
-      <div class="metric"><div class="value" style="font-size:24px">${val}</div><div class="label">${sub||label}</div></div></div>`;
-  }
-  function forecast(day, cond, val, tint) {
-    return `<div class="fc" style="--tint:var(--accent-${tint})">
-      <div class="fc-ring">${ui.ring({ value: val, size: 74, stroke: 7, tint, unit: '', cap: '', numFs: 22 })}</div>
-      <div class="fc-day">${day}</div><div class="fc-cond">${cond}</div></div>`;
-  }
-  function driverIcon(n) {
-    return ({ 'HRV': 'wave', 'Resting HR': 'heart', 'Sleep': 'moon', 'Respiratory': 'lungs',
-      'Skin temp': 'thermo', 'Prior strain': 'flame' })[n] || 'info';
-  }
+  function metricIcon(k) { return ({ hrv: 'hrv', rhr: 'heart', sleep: 'moon', respiratory: 'lungs' })[k] || 'dot'; }
+  function gi(name, tint) { return `<span class="kg" style="--tint:var(--accent-${tint})">${icon(name, 16)}</span>`; }
+  function statBlk(cap, val) { return `<div class="stat-blk"><div class="sb-cap">${cap}</div><div class="sb-val">${val}</div></div>`; }
 })(window.NOOP = window.NOOP || {});

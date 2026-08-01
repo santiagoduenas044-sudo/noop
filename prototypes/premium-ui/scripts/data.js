@@ -222,11 +222,182 @@
   function band(v) { return v >= 67 ? 'high' : v >= 34 ? 'mid' : 'low'; }
   function bandColor(v) { return v >= 67 ? 'var(--band-high)' : v >= 34 ? 'var(--band-mid)' : 'var(--band-low)'; }
 
+  // ============================================================ EXPANSION v2
+  // Everything below is additional mock health data for the richer prototype.
+  // It stays PURE + DETERMINISTIC and is clearly separated from any real
+  // HealthKit logic — these are demonstration values only.
+
+  const mean = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  const round = (v, d = 0) => { const m = 10 ** d; return Math.round(v * m) / m; };
+
+  // ------- Energy / calories (Active + Resting, from HealthKit conceptually) -
+  const activeKcal = 612;                 // today, active energy
+  const restingKcal = 1685;               // today, basal energy
+  const totalKcal = activeKcal + restingKcal;
+  const activeSeries = walk(30, 540, 130, 180, 1050).map((v) => Math.round(v));  // 30d active kcal
+  const stepsSeries = walk(30, 8600, 2600, 2200, 16000).map((v) => Math.round(v / 50) * 50);
+  const stepsToday = 9240;
+  const stepGoal = 10000;
+  const exerciseMin = 46;                  // Apple "exercise minutes" today
+  const distanceKm = 6.8;
+  const flights = 12;
+
+  // Cumulative active-energy curve across the day (kcal burned so far by hour).
+  function calDayCurve() {
+    const pts = []; let acc = 0;
+    for (let h = 0; h < 24; h++) {
+      let rate = 6;                        // resting-ish baseline per hour (active only)
+      if (h >= 7 && h < 9) rate = 34;      // morning movement
+      else if (h >= 12 && h < 14) rate = 120; // a run
+      else if (h >= 17 && h < 18) rate = 60;  // evening walk
+      else if (h >= 9 && h < 18) rate = 28;
+      else if (h >= 22 || h < 6) rate = 2;
+      acc += rate + rr(-3, 3);
+      pts.push(Math.max(0, Math.round(acc)));
+    }
+    return pts;
+  }
+  // Active-calorie contribution by activity source (adds to ~activeKcal).
+  const activitySplit = [
+    { label: 'Tempo run', kcal: 340, tint: 'strain', icon: 'run' },
+    { label: 'Walking',   kcal: 165, tint: 'recovery', icon: 'steps' },
+    { label: 'Daily movement', kcal: 107, tint: 'hrv', icon: 'flame' },
+  ];
+
+  // ------- Blood oxygen (SpO2) — nightly averages -----------------------------
+  const spo2Available = true;              // flip to false to preview the empty state
+  const spo2Series = walk(30, 96.5, 0.6, 94, 99).map((v) => Math.round(v));  // nightly avg %
+  const spo2Latest = 97;
+  const spo2NightAvg = 96;
+  const spo2Low = 94, spo2High = 98;
+
+  // ------- Respiratory-rate history -------------------------------------------
+  const respSeries = walk(30, 14.4, 0.5, 12.6, 16.4).map((v) => round(v, 1));
+
+  // ------- Stress (CONCEPTUAL / future feature — not a shipping algorithm) ----
+  // A day-long "physiological load" timeline (0–3 scale) with sleep vs awake.
+  function stressDay() {
+    const pts = [];
+    for (let i = 0; i < 96; i++) {          // 15-min buckets
+      const h = i / 4;
+      let base = 1.0;
+      if (h < 6.5) base = 0.4;              // asleep — low
+      else if (h < 8) base = 1.2;           // waking
+      else if (h >= 12 && h < 13.5) base = 2.5; // a run — high
+      else if (h >= 9 && h < 11) base = 1.9;    // work block
+      else if (h >= 15 && h < 17) base = 1.7;
+      else if (h >= 21) base = 0.8;             // wind-down
+      else base = 1.1;
+      pts.push(Math.max(0, Math.min(3, round(base + rr(-0.25, 0.25), 2))));
+    }
+    return pts;
+  }
+  const stressNow = 1.3;
+  const stressDist = { low: 61, medium: 27, high: 12 };  // % of day
+  const stressSeries = walk(14, 1.4, 0.35, 0.4, 2.6).map((v) => round(v, 1));
+
+  // ------- Personalised baselines (30-day means for comparisons) --------------
+  const baselines = {
+    hrv: Math.round(mean(hrvSeries)),
+    rhr: Math.round(mean(rhrSeries)),
+    recovery: Math.round(mean(recSeries)),
+    sleep: Math.round(mean(sleepSeries)),
+    strain: round(mean(strainSeries), 1),
+    respiratory: round(mean(respSeries), 1),
+    spo2: Math.round(mean(spo2Series)),
+    // Fixed, sensible personal baselines so "today vs typical" narratives stay coherent
+    // regardless of where the seeded random series happens to land.
+    active: 540,
+    steps: 8600,
+  };
+
+  // ------- Metric registry — powers the REUSABLE Metric Detail screen ---------
+  // One entry per drillable signal. `higherBetter` colours the delta correctly.
+  const metrics = {
+    hrv: {
+      key: 'hrv', name: 'Heart Rate Variability', short: 'HRV', unit: 'ms', tint: 'hrv', icon: 'hrv',
+      value: hrv, series: hrvSeries, baseline: baselines.hrv, decimals: 0, higherBetter: true,
+      explain: 'HRV is the beat-to-beat variation in your heart rhythm. Higher values usually mean your nervous system is well-recovered and adaptable.',
+      insight: 'Today’s HRV is 12% above your 30-day baseline — most likely from an earlier, more consistent bedtime.',
+    },
+    rhr: {
+      key: 'rhr', name: 'Resting Heart Rate', short: 'Resting HR', unit: 'bpm', tint: 'heart', icon: 'heart',
+      value: rhr, series: rhrSeries, baseline: baselines.rhr, decimals: 0, higherBetter: false,
+      explain: 'Your lowest heart rate at rest. A lower resting heart rate generally reflects good cardiovascular fitness and recovery.',
+      insight: 'Resting HR is 2 bpm below yesterday and sits at the low end of your normal range — a good recovery signal.',
+    },
+    respiratory: {
+      key: 'respiratory', name: 'Respiratory Rate', short: 'Respiratory', unit: 'rpm', tint: 'recovery', icon: 'lungs',
+      value: respiratory, series: respSeries, baseline: baselines.respiratory, decimals: 1, higherBetter: false,
+      explain: 'Breaths per minute during sleep. It’s very stable night to night, so small changes can hint at strain, illness or a warm room.',
+      insight: 'Steady at 14.2 rpm — right on your baseline, with no unusual overnight elevation.',
+    },
+    spo2: {
+      key: 'spo2', name: 'Blood Oxygen', short: 'Blood Oxygen', unit: '%', tint: 'strain', icon: 'spo2',
+      value: spo2Latest, series: spo2Series, baseline: baselines.spo2, decimals: 0, higherBetter: true,
+      explain: 'The percentage of oxygen carried in your blood, sampled overnight. Healthy readings typically sit between 95–100%.',
+      insight: 'Nightly average of 96% sits comfortably in the normal range, with a stable 30-day trend.',
+    },
+    active: {
+      key: 'active', name: 'Active Energy', short: 'Active Calories', unit: 'kcal', tint: 'flame', icon: 'flame',
+      value: activeKcal, series: activeSeries, baseline: baselines.active, decimals: 0, higherBetter: true,
+      explain: 'Calories burned through movement and exercise, on top of the energy your body uses at rest.',
+      insight: 'You’ve burned 612 active kcal — about 13% above your daily average, driven mostly by a midday run.',
+    },
+    steps: {
+      key: 'steps', name: 'Steps', short: 'Steps', unit: '', tint: 'recovery', icon: 'steps',
+      value: stepsToday, series: stepsSeries, baseline: baselines.steps, decimals: 0, higherBetter: true,
+      explain: 'Total steps counted across the day. A simple, reliable proxy for everyday movement.',
+      insight: 'At 9,240 steps you’re on pace to clear your 10k goal — 7% ahead of a typical Thursday.',
+    },
+    recovery: {
+      key: 'recovery', name: 'Recovery', short: 'Recovery', unit: '%', tint: 'recovery', icon: 'recovery',
+      value: recovery, series: recSeries, baseline: baselines.recovery, decimals: 0, higherBetter: true,
+      explain: 'A daily readiness score blending HRV, resting heart rate, sleep and respiratory rate into one number.',
+      insight: 'Recovery is green at 78% — your body can absorb a solid training load today.',
+    },
+    strain: {
+      key: 'strain', name: 'Day Strain', short: 'Strain', unit: '', tint: 'strain', icon: 'strain',
+      value: strain, series: strainSeries, baseline: baselines.strain, decimals: 1, higherBetter: true,
+      explain: 'Cardiovascular load accumulated across the day on a 0–21 scale, weighted by time spent in each heart-rate zone.',
+      insight: 'Currently 12.4 — below your 14.5 target, so there’s room to add an aerobic block.',
+    },
+    sleep: {
+      key: 'sleep', name: 'Sleep Performance', short: 'Sleep', unit: '%', tint: 'sleep', icon: 'moon',
+      value: sleepScore, series: sleepSeries, baseline: baselines.sleep, decimals: 0, higherBetter: true,
+      explain: 'How much of the sleep your body needed you actually got, factoring in duration, efficiency and restorative stages.',
+      insight: 'An 84% night — you met most of your sleep need, with restorative sleep trending up this week.',
+    },
+  };
+
+  // Recovery "why" contributions — each with its own share of the score + reason.
+  const recoveryContribs = [
+    { key: 'hrv', name: 'HRV', value: 96, unit: 'ms', share: 38, dir: 'up', tint: 'hrv',
+      note: '96 ms · 12% above your 88 ms baseline' },
+    { key: 'rhr', name: 'Resting HR', value: 48, unit: 'bpm', share: 27, dir: 'up', tint: 'heart',
+      note: '48 bpm · 2 below yesterday, low in range' },
+    { key: 'sleep', name: 'Sleep', value: 84, unit: '%', share: 26, dir: 'flat', tint: 'sleep',
+      note: '7h 45m of 8h 18m needed · 84%' },
+    { key: 'respiratory', name: 'Respiratory', value: 14.2, unit: 'rpm', share: 9, dir: 'flat', tint: 'recovery',
+      note: '14.2 rpm · steady, on baseline' },
+  ];
+
+  // Today's workouts (for Strain screen).
+  const workouts = [
+    { name: 'Tempo run', icon: 'run', tint: 'strain', dur: 38, strain: 9.1, kcal: 340, avgHr: 152, peakHr: 176, time: '12:24 PM' },
+  ];
+
   NS.data = {
     today, DAYS,
     recovery, strain, strainTarget, sleepScore, hrv, rhr, respiratory, spo2, skinTemp, liveHR,
-    hrvSeries, rhrSeries, recSeries, strainSeries, sleepSeries, last7,
+    hrvSeries, rhrSeries, recSeries, strainSeries, sleepSeries, respSeries, last7,
     dayHR, sleep, drivers, hrZones, insights, coachThread, journal, week,
-    band, bandColor, rr, ri, walk,
+    band, bandColor, rr, ri, walk, mean, round,
+    // expansion v2
+    activeKcal, restingKcal, totalKcal, activeSeries, stepsSeries, stepsToday, stepGoal,
+    exerciseMin, distanceKm, flights, calDayCurve, activitySplit,
+    spo2Available, spo2Series, spo2Latest, spo2NightAvg, spo2Low, spo2High,
+    stressDay, stressNow, stressDist, stressSeries,
+    baselines, metrics, recoveryContribs, workouts,
   };
 })(window.NOOP = window.NOOP || {});

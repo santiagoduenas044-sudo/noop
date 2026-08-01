@@ -10,13 +10,16 @@
   const { $, $$, ripple } = NS.ui;
 
   const pages = NS.pages = NS.pages || {};
-  const order = ['home', 'sleep', 'readiness', 'heart', 'coach', 'journal', 'trends', 'insights', 'settings'];
+  const order = ['home', 'sleep', 'heart', 'coach', 'trends', 'more',
+    'readiness', 'strain', 'energy', 'spo2', 'stress', 'metric',
+    'journal', 'insights', 'settings', 'whatsnew'];
   const dockTabs = [
     { id: 'home', icon: 'home', label: 'Home' },
-    { id: 'sleep', icon: 'moon', label: 'Sleep' },
+    { id: 'sleep', icon: 'sleep', label: 'Sleep' },
     { id: 'heart', icon: 'heart', label: 'Heart' },
     { id: 'coach', icon: 'coach', label: 'Coach' },
     { id: 'trends', icon: 'trends', label: 'Trends' },
+    { id: 'more', icon: 'more', label: 'More' },
   ];
 
   const state = { current: null, scrollPos: {} };
@@ -65,6 +68,9 @@
       `<span class="title">${page.title || ''}</span>`;
     const back = bar.querySelector('.back-btn');
     if (back) back.style.display = showBack ? 'grid' : 'none';
+    // The brand mark sits on primary (dock) pages; the back button replaces it on detail pages.
+    const brand = bar.querySelector('.topbrand');
+    if (brand) brand.style.display = showBack ? 'none' : 'grid';
   }
 
   // Navigate to a page id. dir: 'forward' | 'back'

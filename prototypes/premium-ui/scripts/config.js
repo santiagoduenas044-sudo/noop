@@ -8,9 +8,9 @@
 (function (NS) {
   'use strict';
   NS.build = {
-    prototypeVersion: '0.3.0',
-    milestone: 4,
-    milestoneName: 'Native migration + fixes · efficiency scale, swipe removal, Home ring, Home gating',
+    prototypeVersion: '0.4.0',
+    milestone: 5,
+    milestoneName: 'Data-rich expansion · new logo + icon system, metric detail, energy, blood oxygen, stress, deeper sleep/recovery/strain/trends',
     commit: '__COMMIT__',
     buildDate: 'Aug 1, 2026',
     updated: '__UPDATED__',

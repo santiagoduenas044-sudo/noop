@@ -1,186 +1,156 @@
 /* ============================================================================
-   NOOP · Premium UI — Sleep
-   Sleep score ring, a hypnogram timeline of stages, stage breakdown, sleep debt
-   & consistency, and weekly / monthly trends with interactive charts.
+   NOOP · Premium UI — Sleep (v2, expanded)
+   Keeps the established sleep design language and hypnogram, but goes far deeper:
+   score, hours asleep, time in bed, efficiency, consistency, need, debt,
+   restorative sleep, and the full stage breakdown (Awake / REM / Core / Deep)
+   with REM+Deep restorative total, tappable stages, a typical comparison, and
+   both a 7-day and 30-day trend.
+
+   NOTE (data integrity): the prototype uses CORRECT mock values. The shipping
+   app currently mis-aggregates HealthKit sleep (e.g. "836h in bed", efficiency
+   = 1). Those must be fixed at the query/calculation layer — never clamped in UI.
    ============================================================================ */
 (function (NS) {
   'use strict';
   const { ui, data, charts, icon } = NS;
+  const s = () => data.sleep;
+
+  const STAGE = {
+    deep:  { name: 'Deep',  sub: 'Restorative', color: 'var(--accent-sleep)' },
+    rem:   { name: 'REM',   sub: 'Restorative', color: 'var(--accent-hrv)' },
+    light: { name: 'Core',  sub: 'Light sleep', color: 'var(--accent-strain)' },
+    awake: { name: 'Awake', sub: 'In bed', color: 'var(--accent-heart)' },
+  };
 
   NS.pages.sleep = {
-    title: 'Sleep', eyebrow: 'Last night', tint: 'sleep',
+    title: 'Sleep', eyebrow: 'Last night · Aug 1', tint: 'sleep',
     render() {
-      const s = data.sleep;
+      const d = data, sl = s();
+      const inBed = sl.inBedMin, asleep = sl.asleep;
+      const restMin = sl.restorativeMin, restPct = Math.round(restMin / asleep * 100);
+      const total = sl.hypnogram[sl.hypnogram.length - 1].to;
       return `
-      <section class="hero-score" data-reveal>
+      <!-- Score hero -->
+      <section class="home-hero" data-reveal style="padding-bottom:6px">
         <div class="hero-glow" style="--g:var(--accent-sleep)"></div>
-        ${ui.ring({ value: data.sleepScore, size: 220, stroke: 15, tint: 'sleep', unit: '%', cap: 'Sleep score', numFs: 66 })}
-        <div class="hero-caption">${fmtDur(s.asleep)} of ${fmtDur(s.needed)} needed · ${s.efficiency}% efficient</div>
+        <div class="hero-rings">${ui.ring({ value: d.sleepScore, size: 208, stroke: 14, tint: 'sleep', unit: '%', cap: 'Sleep score', numFs: 62 })}</div>
+      </section>
+      <div style="text-align:center;color:var(--ink-3);font-size:var(--fs-sm);font-weight:500;margin-top:-4px" data-reveal>
+        ${fmtDur(asleep)} asleep · ${fmtDur(inBed)} in bed · fell asleep ${sl.times.bed}
+      </div>
+
+      <!-- Key figures -->
+      <div class="dual" data-reveal style="margin-top:var(--s-5)">
+        <section class="card"><div class="figure"><div class="f-val">${fmtDur(asleep)}</div><div class="f-cap">Hours of sleep</div>
+          <div class="f-sub">typically ${fmtDur(sl.hoursTypicalMin)}</div></div></section>
+        <section class="card" style="--tint:var(--accent-sleep)"><div class="figure"><div class="f-val" style="color:var(--accent-sleep)">${fmtDur(restMin)}</div>
+          <div class="f-cap">Restorative</div><div class="f-sub">REM + Deep · typically ${fmtDur(sl.restorativeTypicalMin)}</div></div></section>
+      </div>
+
+      <section class="card" data-reveal style="margin-top:var(--s-4)">
+        <div class="kv"><span class="k">${gi('scale','sleep')} Time in bed</span><span class="v">${fmtDur(inBed)}</span></div>
+        <div class="kv"><span class="k">${gi('check','recovery')} Sleep efficiency</span><span class="v">${sl.efficiency}<small> %</small></span></div>
+        <div class="kv"><span class="k">${gi('calendar','hrv')} Consistency</span><span class="v">${sl.consistency}<small> %</small></span></div>
+        <div class="kv"><span class="k">${gi('moon','sleep')} Sleep need</span><span class="v">${fmtDur(sl.needed)}</span></div>
+        <div class="kv"><span class="k">${gi('timer','heart')} Sleep debt</span><span class="v" style="color:var(--band-mid)">+${sl.debt}<small> min</small></span></div>
+        <div class="kv"><span class="k">${gi('clock','strain')} Latency</span><span class="v">${sl.latency}<small> min</small></span></div>
       </section>
 
-      <div class="grid-2" data-reveal style="margin-top:18px">
-        ${miniStat('Time in bed', fmtDur(s.asleep + s.stages[0].minutes), 'timer', 'sleep')}
-        ${miniStat('Efficiency', s.efficiency + '%', 'check', 'recovery')}
-        ${miniStat('Latency', s.latency + 'm', 'zzz', 'hrv')}
-        ${miniStat('Restorative', s.restorative + '%', 'moon', 'strain')}
-      </div>
-
-      <!-- Stage breakdown (per-stage density lanes) -->
-      <div class="section-title" data-reveal><h2>Stage breakdown</h2><span class="link">${s.inBed} – ${s.outBed}</span></div>
-      <section class="card breakdown" data-reveal>
-        <div class="bd-cap">${fmtDur(s.inBedMin)} in bed · ${s.efficiency}% efficiency · <span class="bd-approx">stages approximate (on-device)</span></div>
-        <div class="bd-nums">
-          <div class="bd-num">
-            <div class="bd-big">${fmtDur(s.hoursMin)}</div>
-            <div class="bd-lab">Hours of sleep</div>
-            <div class="bd-typ">typically ${fmtDur(s.hoursTypicalMin)}</div>
-          </div>
-          <div class="bd-num restorative">
-            <div class="bd-big">${fmtDur(s.restorativeMin)}</div>
-            <div class="bd-lab">Restorative sleep</div>
-            <div class="bd-typ">typically ${fmtDur(s.restorativeTypicalMin)}</div>
-          </div>
-        </div>
-        <div class="chart bd-depth" style="margin-top:16px"><canvas data-depth></canvas></div>
-        <div class="bd-lanes">
-          ${['awake','light','deep','rem'].map(laneRow).join('')}
-        </div>
-        <div class="axis bd-axis"><span>${s.times.bed}</span><span>${s.times.mid}</span><span>${s.times.wake}</span></div>
-        <div class="bd-hint">${icon('info', 13)} Tap a stage to compare with your 30-day typical.</div>
-      </section>
-
-      <!-- Debt + consistency -->
-      <div class="grid-2" data-reveal>
-        <section class="card" style="--tint:var(--accent-heart)">
-          <div class="card-head"><h3 style="font-size:15px">Sleep debt</h3></div>
-          <div class="metric"><div class="value" style="font-size:40px"><span class="count" data-to="${s.debt}">0</span><span class="unit">min</span></div>
-            <div class="label">Across 4 nights</div></div>
-          <div class="bar" style="--tint:var(--accent-heart);margin-top:12px"><i data-w="${Math.min(100, s.debt/90*100).toFixed(0)}"></i></div>
-        </section>
-        <section class="card" style="--tint:var(--accent-recovery)">
-          <div class="card-head"><h3 style="font-size:15px">Consistency</h3></div>
-          <div class="metric"><div class="value" style="font-size:40px"><span class="count" data-to="${s.consistency}">0</span><span class="unit">%</span></div>
-            <div class="label">Same window ±30m</div></div>
-          <div class="bar" style="--tint:var(--accent-recovery);margin-top:12px"><i data-w="${s.consistency}"></i></div>
-        </section>
-      </div>
-
-      <!-- Trends -->
-      <div class="section-title" data-reveal><h2>Trends</h2>
-        <div class="segment" data-seg><button class="active" data-value="7">Week</button><button data-value="30">Month</button><button data-value="90">3M</button></div>
-      </div>
+      <!-- Hypnogram -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep stages</h2><span class="link">Tap a stage</span></div>
       <section class="card" data-reveal>
-        <div class="trend-head"><div class="metric"><div class="value" style="font-size:26px"><span data-avg>82</span><span class="unit">% avg</span></div><div class="label">Sleep performance</div></div>
-          <span class="delta up">${icon('arrowUp',12)} +6%</span></div>
-        <div class="chart" style="margin-top:10px"><canvas data-sleep-trend></canvas></div>
-        <div class="axis" data-axis></div>
+        ${hyp(sl, total)}
+        <div class="axis" style="margin-top:10px"><span>${sl.times.bed}</span><span>${sl.times.mid}</span><span>${sl.times.wake}</span></div>
       </section>
 
-      <!-- Recommendation -->
-      <section class="ai-card" data-reveal style="margin-top:18px">
-        <div class="ai-head"><span class="ai-orb"></span><span class="ai-title">Sleep coach</span></div>
-        <p class="ai-body">Your deep sleep was strong at <b>2h 6m</b>. To clear the remaining 42-min debt, aim for lights-out by <b>10:50 PM</b> tonight — 20 minutes earlier than usual.</p>
+      <!-- Stage breakdown (tappable) -->
+      <section class="card" data-reveal style="margin-top:var(--s-4)">
+        ${['deep','rem','light','awake'].map((k) => {
+          const mins = sl.byStage[k];
+          const pct = Math.round(mins / inBed * 100);
+          return `<div class="stage-tap" data-stage="${k}" style="--k:${STAGE[k].color}">
+            <span class="st-dot"></span>
+            <span class="st-name">${STAGE[k].name}<small>${STAGE[k].sub}</small></span>
+            <div class="st-bar"><i data-w="${pct}"></i></div>
+            <span class="st-min">${fmtDur(mins)}<small> · ${pct}%</small></span>
+          </div>`;
+        }).join('')}
+      </section>
+      <section class="card" data-reveal style="--tint:var(--accent-sleep);margin-top:var(--s-4)">
+        <div class="insight-line"><span class="il-ic">${icon('moon', 16)}</span>
+          <div class="il-body"><b>${fmtDur(restMin)} restorative</b> (${restPct}% of sleep) — Deep and REM combined are trending +8% this week, a good sign your recovery is being earned overnight.</div></div>
+      </section>
+
+      <!-- 7-day trend -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Last 7 nights</h2><span class="link">Hours asleep</span></div>
+      <section class="card" data-reveal>
+        <div class="chart" style="height:150px"><canvas data-sleep7></canvas></div>
+        <div class="axis" data-sleep7-axis></div>
+      </section>
+
+      <!-- 30-day trend -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">30-day sleep score</h2></div>
+      <section class="card" data-reveal>
+        <div class="chart" style="height:170px"><canvas data-sleep30></canvas></div>
+        <div class="axis"><span>30d</span><span>20d</span><span>10d</span><span>today</span></div>
+        <div class="stat3 c2" style="margin-top:var(--s-4)">
+          ${statBlk('30-day avg', Math.round(data.mean(data.sleepSeries)) + '%')}
+          ${statBlk('This week', Math.round(data.mean(data.sleepSeries.slice(-7))) + '%')}
+        </div>
       </section>
       <div style="height:8px"></div>`;
     },
 
     mount(root) {
-      const s = data.sleep;
+      const d = data;
       ui.$$('[data-w]', root).forEach((i) => requestAnimationFrame(() => { i.style.width = i.dataset.w + '%'; }));
-
-      // sleep-depth ribbon above the lanes
-      const dc = ui.$('[data-depth]', root);
-      if (dc) charts.area(dc, s.depth, { color: 'sleep', height: 132, min: 48, max: 104,
-        grid: true, markers: false,
-        labels: s.depth.map((_, i) => s.fmtTime(i)),
-        fmt: (v) => v >= 86 ? 'Awake' : v >= 74 ? 'REM' : v >= 64 ? 'Light' : 'Deep' });
-
-      // per-stage density lanes — place each stage's blocks at their times
-      const total = s.inBedMin;
-      ['awake', 'light', 'deep', 'rem'].forEach((key) => {
-        const track = root.querySelector(`[data-lane-track="${key}"]`);
-        if (!track) return;
-        const blocks = s.hypnogram.filter((seg) => seg.key === key);
-        track.innerHTML = blocks.map((seg, i) => {
-          const left = seg.from / total * 100, w = Math.max(0.7, (seg.to - seg.from) / total * 100);
-          return `<span class="lane-blk" style="left:${left}%;width:${w}%;background:${stageColor(key)};animation-delay:${i * 45}ms"></span>`;
-        }).join('');
-      });
-      // tap a lane → compare with 30-day typical
-      ui.$$('[data-lane]', root).forEach((b) => b.addEventListener('click', (e) => {
-        ui.ripple(e, b); openCompare(b.dataset.lane);
-      }));
-
-      // trend chart with segment switching
-      let series = data.sleepSeries.slice(-7);
-      const cv = ui.$('[data-sleep-trend]', root);
-      const axis = ui.$('[data-axis]', root);
-      const avg = ui.$('[data-avg]', root);
-      const draw = (n) => {
-        series = data.sleepSeries.slice(-n);
-        charts.bars(cv, series, { color: 'sleep', height: 150, min: 0, max: 100,
-          highlight: series.length - 1, labels: series.map((_, i) => label(i, n)),
-          fmt: (v) => v + '%' });
-        if (avg) avg.textContent = Math.round(series.reduce((a, b) => a + b, 0) / series.length);
-        if (axis) axis.innerHTML = axisFor(n);
-      };
-      draw(7);
-      ui.initSegments(root, (i, v) => draw(+v));
+      ui.$$('.stage-tap', root).forEach((el) => el.addEventListener('click', (e) => { ui.ripple(e, el); openStage(el.dataset.stage); }));
+      const c7 = ui.$('[data-sleep7]', root);
+      if (c7) {
+        const hrs = d.sleepSeries.slice(-7).map((v) => Math.round((6 + v / 100 * 2.6) * 10) / 10);
+        charts.bars(c7, hrs, { color: 'sleep', height: 150, highlight: 6, min: 0, labels: ['Fri','Sat','Sun','Mon','Tue','Wed','Thu'], fmt: (v) => v + ' h' });
+        ui.$('[data-sleep7-axis]', root).innerHTML = ['Fri','Sat','Sun','Mon','Tue','Wed','Thu'].map((x) => `<span>${x}</span>`).join('');
+      }
+      const c30 = ui.$('[data-sleep30]', root);
+      if (c30) charts.area(c30, d.sleepSeries, { color: 'sleep', height: 170, min: 40, max: 100, fmt: (v) => Math.round(v) + '%' });
     },
   };
 
-  /* ---- partials ---- */
-  // One per-stage density lane: name · % of night · duration, over a hatched track.
-  function laneRow(key) {
-    const s = data.sleep;
-    const mins = s.byStage[key];
-    const pct = Math.round(mins / s.inBedMin * 100);
-    return `<button class="lane" data-lane="${key}" style="--tint:${stageColor(key)}">
-      <div class="lane-head">
-        <span class="lane-name">${cap(key)}</span>
-        <span class="lane-pct">${pct}%</span>
-        <span class="lane-dur">${fmtDur(mins)}</span>
-      </div>
-      <div class="lane-track" data-lane-track="${key}"></div>
-    </button>`;
-  }
-  // Tap a stage → a bottom-sheet comparing last night vs the 30-day typical.
-  function openCompare(key) {
-    const s = data.sleep;
-    const mins = s.byStage[key];
-    const pct = Math.round(mins / s.inBedMin * 100);
-    const typ = s.typical[key];
+  function openStage(k) {
+    const sl = s();
+    const mins = sl.byStage[k], pct = Math.round(mins / sl.inBedMin * 100), typ = sl.typical[k];
     const diff = pct - typ;
-    const word = diff > 1 ? `${diff}% more` : diff < -1 ? `${-diff}% less` : 'right on';
-    const dir = key === 'awake' ? (diff <= 0 ? 'good' : 'watch') : (diff >= 0 ? 'good' : 'watch');
-    const body = `
-      <p class="ctr-note" style="margin:2px 0 16px">Last night you spent <b style="color:${stageColor(key)}">${fmtDur(mins)}</b> in ${cap(key)} — ${word} than your 30-day typical of ${typ}%.</p>
-      <div class="cmp-bars">
-        ${cmpBar('Last night', pct, stageColor(key), true)}
-        ${cmpBar('30-day typical', typ, 'var(--ink-4)', false)}
-      </div>
-      <div class="cmp-verdict ${dir}">${icon(dir === 'good' ? 'check' : 'info', 15)} ${dir === 'good' ? 'In a healthy range for you' : 'Slightly outside your usual'}</div>`;
-    ui.sheet(cap(key) + ' sleep', body);
-    // animate the compare bars once the sheet is up
-    setTimeout(() => ui.$$('.cmp-bars .bar > i', document).forEach((i) =>
-      requestAnimationFrame(() => { i.style.width = i.dataset.w + '%'; })), 60);
+    const word = diff > 2 ? 'more than' : diff < -2 ? 'less than' : 'about the same as';
+    ui.sheet(STAGE[k].name + ' sleep', `
+      <p class="note" style="margin:2px 0 16px">Last night you spent <b style="color:${STAGE[k].color}">${fmtDur(mins)}</b> in ${STAGE[k].name} — ${pct}% of time in bed, ${word} your 30-day typical of ${typ}%.</p>
+      <div class="stat3 c2">${statBlk('Last night', pct + '%')}${statBlk('Typical', typ + '%')}</div>
+      <p class="note" style="margin-top:16px">${stageBlurb(k)}</p>`);
   }
-  function cmpBar(label, pct, color, strong) {
-    return `<div class="cmp-row">
-      <div class="cmp-top"><span>${label}</span><span class="cmp-val">${pct}%</span></div>
-      <div class="bar"><i data-w="${pct}" style="width:0;background:${color};box-shadow:${strong ? `0 0 14px ${color}` : 'none'}"></i></div>
+  function stageBlurb(k) {
+    return ({
+      deep: 'Deep sleep is when the body repairs tissue and consolidates physical recovery. It clusters early in the night.',
+      rem: 'REM sleep supports memory and mood, and dominates the later cycles toward morning.',
+      light: 'Core (light) sleep is the connective tissue of the night — the transitions between deeper stages.',
+      awake: 'Brief awakenings are normal. What matters is how quickly you settle back down.',
+    })[k];
+  }
+
+  function hyp(sl, total) {
+    const order = ['awake', 'rem', 'light', 'deep'];
+    return `<div class="hyp">
+      ${order.map((k) => `
+        <div class="hyp-lane">
+          <span class="hyp-cap">${STAGE[k].name}</span>
+          <div class="hyp-track">
+            ${sl.hypnogram.filter((seg) => seg.key === k).map((seg, i) => {
+              const left = seg.from / total * 100, w = (seg.to - seg.from) / total * 100;
+              return `<span class="hyp-blk" style="left:${left}%;width:${w}%;background:${STAGE[k].color};animation-delay:${i * 30}ms"></span>`;
+            }).join('')}
+          </div>
+        </div>`).join('')}
     </div>`;
   }
-  function miniStat(label, val, ic, tint) {
-    return `<div class="card mini" data-reveal style="--tint:var(--accent-${tint})">
-      <span class="glyph tint" style="margin-bottom:10px">${icon(ic, 16)}</span>
-      <div class="metric"><div class="value" style="font-size:24px">${val}</div><div class="label">${label}</div></div></div>`;
-  }
-  function stageColor(k){return ({awake:'var(--accent-heart)',rem:'var(--accent-hrv)',light:'var(--accent-strain)',deep:'var(--accent-sleep)'})[k];}
-  function stageIcon(k){return ({awake:'bell',rem:'wave',light:'moon',deep:'zzz'})[k];}
-  function cap(k){return ({awake:'Awake',rem:'REM',light:'Light',deep:'Deep'})[k];}
-  function fmtDur(m){const h=Math.floor(m/60),mm=m%60;return h?`${h}h ${mm}m`:`${mm}m`;}
-  function label(i,n){ if(n===7) return data.DAYS[i]; return '−'+(n-1-i)+'d'; }
-  function axisFor(n){ const labels = n===7?data.DAYS:(n===30?['4w','3w','2w','1w','now']:['3M','2M','1M','now']);
-    return labels.map((l)=>`<span>${l}</span>`).join(''); }
+  function gi(name, tint) { return `<span class="kg" style="--tint:var(--accent-${tint})">${icon(name, 16)}</span>`; }
+  function statBlk(cap, val) { return `<div class="stat-blk"><div class="sb-cap">${cap}</div><div class="sb-val">${val}</div></div>`; }
+  function fmtDur(m) { m = Math.round(m); const h = Math.floor(m / 60), mm = m % 60; return h ? `${h}h ${mm}m` : `${mm}m`; }
 })(window.NOOP = window.NOOP || {});
