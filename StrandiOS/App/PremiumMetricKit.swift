@@ -64,6 +64,12 @@ struct PremiumMetricDescriptor {
 /// (Home tile, detail screen, future widgets) stays consistent. Reads only `repo.days` (oldest→newest) —
 /// the same banked history the rest of the Premium UI uses — and compact-maps out the nil samples so the
 /// series is real values only.
+///
+/// `@MainActor`-isolated: it reads `Repository.days`, a `@Published` property on the main-actor `Repository`.
+/// A SwiftUI `View` is implicitly main-actor so the other Premium screens touch `repo.days` freely, but this
+/// is a plain `enum` — without the annotation its `static` methods are nonisolated and can't read `days`.
+/// Every caller is a Premium view (already main actor), so this costs nothing at the call sites.
+@MainActor
 enum PremiumMetricKit {
 
     static func descriptor(for kind: PremiumMetricKind, repo: Repository) -> PremiumMetricDescriptor {
