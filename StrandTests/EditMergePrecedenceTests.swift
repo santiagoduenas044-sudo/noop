@@ -106,6 +106,58 @@ final class EditMergePrecedenceTests: XCTestCase {
         XCTAssertNil(Repository.dailyColumn(key: "sleep_performance", day: d))
     }
 
+    // MARK: - applyingEditedSleepSessions (rebuilds an edited day's sleep fields from stored stages)
+    //
+    // A historical import has no raw streams, so IntelligenceEngine cannot always produce a fresh
+    // computed daily row after an edit; without this rebuild the corrected duration never reaches the
+    // daily rollup (and so never reaches sleepDebtSeries or the Sleep screen's own headline).
+
+    /// An edited night's re-clipped stages overwrite the day's sleep-only fields; non-sleep fields
+    /// (recovery/strain) are untouched.
+    func testEditedImportedSleepRebuildsDailySleepFields() {
+        let detectedStart = 1_780_000_000
+        // 8h night: 90m deep + 110m REM + 200m light + 20m awake = 420m in bed, 400m asleep.
+        let stagesJSON = """
+        [{"start":\(detectedStart),"end":\(detectedStart + 90*60),"stage":"deep"},
+         {"start":\(detectedStart + 90*60),"end":\(detectedStart + 200*60),"stage":"rem"},
+         {"start":\(detectedStart + 200*60),"end":\(detectedStart + 400*60),"stage":"light"},
+         {"start":\(detectedStart + 400*60),"end":\(detectedStart + 420*60),"stage":"wake"}]
+        """
+        let endTs = detectedStart + 420 * 60
+        let edited = CachedSleepSession(startTs: detectedStart, endTs: endTs, efficiency: nil,
+                                        restingHr: nil, avgHrv: nil, stagesJSON: stagesJSON, userEdited: true)
+        let offsetSec = TimeZone.current.secondsFromGMT(for: Date(timeIntervalSince1970: TimeInterval(endTs)))
+        let day = AnalyticsEngine.dayString(endTs, offsetSec: offsetSec)
+
+        // Stale daily row from BEFORE the edit (a longer, un-corrected night).
+        let stale = full(day: day, totalSleepMin: 480, deepMin: 100, remMin: 120, lightMin: 260,
+                         efficiency: 0.95, recovery: 80, strain: 9.0)
+
+        let rebuilt = Repository.applyingEditedSleepSessions([edited], to: [stale])
+
+        XCTAssertEqual(rebuilt.count, 1)
+        XCTAssertEqual(rebuilt[0].totalSleepMin, 400, "asleep minutes must reflect the edited/re-clipped stages")
+        XCTAssertEqual(rebuilt[0].deepMin, 90)
+        XCTAssertEqual(rebuilt[0].remMin, 110)
+        XCTAssertEqual(rebuilt[0].lightMin, 200)
+        // Non-sleep fields are carried over from the stale row untouched.
+        XCTAssertEqual(rebuilt[0].recovery, 80)
+        XCTAssertEqual(rebuilt[0].strain, 9.0)
+    }
+
+    /// A day with no user-edited session is returned unchanged (no rebuild attempted).
+    func testApplyingEditedSleepSessionsNoOpWithoutAnEdit() {
+        let detectedStart = 1_780_000_000
+        let detected = CachedSleepSession(startTs: detectedStart, endTs: detectedStart + 420 * 60,
+                                          efficiency: 0.9, restingHr: 52, avgHrv: 70, stagesJSON: "[]")
+        let day = full(day: "2026-06-12", totalSleepMin: 480, deepMin: 100, remMin: 120,
+                      lightMin: 260, efficiency: 0.95, recovery: 80, strain: 9.0)
+
+        let result = Repository.applyingEditedSleepSessions([detected], to: [day])
+
+        XCTAssertEqual(result, [day], "no userEdited session on this day → the row passes through untouched")
+    }
+
     private func full(day: String, totalSleepMin: Double, deepMin: Double, remMin: Double,
                       lightMin: Double, efficiency: Double, recovery: Double, strain: Double) -> DailyMetric {
         DailyMetric(day: day, totalSleepMin: totalSleepMin, efficiency: efficiency, deepMin: deepMin,

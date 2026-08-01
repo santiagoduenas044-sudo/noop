@@ -2267,13 +2267,17 @@ struct SleepView: View {
 
     /// Sleep debt (minutes): the imported sleep_debt_min when the export carried it; else
     /// the APPROXIMATE per-night need − asleep, floored at 0 (no "credit").
+    /// Local wake-days carrying a user-edited sleep session, so `sleepDebtSeries` adjusts the exported
+    /// debt on those days instead of reporting the pre-edit figure verbatim.
+    private var editedSleepDays: Set<String> { Repository.userEditedDays(repo.sleeps) }
+
     private var sleepDebtSeries: Metric {
         let imported = repo.importedSleep
         let need = sleepNeedMin
-        let series = repo.days.compactMap { d -> Double? in
-            if let debt = imported[d.day]?.debtMin { return debt }   // minutes, export-verbatim
-            guard let asleep = d.totalSleepMin, asleep > 0, need > 0 else { return nil }
-            return Swift.max(0, need - asleep)   // APPROXIMATE fallback
+        let edited = editedSleepDays
+        let series = repo.days.compactMap { d in
+            Repository.resolvedSleepDebtMinutes(imported: imported[d.day], actualSleepMin: d.totalSleepMin,
+                                                fallbackNeedMin: need, isUserEdited: edited.contains(d.day))
         }
         return (series.last, mean(series), series)
     }

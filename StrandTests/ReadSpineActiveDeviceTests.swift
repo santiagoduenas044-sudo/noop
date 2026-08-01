@@ -169,6 +169,42 @@ final class ReadSpineActiveDeviceTests: XCTestCase {
                        "Today must anchor on the fresh live day, not a stale imported day")
     }
 
+    /// The sleep-edit owner-resolution fix: a night computed/banked under the CANONICAL pair before a
+    /// remove+re-add must still be reachable by `editSleepTimes` after the active strap moves to a fresh
+    /// id. `CachedSleepSession` carries no device id, so a write starting from a merged Sleep-tab row has
+    /// no other way to find the true owner than probing every namespace `sleepOwnerIds` covers , without
+    /// the canonical-pair fallback this edit silently no-ops (the active strap's two namespaces don't
+    /// match, and there is nowhere else to look).
+    @MainActor
+    func testEditingCanonicalSleepAfterReAddPersistsTheVisibleNight() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: canonicalId, mac: nil, name: "WHOOP")
+        try await store.upsertDevice(id: newId, mac: nil, name: "WHOOP")
+
+        // A night computed BEFORE the re-add, banked under the canonical computed sibling.
+        let detectedStart = 1_780_000_000
+        let originalEnd = detectedStart + 8 * 3_600
+        let session = CachedSleepSession(startTs: detectedStart, endTs: originalEnd, efficiency: 0.9,
+                                         restingHr: 52, avgHrv: 70, stagesJSON: "[]")
+        _ = try await store.upsertSleepSessions([session], deviceId: canonicalId + "-noop")
+
+        let repo = Repository(deviceId: canonicalId)
+        repo.setStoreForTesting(store)
+        // Re-add: the active strap moves to a fresh id, so `computedDeviceId`/`deviceId` no longer match
+        // the namespace that actually owns this night.
+        repo.adoptActiveDeviceId(newId)
+
+        // Shorten the night by an hour, exactly as the Sleep screen's edit sheet would.
+        let correctedEnd = originalEnd - 3_600
+        await repo.editSleepTimes(detectedStartTs: detectedStart, oldEndTs: originalEnd,
+                                  storedStagesJSON: "[]", newStartTs: detectedStart, newEndTs: correctedEnd)
+
+        let owned = try await store.sleepSessions(deviceId: canonicalId + "-noop",
+                                                  from: detectedStart, to: detectedStart, limit: 4)
+        XCTAssertEqual(owned.first?.endTs, correctedEnd,
+                       "the edit must reach the canonical-owned night even though it's no longer the active strap")
+    }
+
     // MARK: - #316 / @63 step activity-class union (the Steps tile icon)
 
     /// Pure union pick: `latestActivityClass` returns the non-nil class on the greatest-ts sample across the
