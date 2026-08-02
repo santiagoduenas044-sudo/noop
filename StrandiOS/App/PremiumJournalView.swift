@@ -24,6 +24,10 @@ struct PremiumJournalView: View {
     @State private var answers: [String: Bool] = [:]
     @State private var numericAnswers: [String: Double] = [:]
     @State private var selectedMood: Int?
+    private struct MoodPoint: Identifiable { let day: String; let value: Double; var id: String { day } }
+    /// Real check-in history from `Repository.moodSeries` (the same mood rows `moodFace` writes),
+    /// oldest→newest — never fabricated, empty until the user has logged at least two days.
+    @State private var moodHistory: [MoodPoint] = []
     @State private var editing = false
     @State private var customDraft = ""
     @State private var customIsNumeric = false
@@ -68,6 +72,7 @@ struct PremiumJournalView: View {
                     header
                     dayPicker
                     moodCard
+                    moodHistoryCard
                     logSection
                     addCustomCard
                     Color.clear.frame(height: 8)
@@ -179,6 +184,31 @@ struct PremiumJournalView: View {
         .buttonStyle(.plain)
         .accessibilityLabel("\(MoodStore.label(for: value)), mood \(value) of 5")
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// A real mood-history bar strip — the fixed 1–5 check-in scale means each bar's height is
+    /// directly comparable day to day, no per-week min/max needed. Only renders once there are at
+    /// least two logged days; a gap in check-ins simply isn't in the series (never a fabricated bar).
+    @ViewBuilder private var moodHistoryCard: some View {
+        if moodHistory.count >= 2 {
+            StrandCard {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("MOOD · LAST \(moodHistory.count) DAYS").font(StrandFont.overline).tracking(1.3)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                    HStack(alignment: .bottom, spacing: 6) {
+                        ForEach(moodHistory) { p in
+                            VStack {
+                                Spacer(minLength: 0)
+                                Capsule().fill(StrandPalette.gold.opacity(0.35 + 0.65 * (p.value - 1) / 4))
+                                    .frame(height: 6 + CGFloat((p.value - 1) / 4) * 26)
+                            }
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
+                    }
+                    .frame(height: 34)
+                }
+            }
+        }
     }
 
     // MARK: - Log (real: JournalCatalogStore / repo.saveJournalAnswer / saveJournalNumeric / clearJournalAnswer)
@@ -451,7 +481,11 @@ struct PremiumJournalView: View {
     private func load() async {
         let imported = await repo.importedJournalEntries()
         let importedQs = NSOrderedSet(array: imported.map(\.question)).array as? [String] ?? []
-        await MainActor.run { self.importedQuestions = importedQs }
+        let history = await repo.moodSeries(days: 14)
+        await MainActor.run {
+            self.importedQuestions = importedQs
+            self.moodHistory = history.map { MoodPoint(day: $0.day, value: $0.value) }
+        }
         await loadDay()
     }
 

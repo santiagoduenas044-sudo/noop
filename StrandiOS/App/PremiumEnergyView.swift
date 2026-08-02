@@ -20,6 +20,8 @@ struct PremiumEnergyView: View {
     private var activeSeries: [Double] { repo.days.compactMap { $0.activeKcalEst } }
     private var activeToday: Double? { latest { $0.activeKcalEst } }
     private var stepsToday: Int? { latest { $0.steps } }
+    /// Real daily step series, oldest→newest, nil-free.
+    private var stepsSeries: [Double] { repo.days.compactMap { $0.steps.map(Double.init) } }
 
     /// Resting energy for a full day via Mifflin–St Jeor BMR (kcal/day). An ESTIMATE from profile, always
     /// labelled as such — never presented as a strap measurement.
@@ -53,6 +55,7 @@ struct PremiumEnergyView: View {
                     splitCard
                     statsRow
                     weeklyCard
+                    stepsWeeklyCard
                 }
                 explanationCard
                 Color.clear.frame(height: 8)
@@ -186,6 +189,34 @@ struct PremiumEnergyView: View {
                         .frame(maxHeight: .infinity, alignment: .bottom)
                     }
                     .frame(height: 120)
+                }
+            }
+        }
+    }
+
+    // MARK: Weekly steps
+
+    @ViewBuilder private var stepsWeeklyCard: some View {
+        let recent = Array(stepsSeries.suffix(7))
+        if recent.count >= 2 {
+            let maxV = max(1, recent.max() ?? 1)
+            StrandCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    sectionLabel("Steps · last \(recent.count) days")
+                    GeometryReader { geo in
+                        let barW = (geo.size.width - CGFloat(recent.count - 1) * 8) / CGFloat(recent.count)
+                        HStack(alignment: .bottom, spacing: 8) {
+                            ForEach(Array(recent.enumerated()), id: \.offset) { _, v in
+                                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                                    .fill(LinearGradient(colors: [StrandPalette.recoveryColor(80),
+                                                                  StrandPalette.recoveryColor(80).opacity(0.6)],
+                                                         startPoint: .top, endPoint: .bottom))
+                                    .frame(width: barW, height: max(4, geo.size.height * CGFloat(v / maxV)))
+                            }
+                        }
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                    }
+                    .frame(height: 100)
                 }
             }
         }

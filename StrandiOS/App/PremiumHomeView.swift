@@ -61,6 +61,7 @@ struct PremiumHomeView: View {
                     header
                     hero
                     storyCard
+                    weekOverviewCard
                     vitalsSection
                     sleepCard
                     driversCard
@@ -203,6 +204,68 @@ struct PremiumHomeView: View {
         else if rec >= 34 { s += " Train with intent, but leave a little in the tank." }
         else { s += " Prioritise rest and recovery today." }
         return s
+    }
+
+    // MARK: This week — recovery/strain/sleep at a glance
+
+    /// A 7-day mini bar chart for recovery, strain and sleep, real `repo.days` history scaled to
+    /// each metric's own natural range (0–100 for recovery/sleep, 0–21 for strain — the same WHOOP
+    /// strain scale used everywhere else) rather than a per-week min/max, so a bar's height is
+    /// comparable day to day. A day with no recorded value draws a faint placeholder, never a
+    /// fabricated bar.
+    private var weekOverviewCard: some View {
+        let days = Array(repo.days.suffix(7))
+        return VStack(alignment: .leading, spacing: 14) {
+            sectionTitle("This week")
+            StrandCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    weekRow("Recovery", tint: StrandPalette.recoveryColor(80), days: days,
+                            key: { $0.recovery }, span: 100)
+                    weekRow("Strain", tint: StrandPalette.effortColor, days: days,
+                            key: { $0.strain }, span: 21)
+                    weekRow("Sleep", tint: StrandPalette.sleepDeep, days: days,
+                            key: { $0.efficiency.map { $0 <= 1.0 ? $0 * 100 : $0 } }, span: 100)
+                    weekDayLabels(days)
+                }
+            }
+        }
+    }
+    private func weekRow(_ label: String, tint: Color, days: [DailyMetric],
+                         key: (DailyMetric) -> Double?, span: Double) -> some View {
+        HStack(spacing: 10) {
+            Text(label).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                .frame(width: 64, alignment: .leading)
+            HStack(spacing: 6) {
+                ForEach(Array(days.enumerated()), id: \.offset) { _, d in
+                    let v = key(d)
+                    VStack {
+                        Spacer(minLength: 0)
+                        Capsule().fill(v == nil ? StrandPalette.surfaceInset : tint)
+                            .frame(height: v.map { 3 + CGFloat(max(0, min(1, $0 / span))) * 20 } ?? 3)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+            .frame(height: 26)
+        }
+    }
+    private func weekDayLabels(_ days: [DailyMetric]) -> some View {
+        HStack(spacing: 10) {
+            Color.clear.frame(width: 64)
+            HStack(spacing: 6) {
+                ForEach(Array(days.enumerated()), id: \.offset) { _, d in
+                    Text(dayAbbrev(d.day)).font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+    }
+    private func dayAbbrev(_ key: String) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        guard let date = f.date(from: key) else { return "" }
+        let out = DateFormatter(); out.dateFormat = "EEE"
+        return String(out.string(from: date).prefix(1))
     }
 
     // MARK: Live vitals grid
