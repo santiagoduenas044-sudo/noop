@@ -34,6 +34,10 @@
       const inBed = sl.inBedMin, asleep = sl.asleep;
       const restMin = sl.restorativeMin, restPct = Math.round(restMin / asleep * 100);
       const total = sl.hypnogram[sl.hypnogram.length - 1].to;
+      // Guard against invalid/out-of-range values before they ever reach the UI.
+      const effClamped = Math.max(0, Math.min(100, Math.round(sl.efficiency)));
+      const wasoTonight = Math.max(0, sl.byStage.awake - sl.latency);
+      const longestAwakeTonight = Math.max(0, ...sl.hypnogram.filter((seg) => seg.key === 'awake').slice(1).map((seg) => seg.to - seg.from));
       return `
       <!-- Score hero -->
       <section class="home-hero" data-reveal style="padding-bottom:6px">
@@ -61,8 +65,27 @@
         <div class="kv"><span class="k">${gi('clock','strain')} Latency</span><span class="v">${sl.latency}<small> min</small></span></div>
       </section>
 
+      <!-- ============ Data trust legend ============ -->
+      <section class="card expandable" data-reveal style="margin-top:var(--s-4)">
+        <button class="ins-head" data-toggle>
+          <span class="il-ic glyph tint">${icon('info', 16)}</span>
+          <div class="ins-title-wrap"><div class="ins-title">About this data</div></div>
+          <span class="chev-tog">${icon('chevD', 16)}</span>
+        </button>
+        <div class="expand-body"><div class="inner">
+          <div class="rows">
+            <div class="row"><span class="tag" style="--tint:var(--accent-heart)">Measured</span>
+              <div class="r-body"><div class="r-sub">A direct sensor reading — heart rate is sampled continuously overnight.</div></div></div>
+            <div class="row"><span class="tag" style="--tint:var(--accent-gold)">Wearable-estimated</span>
+              <div class="r-body"><div class="r-sub">Computed on-device from sensor patterns — sleep stages, HRV, respiratory rate and blood oxygen. Not a clinical measurement.</div></div></div>
+            <div class="row"><span class="tag" style="--tint:var(--ink-3)">Calculated</span>
+              <div class="r-body"><div class="r-sub">Simple arithmetic on other stored values — efficiency, consistency, debt and balance.</div></div></div>
+          </div>
+        </div></div>
+      </section>
+
       <!-- ============ ONE CONNECTED EXPERIENCE: Overnight ↔ Stage Breakdown ============ -->
-      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep stages</h2><span class="link">Tap a stage · drag to explore</span></div>
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep stages</h2><span class="tag" style="--tint:var(--accent-gold)">Wearable-estimated</span></div>
       ${nightPanel(sl, total)}
       <section class="card" data-reveal style="margin-top:var(--s-4)" data-stage-rows>
         ${ORDER.slice().reverse().map((k) => {
@@ -91,8 +114,8 @@
         </div></div>
       </section>
 
-      <!-- ============ Duration & timing ============ -->
-      <div class="section-title" data-reveal><h2 style="font-size:19px">Duration &amp; timing</h2><span class="link">30 days</span></div>
+      <!-- ============ Sleep timing ============ -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep timing</h2><span class="link">30 days</span></div>
       <section class="card" data-reveal>
         <div class="grid-2">
           <div><div class="eyebrow">Bedtime</div>
@@ -102,24 +125,62 @@
         </div>
         <p class="note" style="margin-top:var(--s-3)">Bedtime has drifted ${bedtimeDriftText()} over the last two weeks; wake time has stayed within a ${waketimeSpreadText()} window.</p>
       </section>
+      <section class="card" data-reveal style="margin-top:var(--s-4)">
+        <div class="eyebrow">Sleep midpoint</div>
+        <div class="chart" style="height:110px;margin-top:6px"><canvas data-midpoint-chart></canvas></div>
+        <p class="note" style="margin-top:var(--s-3)">The midway point between falling asleep and waking — a steadier midpoint usually means a steadier body clock.</p>
+      </section>
+      <section class="card" data-reveal style="margin-top:var(--s-4)">
+        <div class="eyebrow">Weekday vs weekend</div>
+        <div class="dual" style="margin-top:var(--s-3)">
+          <div class="figure"><div class="f-val">${clockFromMinutes(d.weekdayWeekendShift().weekdayBed)}</div><div class="f-cap">Weekday bedtime</div></div>
+          <div class="figure"><div class="f-val" style="color:var(--accent-gold)">${clockFromMinutes(d.weekdayWeekendShift().weekendBed)}</div><div class="f-cap">Weekend bedtime</div></div>
+        </div>
+        <div class="dual" style="margin-top:var(--s-3)">
+          <div class="figure"><div class="f-val">${clockFromMinutes(d.weekdayWeekendShift().weekdayWake)}</div><div class="f-cap">Weekday wake</div></div>
+          <div class="figure"><div class="f-val" style="color:var(--accent-gold)">${clockFromMinutes(d.weekdayWeekendShift().weekendWake)}</div><div class="f-cap">Weekend wake</div></div>
+        </div>
+        <p class="note" style="margin-top:var(--s-3)">${weekendShiftText(d.weekdayWeekendShift())}</p>
+      </section>
 
-      <!-- ============ Consistency ============ -->
-      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep consistency</h2><span class="link">${d.sleep.consistency}%</span></div>
+      <!-- ============ Sleep regularity ============ -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep regularity</h2><span class="tag" style="--tint:var(--ink-3)">Calculated</span></div>
       <section class="card" data-reveal>
+        <p class="note" style="margin-bottom:var(--s-3)">Each row is one of the last 14 nights, positioned by clock time — the more the bars line up, the more regular your schedule.</p>
+        <div data-timing-map></div>
+      </section>
+      <section class="card" data-reveal style="margin-top:var(--s-4)">
+        <div class="stat3 c2">
+          ${statBlk('Bedtime variability', '±' + fmtDur(d.regularity.bedtimeVar14))}
+          ${statBlk('Wake-time variability', '±' + fmtDur(d.regularity.waketimeVar14))}
+        </div>
+        <div class="stat3 c2" style="margin-top:var(--s-3)">
+          ${statBlk('Sleep midpoint variability', '±' + fmtDur(d.regularity.midpointVar14))}
+          ${statBlk('Consistency, 7D vs 30D', `${d.regularity.consistency7}% · ${d.regularity.consistency30}%`)}
+        </div>
+        <p class="note" style="margin-top:var(--s-3)">Variability is how much your bed/wake/midpoint clock-times swing night to night over the last 14 nights — smaller is steadier. Your consistency score is ${regularityTrendText(d.regularity)}.</p>
+      </section>
+      <section class="card" data-reveal style="margin-top:var(--s-4)">
         <p class="note" style="margin-bottom:var(--s-3)">How closely your bed/wake times matched your typical schedule each of the last 30 nights — brighter squares are more on-schedule.</p>
         ${ui.dotGrid(data.consistencySeries.map((v) => v / 100), 'hrv', 10)}
       </section>
 
-      <!-- ============ Efficiency & time in bed ============ -->
-      <div class="section-title" data-reveal><h2 style="font-size:19px">Efficiency</h2></div>
+      <!-- ============ Sleep continuity ============ -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep continuity</h2><span class="link">Tonight vs typical</span></div>
       <section class="card" data-reveal>
         <div class="dual">
           <div class="figure"><div class="f-val">${fmtDur(inBed)}</div><div class="f-cap">Time in bed</div></div>
           <div class="figure"><div class="f-val" style="color:var(--accent-sleep)">${fmtDur(asleep)}</div><div class="f-cap">Time asleep</div></div>
         </div>
-        <div class="bar" style="margin-top:var(--s-4);--tint:var(--accent-sleep)"><i data-w="${sl.efficiency}"></i></div>
+        <div class="bar" style="margin-top:var(--s-4);--tint:var(--accent-sleep)"><i data-w="${effClamped}"></i></div>
         <div class="chart" style="height:130px;margin-top:var(--s-4)"><canvas data-eff-chart></canvas></div>
-        <p class="note" style="margin-top:var(--s-2)">Efficiency is the share of time in bed actually spent asleep. Above 85% is considered strong; yours has averaged ${Math.round(data.mean(data.consistencySeries))}%-consistent scheduling this month, which tends to support it.</p>
+        <p class="note" style="margin-top:var(--s-2)">Efficiency is the share of time in bed actually spent asleep — ${effClamped}% tonight, typically ${d.continuityTypical.efficiency.lo}–${d.continuityTypical.efficiency.hi}%.</p>
+        <div class="stat3 c2" style="margin-top:var(--s-4)">
+          ${statBlk('Awake in bed (WASO)', fmtDur(wasoTonight))}
+          ${statBlk('Longest awake spell', fmtDur(longestAwakeTonight))}
+        </div>
+        <div class="chart" style="height:90px;margin-top:var(--s-4)"><canvas data-waso-chart></canvas></div>
+        <p class="note" style="margin-top:var(--s-2)">WASO is time spent awake after first falling asleep — typically ${d.continuityTypical.waso.lo}–${d.continuityTypical.waso.hi} min a night for you.</p>
       </section>
 
       <!-- ============ Restorative sleep ============ -->
@@ -137,6 +198,21 @@
         <p class="note" style="margin-top:var(--s-2)">A rolling balance of sleep vs your ${fmtDur(sl.needed)} personal need — a surplus night offsets a deficit one. It is not a medical measure, just a running total.</p>
       </section>
 
+      <!-- ============ Sleep balance ============ -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep balance</h2><span class="link">vs personal target</span></div>
+      <section class="card" data-reveal>
+        <div class="stat3 c2">
+          ${statBlk('Personal target', fmtDur(d.sleepTargetMin))}
+          ${statBlk('7-day average', fmtDur(d.sleepBalance.avg7))}
+        </div>
+        <div class="dual" style="margin-top:var(--s-4)">
+          <div class="figure"><div class="f-val" style="color:var(--band-high)">${d.sleepBalance.above}</div><div class="f-cap">Nights above target</div></div>
+          <div class="figure"><div class="f-val" style="color:var(--band-low)">${d.sleepBalance.below}</div><div class="f-cap">Nights below target</div></div>
+        </div>
+        <div class="chart" style="height:70px;margin-top:var(--s-4)"><div data-balance-bars></div></div>
+        <p class="note" style="margin-top:var(--s-2)">Average nightly balance: ${signMin(d.sleepBalance.avgBalance)} vs your ${fmtDur(d.sleepTargetMin)} target over the last 7 nights.</p>
+      </section>
+
       <!-- ============ Night awakenings ============ -->
       <div class="section-title" data-reveal><h2 style="font-size:19px">Night awakenings</h2></div>
       <section class="card" data-reveal>
@@ -145,6 +221,7 @@
           <div class="figure"><div class="f-val">${(data.mean(data.awakeningsSeries)).toFixed(1)}</div><div class="f-cap">30-day average</div></div>
         </div>
         <div class="chart" style="height:100px;margin-top:var(--s-4)"><canvas data-awakenings-chart></canvas></div>
+        <p class="note" style="margin-top:var(--s-2)">Typical range is ${d.continuityTypical.awakenings.lo}–${d.continuityTypical.awakenings.hi} awakenings a night; longest awake spell tonight was ${fmtDur(longestAwakeTonight)}.</p>
       </section>
 
       <!-- ============ Stage-distribution trend ============ -->
@@ -156,11 +233,56 @@
       <!-- ============ Overnight vitals (nightly aggregates + baseline) ============ -->
       <div class="section-title" data-reveal><h2 style="font-size:19px">Overnight vitals</h2><span class="link">Nightly · vs baseline</span></div>
       <section class="card" data-reveal>
+        ${devRow('Resting HR', 'data-vital-trend="rhr"', 'var(--accent-heart)', Math.round(data.rhrSeries[data.rhrSeries.length-1]) + ' bpm')}
         ${devRow('HRV', 'data-vital-trend="hrv"', 'var(--accent-hrv)', Math.round(data.hrvNightlySeries[data.hrvNightlySeries.length-1]) + ' ms')}
         ${devRow('Respiratory', 'data-vital-trend="resp"', 'var(--accent-recovery)', data.respNightlySeries[data.respNightlySeries.length-1].toFixed(1) + ' rpm')}
         ${devRow('Blood oxygen', 'data-vital-trend="spo2"', 'var(--accent-strain)', Math.round(data.spo2NightlySeries[data.spo2NightlySeries.length-1]) + '%')}
         ${devRow('Wrist temp', 'data-vital-trend="temp"', 'var(--accent-gold)', signed(data.skinTempNightlySeries[data.skinTempNightlySeries.length-1]) + '°C')}
-        <p class="note" style="margin-top:var(--s-2)">Heart rate is measured continuously overnight (see the chart above). HRV, respiratory rate, blood oxygen and wrist temperature are stored as nightly averages, so they're shown as one value per night — never invented minute-by-minute curves.</p>
+        <p class="note" style="margin-top:var(--s-2)">${overnightBaselineText()}</p>
+        <p class="note" style="margin-top:var(--s-2)">Heart rate is measured continuously overnight (see the chart above). Resting HR, HRV, respiratory rate, blood oxygen and wrist temperature are stored as nightly averages, so they're shown as one value per night — never invented minute-by-minute curves.</p>
+      </section>
+
+      <!-- ============ Sleep insights: Tonight / 7D / 30D ============ -->
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Sleep insights</h2></div>
+      <section class="card" data-reveal>
+        <div class="segment" data-seg>
+          <button class="active" data-value="tonight">Tonight</button>
+          <button data-value="7d">7D</button>
+          <button data-value="30d">30D</button>
+        </div>
+        <div style="margin-top:var(--s-4)" data-ins-panel="tonight">
+          <div class="stat3 c2">
+            ${statBlk('Sleep score', d.sleepScore + '%')}
+            ${statBlk('Efficiency', effClamped + '%')}
+          </div>
+          <div class="stat3 c2" style="margin-top:var(--s-3)">
+            ${statBlk('Restorative', restPct + '%')}
+            ${statBlk('Debt change', signMin(d.sleepDebtLedger[d.sleepDebtLedger.length-1].deltaMin))}
+          </div>
+          <p class="note" style="margin-top:var(--s-3)">Tonight compared with your personal typical range: ${restVsTypicalText(restPct)} on restorative sleep.</p>
+        </div>
+        <div style="margin-top:var(--s-4);display:none" data-ins-panel="7d">
+          <div class="stat3 c2">
+            ${statBlk('Avg sleep score', Math.round(d.mean(d.sleepSeries.slice(-7))) + '%')}
+            ${statBlk('Avg duration', fmtDur(d.sleepBalance.avg7))}
+          </div>
+          <div class="stat3 c2" style="margin-top:var(--s-3)">
+            ${statBlk('Consistency', d.regularity.consistency7 + '%')}
+            ${statBlk('Avg awakenings', d.mean(d.awakeningsSeries.slice(-7)).toFixed(1))}
+          </div>
+          <p class="note" style="margin-top:var(--s-3)">Deviation vs your 30-day typical: sleep score ${signPct(Math.round(d.mean(d.sleepSeries.slice(-7))) - Math.round(d.mean(d.sleepSeries)))}.</p>
+        </div>
+        <div style="margin-top:var(--s-4);display:none" data-ins-panel="30d">
+          <div class="stat3 c2">
+            ${statBlk('Avg sleep score', Math.round(d.mean(d.sleepSeries)) + '%')}
+            ${statBlk('Typical duration', fmtDur(d.sleepBalance.target))}
+          </div>
+          <div class="stat3 c2" style="margin-top:var(--s-3)">
+            ${statBlk('Consistency', d.regularity.consistency30 + '%')}
+            ${statBlk('Avg awakenings', d.mean(d.awakeningsSeries).toFixed(1))}
+          </div>
+          <p class="note" style="margin-top:var(--s-3)">This is your personal typical range — the baseline every "tonight" and "7D" figure above is compared against.</p>
+        </div>
       </section>
 
       <!-- 7-day trend -->
@@ -189,7 +311,11 @@
       ui.initExpandables(root);
       wireStageSelection(root, sl, total, this);
 
-      // Duration & timing
+      // Sleep regularity: timing map (last 14 nights, one row each)
+      const tmHost = ui.$('[data-timing-map]', root);
+      if (tmHost) renderTimingMap(tmHost, d.bedtimeSeries.slice(-14).map((bt, i) => ({ bed: bt, wake: d.waketimeSeries.slice(-14)[i] })));
+
+      // Sleep timing
       const bt = ui.$('[data-bedtime-chart]', root);
       if (bt) charts.bandArea(bt, d.bedtimeSeries.slice(-14), { color: 'sleep', height: 110,
         min: Math.min(...d.bedtimeSeries) - 20, max: Math.max(...d.bedtimeSeries) + 20,
@@ -197,6 +323,10 @@
       const wt = ui.$('[data-waketime-chart]', root);
       if (wt) charts.bandArea(wt, d.waketimeSeries.slice(-14), { color: 'gold', height: 110,
         min: Math.min(...d.waketimeSeries) - 20, max: Math.max(...d.waketimeSeries) + 20,
+        fmt: (v) => clockFromMinutes(v) });
+      const mp = ui.$('[data-midpoint-chart]', root);
+      if (mp) charts.bandArea(mp, d.sleepMidpointSeries.slice(-14), { color: 'hrv', height: 110,
+        min: Math.min(...d.sleepMidpointSeries) - 20, max: Math.max(...d.sleepMidpointSeries) + 20,
         fmt: (v) => clockFromMinutes(v) });
 
       // Efficiency trend (derive a plausible efficiency series from consistency+sleepScore)
@@ -216,9 +346,23 @@
           fmt: (v) => Math.round(v) + '%' });
       }
 
+      // Continuity: WASO trend
+      const wasoChart = ui.$('[data-waso-chart]', root);
+      if (wasoChart) charts.bars(wasoChart, d.wasoSeries.slice(-14), { color: 'sleep', height: 90, min: 0,
+        fmt: (v) => v + ' min awake' });
+
       // Sleep-debt ledger — diverging bars around a zero line
       const debtHost = ui.$('[data-debt-bars]', root);
       if (debtHost) renderDebtBars(debtHost, d.sleepDebtLedger);
+
+      // Sleep balance — diverging bars around the personal target
+      const balHost = ui.$('[data-balance-bars]', root);
+      if (balHost) renderBalanceBars(balHost, d.sleepBalance.last7, d.sleepTargetMin);
+
+      // Sleep insights — Tonight / 7D / 30D segment
+      ui.initSegments(root, (i, val) => {
+        ui.$$('[data-ins-panel]', root).forEach((p) => { p.style.display = p.dataset.insPanel === val ? '' : 'none'; });
+      });
 
       // Awakenings
       const awk = ui.$('[data-awakenings-chart]', root);
@@ -232,7 +376,7 @@
       });
 
       // Overnight vitals mini trends
-      const vitalMap = { hrv: [d.hrvNightlySeries, 'hrv'], resp: [d.respNightlySeries, 'recovery'],
+      const vitalMap = { rhr: [d.rhrSeries, 'heart'], hrv: [d.hrvNightlySeries, 'hrv'], resp: [d.respNightlySeries, 'recovery'],
         spo2: [d.spo2NightlySeries, 'strain'], temp: [d.skinTempNightlySeries, 'gold'] };
       Object.keys(vitalMap).forEach((k) => {
         const cv = ui.$(`[data-vital-trend="${k}"]`, root);
@@ -286,6 +430,62 @@
     return `<div class="dev-row"><span class="dr-name">${name}</span>
       <div class="dr-chart chart"><canvas ${chartAttr}></canvas></div>
       <span class="dr-val" style="color:${color}">${val}</span></div>`;
+  }
+  function signMin(v) { const r = Math.round(v); return (r >= 0 ? '+' : '−') + fmtDur(Math.abs(r)); }
+  function signPct(v) { const r = Math.round(v); return (r >= 0 ? '+' : '−') + Math.abs(r) + ' pts'; }
+  function regularityTrendText(reg) {
+    const diff = reg.consistency7 - reg.consistency30;
+    return Math.abs(diff) <= 2 ? 'holding steady over both windows' : diff > 0 ? `${diff} points steadier this week than your 30-day average` : `${-diff} points looser this week than your 30-day average`;
+  }
+  function weekendShiftText(shift) {
+    const bedDiff = Math.round(shift.weekendBed - shift.weekdayBed);
+    const wakeDiff = Math.round(shift.weekendWake - shift.weekdayWake);
+    const bedTxt = Math.abs(bedDiff) < 8 ? 'about the same time' : `${fmtDur(Math.abs(bedDiff))} ${bedDiff > 0 ? 'later' : 'earlier'}`;
+    const wakeTxt = Math.abs(wakeDiff) < 8 ? 'about the same time' : `${fmtDur(Math.abs(wakeDiff))} ${wakeDiff > 0 ? 'later' : 'earlier'}`;
+    return `On weekends you tend to go to bed ${bedTxt} and wake ${wakeTxt} than on weekdays.`;
+  }
+  function overnightBaselineText() {
+    const rhrNow = data.rhrSeries[data.rhrSeries.length - 1], rb = data.rhrBaselineRange;
+    const hrvNow = data.hrvNightlySeries[data.hrvNightlySeries.length - 1], hb = data.hrvBaselineRange;
+    const rhrTxt = rhrNow < rb.lo ? 'below' : rhrNow > rb.hi ? 'above' : 'within';
+    const hrvTxt = hrvNow < hb.lo ? 'below' : hrvNow > hb.hi ? 'above' : 'within';
+    return `Resting HR is ${rhrTxt} your ${rb.lo}–${rb.hi} bpm baseline; HRV is ${hrvTxt} your ${hb.lo}–${hb.hi} ms baseline.`;
+  }
+  function renderTimingMap(host, nights) {
+    const winStart = Math.floor((Math.min(...nights.map((n) => n.bed)) - 20) / 60) * 60;
+    const winEnd = Math.ceil((Math.max(...nights.map((n) => n.wake + 1440)) + 20) / 60) * 60;
+    const total = winEnd - winStart;
+    const rowH = 14, gap = 4, n = nights.length;
+    let grid = '', axis = '', bars = '';
+    for (let t = winStart; t <= winEnd; t += 120) {
+      const left = (t - winStart) / total * 100;
+      grid += `<div style="position:absolute;left:${left}%;top:0;bottom:0;width:1px;background:var(--hairline)"></div>`;
+      axis += `<span style="position:absolute;left:${left}%;transform:translateX(-50%)">${clockFromMinutes(t)}</span>`;
+    }
+    nights.forEach((night, i) => {
+      const wakeAbs = night.wake + 1440;
+      const left = (night.bed - winStart) / total * 100;
+      const width = (wakeAbs - night.bed) / total * 100;
+      const top = i * (rowH + gap);
+      const op = 0.4 + 0.6 * (i / Math.max(1, n - 1));
+      bars += `<div style="position:absolute;left:${left}%;width:${width}%;top:${top}px;height:${rowH}px;border-radius:4px;background:var(--accent-sleep);opacity:${op.toFixed(2)}"></div>`;
+    });
+    host.innerHTML = `<div style="position:relative;height:${n * (rowH + gap)}px">${grid}${bars}</div>
+      <div style="position:relative;height:16px;margin-top:6px;font-size:var(--fs-micro);color:var(--ink-3)">${axis}</div>`;
+  }
+  function renderBalanceBars(host, nightlyMinutes, target) {
+    const deltas = nightlyMinutes.map((m) => m - target);
+    const scale = Math.max(...deltas.map((v) => Math.abs(v)), 1);
+    host.style.cssText = 'position:relative;height:70px';
+    const n = deltas.length, slotW = 100 / n;
+    let html = `<div style="position:absolute;left:0;right:0;top:50%;height:1px;background:var(--hairline)"></div>`;
+    deltas.forEach((v, i) => {
+      const h = Math.max(2, Math.abs(v) / scale * 32);
+      const top = v >= 0 ? 50 - (h / 70 * 100) : 50;
+      html += `<div style="position:absolute;left:${i * slotW + slotW * 0.2}%;width:${slotW * 0.6}%;top:${top}%;height:${h}px;
+        border-radius:3px;background:${v >= 0 ? 'var(--accent-recovery)' : 'var(--accent-heart)'};opacity:.9"></div>`;
+    });
+    host.innerHTML = html;
   }
   function renderDebtBars(host, ledger) {
     const deltas = ledger.map((n) => n.deltaMin);

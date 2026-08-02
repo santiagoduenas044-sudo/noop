@@ -585,6 +585,56 @@
     return `Recovery improved on ${recUp} of the last 7 days while sleep ${sleepDir}.`;
   }
 
+  // ============================================================ EXPANSION v4
+  // Sleep deep-dive: regularity, timing, continuity, balance. Deterministic
+  // mock only. Bedtime/waketime stay in the same linear-minute space already
+  // used above (bedtime ~1350-1455 covers 22:30 through past-midnight,
+  // waketime ~360-465 is next-morning clock minutes) so "waketime + 1440" is
+  // always the correct absolute offset from a given bedtime.
+  function stdev(arr) { const m = mean(arr); return Math.sqrt(mean(arr.map((v) => (v - m) ** 2))); }
+  const asleepMinSeries = sleepSeries.map((v) => Math.round((6 + v / 100 * 2.6) * 60));
+  const sleepMidpointSeries = bedtimeSeries.map((bt, i) => (bt + waketimeSeries[i] + 1440) / 2);
+  const inBedMinSeries = bedtimeSeries.map((bt, i) => waketimeSeries[i] + 1440 - bt);
+  const wasoSeries = walk(30, 18, 8, 0, 55).map((v) => Math.round(v));
+  const longestAwakeSeries = walk(30, 9, 5, 2, 28).map((v) => Math.round(v));
+
+  const regularity = {
+    bedtimeVar14: round(stdev(bedtimeSeries.slice(-14)), 0),
+    waketimeVar14: round(stdev(waketimeSeries.slice(-14)), 0),
+    midpointVar14: round(stdev(sleepMidpointSeries.slice(-14)), 0),
+    consistency7: Math.round(mean(consistencySeries.slice(-7))),
+    consistency30: Math.round(mean(consistencySeries.slice(-30))),
+  };
+
+  function weekdayWeekendShift() {
+    // Mirrors the fixed Fri…Thu labelling already used for the last-7-nights
+    // chart, extended backward across the 30-night series in the same cycle.
+    const CYCLE = ['Thu', 'Wed', 'Tue', 'Mon', 'Sun', 'Sat', 'Fri'];
+    const len = bedtimeSeries.length;
+    const isWknd = (idx) => { const lbl = CYCLE[(len - 1 - idx) % 7]; return lbl === 'Fri' || lbl === 'Sat'; };
+    const wkdBed = [], wkdWake = [], wknBed = [], wknWake = [];
+    bedtimeSeries.forEach((v, i) => (isWknd(i) ? wknBed : wkdBed).push(v));
+    waketimeSeries.forEach((v, i) => (isWknd(i) ? wknWake : wkdWake).push(v));
+    return { weekdayBed: mean(wkdBed), weekendBed: mean(wknBed), weekdayWake: mean(wkdWake), weekendWake: mean(wknWake) };
+  }
+
+  // Personal sleep balance: target vs actual over the last 7 nights.
+  const sleepTargetMin = sleep.needed; // 498 min, same personal need used elsewhere
+  const sleepBalance = (() => {
+    const last7 = asleepMinSeries.slice(-7);
+    const above = last7.filter((v) => v >= sleepTargetMin).length;
+    const avg7 = Math.round(mean(last7));
+    return { target: sleepTargetMin, avg7, above, below: 7 - above, avgBalance: Math.round(avg7 - sleepTargetMin), last7 };
+  })();
+
+  // Typical (30-day) ranges — bound "tonight" figures so a bad read never displays
+  // as if it were a fact (e.g. efficiency is always clamped into [0,100]).
+  const continuityTypical = {
+    efficiency: { lo: Math.max(60, Math.round(sleep.efficiency) - 8), hi: Math.min(100, Math.round(sleep.efficiency) + 6) },
+    waso: { lo: Math.max(0, Math.round(mean(wasoSeries)) - 10), hi: Math.round(mean(wasoSeries)) + 10 },
+    awakenings: { lo: 0, hi: Math.ceil(Math.max(...awakeningsSeries)) },
+  };
+
   NS.data = {
     today, DAYS,
     recovery, strain, strainTarget, sleepScore, hrv, rhr, respiratory, spo2, skinTemp, liveHR,
@@ -607,5 +657,8 @@
     behaviorCatalog, moodCatalog, journalHistory, journalStreak, journalCorrelations,
     coachThreadV2,
     metricCatalog, defaultHomeLayout, weekNarrative,
+    // expansion v4 — sleep regularity / timing / continuity / balance
+    stdev, asleepMinSeries, sleepMidpointSeries, inBedMinSeries, wasoSeries, longestAwakeSeries,
+    regularity, weekdayWeekendShift, sleepTargetMin, sleepBalance, continuityTypical,
   };
 })(window.NOOP = window.NOOP || {});

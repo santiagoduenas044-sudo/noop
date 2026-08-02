@@ -2,6 +2,7 @@
 import SwiftUI
 import StrandDesign
 import WhoopStore
+import StrandAnalytics
 
 /// Phase 2 · Sleep — the approved prototype's Sleep screen, native SwiftUI on real
 /// `Repository`/`DailyMetric` data: an efficiency score ring, a time-resolved hypnogram of last
@@ -29,6 +30,10 @@ struct PremiumSleepView: View {
     /// aggregates, so the scrubber charts HR honestly and shows the others as nightly-average references,
     /// never fabricated overnight curves.
     @State private var overnightHR: [OvernightSample] = []
+    /// Real per-night bedtime/wake-time, one entry per calendar-day group over the trailing 30 nights
+    /// (same main-night winner logic `loadHypnogram` uses for last night, just looped) — the source for
+    /// Sleep regularity / timing / the timing map below. Oldest → newest.
+    @State private var nightlyBedWake: [(day: Date, bed: Date, wake: Date)] = []
 
     private func latest<T>(_ key: (DailyMetric) -> T?) -> T? {
         for d in repo.days.reversed() { if let v = key(d) { return v } }
@@ -37,6 +42,27 @@ struct PremiumSleepView: View {
     private func mean(_ key: (DailyMetric) -> Double?) -> Double? {
         let xs = repo.days.suffix(30).compactMap(key)
         return xs.isEmpty ? nil : xs.reduce(0, +) / Double(xs.count)
+    }
+    private func stdev(_ xs: [Double]) -> Double? {
+        guard xs.count >= 2 else { return nil }
+        let m = xs.reduce(0, +) / Double(xs.count)
+        return (xs.reduce(0) { $0 + ($1 - m) * ($1 - m) } / Double(xs.count)).squareRoot()
+    }
+    /// Personal sleep need: the same "≥ 7.5h, else your own 30-day mean" floor `SleepView.sleepNeedMin`
+    /// uses, recomputed locally so this view doesn't reach into that file's private state.
+    private var sleepNeedMin: Double { max(450, mean { $0.totalSleepMin } ?? 450) }
+    /// Minutes since the PRECEDING noon (0..<1440) — anchors an evening bedtime and the following
+    /// morning's wake time on the same increasing scale (11 PM → ~660, 6 AM → ~1080) without the
+    /// sign flip a plain "minutes since midnight" would need across the midnight crossing.
+    private func minutesSinceNoon(_ d: Date) -> Double {
+        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
+        let raw = Double((c.hour ?? 0) * 60 + (c.minute ?? 0)) - 12 * 60
+        return raw < 0 ? raw + 1440 : raw
+    }
+    private func clockHM(_ m: Double) -> String {
+        let total = (Int(m.rounded()) + 12 * 60) % 1440
+        let h = total / 60, mm = total % 60, ap = h < 12 ? "AM" : "PM", hh = h % 12 == 0 ? 12 : h % 12
+        return String(format: "%d:%02d %@", hh, mm, ap)
     }
 
     /// `DailyMetric.efficiency` (like `CachedSleepSession.efficiency`) is stored as a FRACTION in [0,1]
@@ -67,8 +93,14 @@ struct PremiumSleepView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     scoreHero
+                    dataTrustNote
                     overnightCard
                     breakdownCard
+                    continuityCard
+                    regularityCard
+                    timingCard
+                    balanceCard
+                    overnightVitalsCard
                     trendCard
                     Color.clear.frame(height: 8)
                 }
@@ -109,6 +141,15 @@ struct PremiumSleepView: View {
             await MainActor.run { clearNight() }
             return
         }
+        // Real per-night bedtime/wake-time across the trailing 30 groups, reusing the SAME main-night
+        // winner logic as above. Skips days with no winning session rather than fabricating a time.
+        let recentDays = groups.keys.sorted().suffix(30)
+        let bedWake: [(day: Date, bed: Date, wake: Date)] = recentDays.compactMap { day in
+            guard let m = SleepView.mainNightSession(groups[day] ?? [], habitualMidsleepSec: habitual) else { return nil }
+            return (day: day,
+                    bed: Date(timeIntervalSince1970: TimeInterval(m.effectiveStartTs)),
+                    wake: Date(timeIntervalSince1970: TimeInterval(m.endTs)))
+        }
         let intervals = SleepView.decodedIntervals(main.stagesJSON, sessionStart: main.effectiveStartTs) ?? []
         let start = Date(timeIntervalSince1970: TimeInterval(main.effectiveStartTs))
         let end = Date(timeIntervalSince1970: TimeInterval(main.endTs))
@@ -125,12 +166,13 @@ struct PremiumSleepView: View {
             hypnogramNightStart = intervals.isEmpty ? nil : start
             hypnogramNightEnd = intervals.isEmpty ? nil : end
             overnightHR = hr
+            nightlyBedWake = bedWake
         }
     }
 
     private func clearNight() {
         hypnogramIntervals = []; hypnogramNightStart = nil; hypnogramNightEnd = nil; overnightHR = []
-        selectedStage = nil
+        selectedStage = nil; nightlyBedWake = []
     }
 
     // MARK: - Overnight physiology (synchronized scrubber)
@@ -436,6 +478,258 @@ struct PremiumSleepView: View {
     private func durText(_ minutes: Double) -> String {
         let m = Int(minutes.rounded()); let h = m / 60, mm = m % 60
         return h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
+    }
+
+    // MARK: - Data trust
+
+    /// A short legend distinguishing what's a direct sensor reading, what's an on-device estimate
+    /// from sensor patterns, and what's simple arithmetic on other stored values — so a wearable-
+    /// estimated sleep stage is never read as a clinical measurement.
+    private var dataTrustNote: some View {
+        StrandCard {
+            VStack(alignment: .leading, spacing: 8) {
+                trustRow("Measured", StrandPalette.metricRose, "A direct sensor reading — heart rate is sampled continuously overnight.")
+                trustRow("Wearable-estimated", StrandPalette.recoveryColor(80), "Computed on-device from sensor patterns — sleep stages, HRV, respiratory rate and blood oxygen. Not a clinical measurement.")
+                trustRow("Calculated", StrandPalette.textTertiary, "Simple arithmetic on other stored values — efficiency, consistency, debt and balance.")
+            }
+        }
+    }
+    private func trustRow(_ label: String, _ color: Color, _ body: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Text(label.uppercased()).font(.system(size: 10, weight: .bold)).tracking(0.6)
+                .foregroundStyle(color)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(color.opacity(0.16)))
+                .fixedSize()
+            Text(body).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    // MARK: - Sleep continuity (real, from tonight's decoded stages)
+
+    /// WASO / longest-awake-spell / awakening count, all derived from the SAME real decoded
+    /// hypnogram the stage lanes above draw — never a separate invented field. The first `.awake`
+    /// interval is sleep-onset latency, not an awakening, so it's excluded from all three.
+    private var awakeningsTonight: [SleepInterval] { Array(hypnogramIntervals.filter { $0.stage == .awake }.dropFirst()) }
+    private var wasoTonight: Double { awakeningsTonight.reduce(0) { $0 + ($1.end - $1.start) } / 60 }
+    private var longestAwakeTonight: Double { (awakeningsTonight.map { $0.end - $0.start }.max() ?? 0) / 60 }
+
+    @ViewBuilder private var continuityCard: some View {
+        if !hypnogramIntervals.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Sleep continuity").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(alignment: .top, spacing: 16) {
+                            dualStat(title: "Time in bed", value: durText(inBedMin), typical: nil, tint: StrandPalette.textPrimary)
+                            dualStat(title: "Time asleep", value: durText(sleepMin), typical: nil, tint: StrandPalette.sleepDeep)
+                        }
+                        HStack(alignment: .top, spacing: 16) {
+                            dualStat(title: "Awake in bed (WASO)", value: durText(wasoTonight), typical: nil, tint: StrandPalette.sleepAwake)
+                            dualStat(title: "Longest awake spell", value: durText(longestAwakeTonight), typical: nil, tint: StrandPalette.sleepAwake)
+                        }
+                        if let effTypical = mean({ $0.efficiency }).map({ $0 <= 1 ? $0 * 100 : $0 }) {
+                            Text("Efficiency is \(Int((efficiencyPct ?? 0).rounded()))% tonight, typically \(Int(effTypical.rounded()))%.")
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                        Text("\(awakeningsTonight.count) awakening\(awakeningsTonight.count == 1 ? "" : "s") logged tonight, from your decoded sleep stages.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Sleep regularity (real bedtime/wake-time series)
+
+    @ViewBuilder private var regularityCard: some View {
+        if nightlyBedWake.count >= 4 {
+            let last14 = Array(nightlyBedWake.suffix(14))
+            let bedMins = last14.map { minutesSinceNoon($0.bed) }
+            let wakeMins = last14.map { minutesSinceNoon($0.wake) }
+            let midMins = zip(bedMins, wakeMins).map { ($0 + $1) / 2 }
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Text("Sleep regularity").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                    Spacer()
+                    Text("CALCULATED").font(.system(size: 9, weight: .bold)).tracking(0.6)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Each row is one of your last \(last14.count) nights, positioned by clock time — the more the bars line up, the more regular your schedule.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        timingMap(nights: last14)
+                    }
+                }
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(alignment: .top, spacing: 16) {
+                            dualStat(title: "Bedtime variability", value: "±\(durText(stdev(bedMins) ?? 0))", typical: nil, tint: StrandPalette.sleepDeep)
+                            dualStat(title: "Wake-time variability", value: "±\(durText(stdev(wakeMins) ?? 0))", typical: nil, tint: StrandPalette.metricAmber)
+                        }
+                        dualStat(title: "Sleep midpoint variability", value: "±\(durText(stdev(midMins) ?? 0))", typical: nil, tint: StrandPalette.sleepREM)
+                        Text("Variability is how much your bed/wake/midpoint clock-times swing night to night over your last \(last14.count) nights — smaller is steadier.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    /// A compact "timing map": one row per night, a bar spanning bedtime→wake positioned on a shared
+    /// clock axis, so a regular schedule visually lines up and a drifting one visibly staggers.
+    private func timingMap(nights: [(day: Date, bed: Date, wake: Date)]) -> some View {
+        let beds = nights.map { minutesSinceNoon($0.bed) }
+        let wakes = nights.map { minutesSinceNoon($0.wake) + 1440 }
+        let winStart = (beds.min() ?? 0) - 20
+        let winEnd = (wakes.max() ?? 1440) + 20
+        let span = max(1, winEnd - winStart)
+        let rowH: CGFloat = 12
+        return VStack(alignment: .leading, spacing: 4) {
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(nights.enumerated()), id: \.offset) { i, night in
+                        let bed = minutesSinceNoon(night.bed)
+                        let wake = minutesSinceNoon(night.wake) + 1440
+                        let x0 = CGFloat((bed - winStart) / span) * geo.size.width
+                        let w = max(2, CGFloat((wake - bed) / span) * geo.size.width)
+                        let op = 0.4 + 0.6 * Double(i) / Double(max(1, nights.count - 1))
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(StrandPalette.sleepDeep.opacity(op))
+                            .frame(width: w, height: rowH)
+                            .offset(x: x0, y: CGFloat(i) * (rowH + 4))
+                    }
+                }
+            }
+            .frame(height: CGFloat(nights.count) * (rowH + 4))
+            HStack {
+                Text(clockHM(winStart)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                Spacer()
+                Text(clockHM((winStart + winEnd) / 2)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                Spacer()
+                Text(clockHM(winEnd)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            }
+        }
+    }
+
+    // MARK: - Sleep timing (bedtime / wake-time / midpoint / weekday vs weekend)
+
+    @ViewBuilder private var timingCard: some View {
+        if nightlyBedWake.count >= 4 {
+            let bySeries = nightlyBedWake.map { minutesSinceNoon($0.bed) }
+            let wakeSeries = nightlyBedWake.map { minutesSinceNoon($0.wake) }
+            let midSeries = zip(bySeries, wakeSeries).map { ($0 + $1) / 2 }
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Sleep timing").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        if bySeries.count >= 2 {
+                            Text("BEDTIME").font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
+                            Sparkline(values: bySeries, gradient: Gradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep]),
+                                      lineWidth: 2, showsArea: true, showsHead: true, showsHover: false,
+                                      valueFormat: { self.clockHM($0) })
+                                .frame(height: 90)
+                        }
+                        if wakeSeries.count >= 2 {
+                            Text("WAKE TIME").font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
+                            Sparkline(values: wakeSeries, gradient: Gradient(colors: [StrandPalette.metricAmber, StrandPalette.metricAmber]),
+                                      lineWidth: 2, showsArea: true, showsHead: true, showsHover: false,
+                                      valueFormat: { self.clockHM($0) })
+                                .frame(height: 90)
+                        }
+                        if midSeries.count >= 2 {
+                            Text("SLEEP MIDPOINT").font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
+                            Sparkline(values: midSeries, gradient: Gradient(colors: [StrandPalette.metricPurple, StrandPalette.metricPurple]),
+                                      lineWidth: 2, showsArea: true, showsHead: true, showsHover: false,
+                                      valueFormat: { self.clockHM($0) })
+                                .frame(height: 90)
+                            Text("The midway point between falling asleep and waking — a steadier midpoint usually means a steadier body clock.")
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                        weekdayWeekendText
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var weekdayWeekendText: some View {
+        let cal = Calendar.current
+        let weekend = nightlyBedWake.filter { [6, 7].contains(cal.component(.weekday, from: $0.day)) }
+        let weekday = nightlyBedWake.filter { ![6, 7].contains(cal.component(.weekday, from: $0.day)) }
+        if weekend.count >= 2 && weekday.count >= 2 {
+            let wkdBed = weekday.map { minutesSinceNoon($0.bed) }.reduce(0, +) / Double(weekday.count)
+            let wknBed = weekend.map { minutesSinceNoon($0.bed) }.reduce(0, +) / Double(weekend.count)
+            let diff = wknBed - wkdBed
+            let phrase = abs(diff) < 8 ? "about the same time" : "\(durText(abs(diff))) \(diff > 0 ? "later" : "earlier")"
+            Text("On weekends you tend to go to bed \(phrase) than on weekdays.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+        }
+    }
+
+    // MARK: - Sleep balance (target vs actual, via the shared SleepDebt analytics)
+
+    @ViewBuilder private var balanceCard: some View {
+        let need = sleepNeedMin
+        let series = repo.days.map { (day: $0.day, totalSleepMin: $0.totalSleepMin) }
+        let weekly = SleepDebt.ledger(series: series, needHours: need / 60.0, window: 7)
+        if weekly.nightCount >= 3 {
+            let above = weekly.nights.filter { $0.deltaMin >= 0 }.count
+            let avg7 = weekly.nights.reduce(0) { $0 + $1.sleptMin } / Double(weekly.nightCount)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Sleep balance").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(alignment: .top, spacing: 16) {
+                            dualStat(title: "Personal target", value: durText(need), typical: nil, tint: StrandPalette.textPrimary)
+                            dualStat(title: "\(weekly.nightCount)-night average", value: durText(avg7), typical: nil, tint: StrandPalette.sleepDeep)
+                        }
+                        HStack(alignment: .top, spacing: 16) {
+                            dualStat(title: "Nights above target", value: "\(above)", typical: nil, tint: StrandPalette.recoveryColor(90))
+                            dualStat(title: "Nights below target", value: "\(weekly.nightCount - above)", typical: nil, tint: StrandPalette.metricRose)
+                        }
+                        Text("Average nightly balance: \(weekly.balanceMin >= 0 ? "+" : "−")\(durText(abs(weekly.balanceMin) / Double(weekly.nightCount))) vs your \(durText(need)) target over your last \(weekly.nightCount) nights.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Overnight vitals (30-night trend + baseline)
+
+    @ViewBuilder private var overnightVitalsCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Overnight vitals").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+            StrandCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    vitalRow("Resting HR", latest { $0.restingHr.map(Double.init) }, mean { $0.restingHr.map(Double.init) }, "bpm", StrandPalette.metricRose)
+                    vitalRow("HRV", latest { $0.avgHrv }, mean { $0.avgHrv }, "ms", StrandPalette.metricCyan)
+                    vitalRow("Respiratory", latest { $0.respRateBpm }, mean { $0.respRateBpm }, "rpm", StrandPalette.recoveryColor(80))
+                    vitalRow("Blood oxygen", latest { $0.spo2Pct }, mean { $0.spo2Pct }, "%", StrandPalette.metricPurple)
+                    vitalRow("Skin temp", latest { $0.skinTempDevC }, mean { $0.skinTempDevC }, "°C", StrandPalette.metricAmber)
+                    Text("Heart rate is measured continuously overnight (see Overnight above). Resting HR, HRV, respiratory rate, blood oxygen and skin temperature are stored as nightly averages, so they're shown as one value per night — never invented minute-by-minute curves.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func vitalRow(_ name: String, _ value: Double?, _ baseline: Double?, _ unit: String, _ color: Color) -> some View {
+        if let v = value {
+            HStack {
+                Text(name).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+                Spacer()
+                Text(unit == "°C" ? String(format: "%+.2f%@", v, unit) : "\(Int(v.rounded()))\(unit == "%" ? "%" : " " + unit)")
+                    .font(StrandFont.captionNumber).foregroundStyle(color)
+                if let b = baseline {
+                    Text(unit == "°C" ? String(format: "typ %+.2f", b) : "typ \(Int(b.rounded()))")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
     }
 }
 
