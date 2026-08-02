@@ -56,6 +56,7 @@ struct PremiumEnergyView: View {
                     statsRow
                     weeklyCard
                     stepsWeeklyCard
+                    heatmapCard
                 }
                 explanationCard
                 Color.clear.frame(height: 8)
@@ -217,6 +218,35 @@ struct PremiumEnergyView: View {
                         .frame(maxHeight: .infinity, alignment: .bottom)
                     }
                     .frame(height: 100)
+                }
+            }
+        }
+    }
+
+    // MARK: 30-day calendar heatmap
+
+    /// One cell per CALENDAR day over the last 30 (not just the last 30 recorded readings, so a
+    /// missed day shows as a true gap in its real position rather than compressing the grid),
+    /// shaded to that day's value within the period's own min/max — the same calendar-heatmap
+    /// language as Strain/Trends, so the three "effort" screens read as one family.
+    @ViewBuilder private var heatmapCard: some View {
+        let days = Array(repo.days.suffix(30))
+        let values = days.map { $0.activeKcalEst }
+        let present = values.compactMap { $0 }
+        if present.count >= 7 {
+            let lo = present.min() ?? 0, hi = present.max() ?? 1
+            let span = max(hi - lo, 0.0001)
+            VStack(alignment: .leading, spacing: 14) {
+                sectionLabel("Active energy · last 30 days")
+                StrandCard {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+                        ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(v == nil ? StrandPalette.surfaceInset
+                                      : StrandPalette.metricAmber.opacity(0.22 + 0.68 * CGFloat((v! - lo) / span)))
+                                .aspectRatio(1, contentMode: .fit)
+                        }
+                    }
                 }
             }
         }

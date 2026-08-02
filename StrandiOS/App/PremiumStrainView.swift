@@ -45,6 +45,7 @@ struct PremiumStrainView: View {
                 if bpmValues.count >= 2 { dayHRCard }
                 if zoneSet != nil { zonesCard }
                 weeklyStrainCard
+                heatmapCard
                 Color.clear.frame(height: 8)
             }
             .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 96)
@@ -249,6 +250,35 @@ struct PremiumStrainView: View {
                         .frame(maxHeight: .infinity, alignment: .bottom)
                     }
                     .frame(height: 110)
+                }
+            }
+        }
+    }
+
+    // MARK: 30-day calendar heatmap
+
+    /// One cell per day over the last 30, oldest→newest, wrapped 7-per-row so columns line up to
+    /// weekdays — a GitHub-contributions-style read of effort over the month, shaded to that day's
+    /// real strain within the period's own min/max. A day with no strain recorded draws a flat inset
+    /// cell rather than a guessed shade.
+    @ViewBuilder private var heatmapCard: some View {
+        let days = Array(repo.days.suffix(30))
+        let values = days.map { $0.strain }
+        let present = values.compactMap { $0 }
+        if present.count >= 7 {
+            let lo = present.min() ?? 0, hi = present.max() ?? 1
+            let span = max(hi - lo, 0.0001)
+            VStack(alignment: .leading, spacing: 14) {
+                sectionLabel("Strain · last 30 days")
+                StrandCard {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+                        ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(v == nil ? StrandPalette.surfaceInset
+                                      : StrandPalette.effortColor.opacity(0.22 + 0.68 * CGFloat((v! - lo) / span)))
+                                .aspectRatio(1, contentMode: .fit)
+                        }
+                    }
                 }
             }
         }
