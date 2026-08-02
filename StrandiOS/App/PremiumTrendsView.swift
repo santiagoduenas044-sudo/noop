@@ -439,6 +439,21 @@ struct PremiumTrendsView: View {
         return num / denom
     }
 
+    /// Normalizes paired samples into unit-square plot points. Pulled out of `correlationCard` (a
+    /// plain loop with explicit types, not `zip(...).map { }` inline) so the SwiftUI `@ViewBuilder`
+    /// expression above it doesn't have to jointly solve this arithmetic — inlined, the compiler hit
+    /// "unable to type-check this expression in reasonable time".
+    private static func normalizedPoints(xs: [Double], ys: [Double], xlo: Double, xspan: Double, ylo: Double, yspan: Double) -> [CGPoint] {
+        var pts: [CGPoint] = []
+        pts.reserveCapacity(xs.count)
+        for i in 0..<xs.count {
+            let nx: Double = (xs[i] - xlo) / xspan
+            let ny: Double = 1 - (ys[i] - ylo) / yspan
+            pts.append(CGPoint(x: CGFloat(nx), y: CGFloat(ny)))
+        }
+        return pts
+    }
+
     @ViewBuilder private var correlationCard: some View {
         let partner = correlationPartner
         let pair = pairedSeries
@@ -446,9 +461,7 @@ struct PremiumTrendsView: View {
             let xlo = pair.x.min() ?? 0, xhi = pair.x.max() ?? 1
             let ylo = pair.y.min() ?? 0, yhi = pair.y.max() ?? 1
             let xspan = max(xhi - xlo, 0.0001), yspan = max(yhi - ylo, 0.0001)
-            let points: [CGPoint] = zip(pair.x, pair.y).map { x, y in
-                CGPoint(x: CGFloat((x - xlo) / xspan), y: CGFloat(1 - (y - ylo) / yspan))
-            }
+            let points = Self.normalizedPoints(xs: pair.x, ys: pair.y, xlo: xlo, xspan: xspan, ylo: ylo, yspan: yspan)
             VStack(alignment: .leading, spacing: 14) {
                 Text("\(metric.name) vs \(partner.name)").font(StrandFont.title2)
                     .foregroundStyle(StrandPalette.textPrimary)
