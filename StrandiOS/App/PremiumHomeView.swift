@@ -41,6 +41,7 @@ struct PremiumHomeView: View {
     private var skinTemp: Double? { latest { $0.skinTempDevC } }
     private var activeKcal: Double? { latest { $0.activeKcalEst } }
     private var steps: Int?         { latest { $0.steps } }
+    private var workouts: Int?      { latest { $0.exerciseCount } }
     /// `DailyMetric.efficiency` is stored as a FRACTION in [0,1] (see `SleepStageTotals.DailySleep`'s
     /// own doc), not a 0-100 percentage — normalized here (same defensive `<= 1.0 ? *100 : as-is`
     /// conversion `SleepView.efficiencyPct` uses) so a raw 0.92 reads "92%", not "1%".
@@ -60,6 +61,7 @@ struct PremiumHomeView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     hero
+                    quickStatsRow
                     storyCard
                     weekOverviewCard
                     vitalsSection
@@ -172,6 +174,36 @@ struct PremiumHomeView: View {
                 .monospacedDigit()
             MiniBar(fraction: fraction, tint: tint)
             Text(sub).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+        }
+    }
+
+    // MARK: Quick stats — real signals not otherwise surfaced as their own tile on Home
+
+    private var quickStatsRow: some View {
+        HStack(spacing: 12) {
+            quickStat(icon: "figure.run", tint: StrandPalette.effortColor, label: "Workouts",
+                      value: workouts.map(String.init) ?? "0", unit: "")
+            quickStat(icon: "bed.double.fill", tint: StrandPalette.sleepDeep, label: "Time asleep",
+                      value: sleepMin.map { durText($0) } ?? "—", unit: "")
+            quickStat(icon: "thermometer.medium", tint: StrandPalette.gold, label: "Skin temp",
+                      value: skinTemp.map { String(format: "%+.1f", $0) } ?? "—",
+                      unit: skinTemp == nil ? "" : "°C")
+        }
+    }
+    private func quickStat(icon: String, tint: Color, label: String, value: String, unit: String) -> some View {
+        StrandCard {
+            VStack(alignment: .leading, spacing: 8) {
+                iconTile(icon, tint: tint)
+                HStack(alignment: .firstTextBaseline, spacing: 2) {
+                    Text(value).font(.system(size: 20, weight: .heavy)).monospacedDigit()
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    if !unit.isEmpty {
+                        Text(unit).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+                Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

@@ -21,6 +21,9 @@ struct PremiumSleepView: View {
     @State private var hypnogramIntervals: [SleepInterval] = []
     @State private var hypnogramNightStart: Date?
     @State private var hypnogramNightEnd: Date?
+    /// Which stage lane is tapped-open, WHOOP style: the selected row keeps its colour while every
+    /// other row's blocks grey out, and the insight line below compares it to the 30-day typical.
+    @State private var selectedStage: SleepStage? = nil
     /// Real overnight heart-rate samples across the main-night window (downsampled buckets). Heart rate is
     /// the ONLY per-time overnight signal NOOP stores on-device — HRV / respiratory / SpO₂ are nightly
     /// aggregates, so the scrubber charts HR honestly and shows the others as nightly-average references,
@@ -64,7 +67,6 @@ struct PremiumSleepView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     scoreHero
-                    hypnogramCard
                     overnightCard
                     breakdownCard
                     trendCard
@@ -83,18 +85,6 @@ struct PremiumSleepView: View {
     }
 
     // MARK: - Hypnogram (real, time-resolved)
-
-    @ViewBuilder private var hypnogramCard: some View {
-        if !hypnogramIntervals.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Sleep stages").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
-                StrandCard {
-                    Hypnogram(intervals: hypnogramIntervals, height: 160,
-                              nightStart: hypnogramNightStart, showsTimeAxis: hypnogramNightStart != nil)
-                }
-            }
-        }
-    }
 
     /// The most recent night's real stage timeline: group sessions by the calendar day they END on
     /// (mirroring `SleepView.navDays`), take the newest day, pick its main-night session (the same
@@ -140,6 +130,7 @@ struct PremiumSleepView: View {
 
     private func clearNight() {
         hypnogramIntervals = []; hypnogramNightStart = nil; hypnogramNightEnd = nil; overnightHR = []
+        selectedStage = nil
     }
 
     // MARK: - Overnight physiology (synchronized scrubber)
@@ -238,16 +229,134 @@ struct PremiumSleepView: View {
                     dualStat(title: "Restorative", value: durText(restorativeMin),
                              typical: restorativeTypicalText, tint: StrandPalette.sleepDeep)
                 }
-                stageLane("Awake", awakeMin, StrandPalette.sleepAwake)
-                stageLane("Light", lightMin, StrandPalette.sleepLight)
-                stageLane("Deep", deepMin, StrandPalette.sleepDeep)
-                stageLane("REM", remMin, StrandPalette.sleepREM)
-                Text(hypnogramIntervals.isEmpty
-                     ? "Stage proportions from your recorded sleep · on-device"
-                     : "Per-stage totals from the hypnogram above · on-device")
-                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                if let start = hypnogramNightStart, let end = hypnogramNightEnd,
+                   !hypnogramIntervals.isEmpty, end > start {
+                    // Real, time-resolved lanes: one full-width row per stage, a hatched track for the
+                    // whole night, solid blocks exactly where that stage occurred — WHOOP's own sleep-
+                    // detail layout, adapted from `SleepView.stageTimelineRow`. Tap a row to highlight it.
+                    timeResolvedStages(start: start, end: end)
+                } else {
+                    // No time-resolved segment data for this night (e.g. an imported night that only
+                    // stores stage minutes) — fall back to the proportional density lanes.
+                    stageLane("Awake", awakeMin, StrandPalette.sleepAwake)
+                    stageLane("Light", lightMin, StrandPalette.sleepLight)
+                    stageLane("Deep", deepMin, StrandPalette.sleepDeep)
+                    stageLane("REM", remMin, StrandPalette.sleepREM)
+                    Text("Stage proportions from your recorded sleep · on-device")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
             }
         }
+    }
+
+    // MARK: Real time-resolved stage lanes (WHOOP sleep-detail style)
+
+    private func timeResolvedStages(start: Date, end: Date) -> some View {
+        let span = max(1, end.timeIntervalSince(start))
+        let total = max(1, inBedMin)
+        return VStack(alignment: .leading, spacing: 10) {
+            timelineRow(.awake, minutes: awakeMin, total: total, span: span)
+            timelineRow(.light, minutes: lightMin, total: total, span: span)
+            timelineRow(.deep,  minutes: deepMin,  total: total, span: span)
+            timelineRow(.rem,   minutes: remMin,   total: total, span: span)
+            HStack {
+                Text(clockText(start)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                Spacer()
+                Text(clockText(start.addingTimeInterval(span / 2))).font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                Spacer()
+                Text(clockText(end)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            }
+            stageInsight
+        }
+    }
+
+    /// One WHOOP-style stage lane: header (STAGE · coloured % · right-aligned duration) over a hatched
+    /// night-long track with solid segments exactly where that stage occurred, positioned from the
+    /// REAL decoded interval times (`iv.start`/`iv.end`, seconds from night start) — not a proportional
+    /// fill. Tap toggles the highlight: the selected row keeps colour, the rest grey out.
+    private func timelineRow(_ stage: SleepStage, minutes: Double, total: Double, span: Double) -> some View {
+        let color = StrandPalette.sleepStageColor(stage)
+        let isSelected = selectedStage == stage
+        let dimmed = selectedStage != nil && !isSelected
+        let percent = total > 0 ? Int((minutes / total * 100).rounded()) : 0
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Text(stage.label.uppercased()).font(StrandFont.overline).tracking(0.8)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text("\(percent)%").font(StrandFont.captionNumber)
+                    .foregroundStyle(dimmed ? StrandPalette.textTertiary : color)
+                Spacer()
+                Text(durText(minutes)).font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    SleepHatchedTrack()
+                    ForEach(hypnogramIntervals.filter { $0.stage == stage }) { iv in
+                        let x0 = CGFloat(iv.start / span) * geo.size.width
+                        let w = max(2, CGFloat((iv.end - iv.start) / span) * geo.size.width)
+                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                            .fill(dimmed ? StrandPalette.textTertiary.opacity(0.55) : color)
+                            .frame(width: w, height: geo.size.height)
+                            .offset(x: x0)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            }
+            .frame(height: 20)
+        }
+        .padding(.vertical, 8).padding(.horizontal, 10)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .fill(StrandPalette.textPrimary.opacity(0.045)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .stroke(isSelected ? StrandPalette.hairlineStrong : Color.clear, lineWidth: 1.5))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(StrandMotion.fade) { selectedStage = isSelected ? nil : stage }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(stage.label): \(durText(minutes)), \(percent) percent of the night")
+        .accessibilityHint("Highlights this stage on the sleep chart")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    /// Tonight vs 30-day-typical for the tapped stage (Light/Deep/REM have a stored daily column to
+    /// average; Awake doesn't, so it's shown without a typical rather than a derived estimate).
+    @ViewBuilder private var stageInsight: some View {
+        if let sel = selectedStage {
+            let minutes = stageMinutes(sel)
+            if let t = stageTypicalMinutes(sel) {
+                let phrase = minutes > t * 1.15 ? "above your usual"
+                           : minutes < t * 0.85 ? "below your usual" : "about your usual"
+                Text("\(sel.label) \(durText(minutes)) tonight · typically \(durText(t)), \(phrase).")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+            } else {
+                Text("\(sel.label): \(durText(minutes)) tonight.")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+            }
+        } else {
+            Text("Tap a stage to compare with your 30-day typical.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+        }
+    }
+    private func stageMinutes(_ stage: SleepStage) -> Double {
+        switch stage {
+        case .awake: return awakeMin
+        case .light: return lightMin
+        case .deep:  return deepMin
+        case .rem:   return remMin
+        }
+    }
+    private func stageTypicalMinutes(_ stage: SleepStage) -> Double? {
+        switch stage {
+        case .awake: return nil
+        case .light: return mean { $0.lightMin }
+        case .deep:  return mean { $0.deepMin }
+        case .rem:   return mean { $0.remMin }
+        }
+    }
+    private func clockText(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: d)
     }
 
     private var restorativeTypicalText: String? {
@@ -323,6 +432,28 @@ struct PremiumSleepView: View {
     private func durText(_ minutes: Double) -> String {
         let m = Int(minutes.rounded()); let h = m / 60, mm = m % 60
         return h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
+    }
+}
+
+/// The whole-night diagonal-hatched timeline track behind each stage lane's solid blocks — adapted
+/// from `SleepView.StageHatchedTrack` (same visual language, private to that file so duplicated here
+/// rather than exposed). Reads as "the whole night"; gaps (other stages) are implicit, nothing drawn.
+private struct SleepHatchedTrack: View {
+    var body: some View {
+        ZStack {
+            Rectangle().fill(StrandPalette.surfaceInset.opacity(0.9))
+            Canvas { context, size in
+                var path = Path()
+                let step: CGFloat = 5
+                var x: CGFloat = -size.height
+                while x < size.width {
+                    path.move(to: CGPoint(x: x, y: size.height))
+                    path.addLine(to: CGPoint(x: x + size.height, y: 0))
+                    x += step
+                }
+                context.stroke(path, with: .color(StrandPalette.textTertiary.opacity(0.16)), lineWidth: 1)
+            }
+        }
     }
 }
 
