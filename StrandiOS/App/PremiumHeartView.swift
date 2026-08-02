@@ -538,10 +538,15 @@ struct PremiumHeartView: View {
 
     // MARK: Overnight
 
+    /// Shared clock formatter for the overnight readout — a stored static rather than one built
+    /// inside the `@ViewBuilder`, so no object is allocated per body evaluation.
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
+    }()
+
     @ViewBuilder private var overnightSection: some View {
         if overnight.count >= 4 {
             let values: [Double] = overnight.map(\.bpm)
-            let fmt = DateFormatter()
             VStack(alignment: .leading, spacing: 14) {
                 PremiumSectionHeader(title: "Overnight", trailing: "last night")
                 StrandCard {
@@ -554,8 +559,7 @@ struct PremiumHeartView: View {
                             referenceTint: StrandPalette.metricCyan,
                             readout: { idx, v in
                                 let t = self.overnight[min(idx, self.overnight.count - 1)].t
-                                fmt.dateFormat = "HH:mm"
-                                return "\(fmt.string(from: t)) · \(Int(v.rounded())) bpm"
+                                return "\(Self.clockFormatter.string(from: t)) · \(Int(v.rounded())) bpm"
                             },
                             idleLabel: "Drag to read any moment overnight")
                         if let lo = values.min(), let m = PremiumAnalysis.mean(values) {
