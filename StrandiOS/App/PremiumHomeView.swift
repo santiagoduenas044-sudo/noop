@@ -263,7 +263,7 @@ struct PremiumHomeView: View {
         }
     }
     private func weekRow(_ label: String, tint: Color, days: [DailyMetric],
-                         key: (DailyMetric) -> Double?, span: Double) -> some View {
+                         key: @escaping (DailyMetric) -> Double?, span: Double) -> some View {
         HStack(spacing: 10) {
             Text(label).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 .frame(width: 64, alignment: .leading)
