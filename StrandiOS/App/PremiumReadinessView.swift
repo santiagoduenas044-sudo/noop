@@ -73,6 +73,7 @@ struct PremiumReadinessView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 22) {
                 hero
+                heatmapCard
                 contributors
                 forecast
                 Color.clear.frame(height: 8)
@@ -105,6 +106,30 @@ struct PremiumReadinessView: View {
         guard let r = recovery else { return "Pair your strap to see your readiness." }
         let word = r >= 67 ? "primed to perform" : r >= 34 ? "ready with care" : "in need of rest"
         return "Your body is \(word). Recovery blends HRV, resting heart rate, sleep and recent strain into one readiness score."
+    }
+
+    /// Recovery's own 30-day calendar heatmap — completes the family already on Strain/Energy/Blood
+    /// Oxygen/Trends for the flagship metric itself. One cell per calendar day, coloured by that
+    /// day's real recovery BAND (the same green/yellow/red language the ring and drivers already
+    /// use) — not a generic single-tint fade, so a glance at the grid reads the same as a glance at
+    /// any other recovery surface in the app. A day with no score draws a flat inset cell.
+    @ViewBuilder private var heatmapCard: some View {
+        let days = repo.days.suffix(30)
+        let values = days.map { $0.recovery }
+        if values.compactMap({ $0 }).count >= 7 {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Recovery · last 30 days").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+                        ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(v == nil ? StrandPalette.surfaceInset : StrandPalette.recoveryColor(v!))
+                                .aspectRatio(1, contentMode: .fit)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private var contributors: some View {
