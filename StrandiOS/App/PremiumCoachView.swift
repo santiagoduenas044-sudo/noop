@@ -31,6 +31,7 @@ struct PremiumCoachView: View {
                         header
                         forecastStrip
                         recoveryTrendCard
+                        signalsRow
                         if coach.isConfigured {
                             thread
                         } else {
@@ -162,6 +163,42 @@ struct PremiumCoachView: View {
                 }
             }
         }
+    }
+
+    /// A quick "what the coach can see" glance: real 7-day HRV / resting HR / sleep mini-trends,
+    /// so the chat's context is visible before you even ask.
+    private var signalsRow: some View {
+        StrandCard {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("THIS WEEK'S SIGNALS").font(StrandFont.overline).tracking(1.2)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                HStack(alignment: .top, spacing: 14) {
+                    signalMini("HRV", repo.days.suffix(7).compactMap { $0.avgHrv },
+                               StrandPalette.metricCyan, unit: "ms")
+                    signalMini("Resting HR", repo.days.suffix(7).compactMap { $0.restingHr.map(Double.init) },
+                               StrandPalette.metricRose, unit: "bpm")
+                    signalMini("Sleep", repo.days.suffix(7).compactMap { $0.efficiency.map { $0 <= 1.0 ? $0 * 100 : $0 } },
+                               StrandPalette.sleepDeep, unit: "%")
+                }
+            }
+        }
+    }
+    private func signalMini(_ label: String, _ values: [Double], _ tint: Color, unit: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            if values.count >= 2 {
+                Sparkline(values: values, gradient: Gradient(colors: [tint, tint.opacity(0.55)]),
+                          lineWidth: 1.8, showsArea: false, showsHead: true, showsHover: false)
+                    .frame(height: 28)
+            } else {
+                Text("—").font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary).frame(height: 28)
+            }
+            if let last = values.last {
+                Text("\(Int(last.rounded())) \(unit)").font(StrandFont.captionNumber)
+                    .foregroundStyle(StrandPalette.textPrimary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Thread
