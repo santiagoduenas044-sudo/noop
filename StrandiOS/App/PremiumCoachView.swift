@@ -66,7 +66,8 @@ struct PremiumCoachView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 12) {
+            BrandMark(size: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text("YOUR ON-DEVICE GUIDE").font(StrandFont.overline).tracking(1.4)
                     .foregroundStyle(StrandPalette.textTertiary)

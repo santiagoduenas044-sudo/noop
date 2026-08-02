@@ -167,10 +167,14 @@ struct PremiumSleepView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("LAST NIGHT").font(StrandFont.overline).tracking(1.4)
-                .foregroundStyle(StrandPalette.textTertiary)
-            Text("Sleep").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
+        HStack(alignment: .center, spacing: 12) {
+            BrandMark(size: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("LAST NIGHT").font(StrandFont.overline).tracking(1.4)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                Text("Sleep").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
+            }
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

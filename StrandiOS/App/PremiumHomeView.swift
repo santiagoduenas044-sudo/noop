@@ -18,6 +18,7 @@ struct PremiumHomeView: View {
     @EnvironmentObject var router: NavRouter
     @Environment(\.scrollToTopSignal) private var scrollToTopSignal
     @State private var showReadiness = false
+    @State private var showSettings = false
 
     // MARK: Data helpers (real Repository data)
 
@@ -91,6 +92,19 @@ struct PremiumHomeView: View {
                         }
                 }
             }
+            .sheet(isPresented: $showSettings) {
+                NavigationStack {
+                    PremiumSettingsView()
+                        .navigationTitle("Settings")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") { showSettings = false }
+                                    .foregroundStyle(StrandPalette.accent)
+                            }
+                        }
+                }
+            }
         }
     }
 
@@ -111,7 +125,8 @@ struct PremiumHomeView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 12) {
+            BrandMark(size: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(dateEyebrow).font(StrandFont.overline).tracking(1.4)
                     .foregroundStyle(StrandPalette.textTertiary)
@@ -119,13 +134,19 @@ struct PremiumHomeView: View {
                     .foregroundStyle(StrandPalette.textPrimary)
             }
             Spacer()
-            Circle()
-                .fill(AngularGradient(gradient: StrandPalette.goldGradient, center: .center))
-                .frame(width: 40, height: 40)
-                .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
-                .overlay(Image(systemName: "person.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(StrandPalette.surfaceBase))
+            // The profile/settings shortcut — previously a static, non-functional placeholder;
+            // now opens the real Settings screen, matching the prototype's avatar-taps-to-Settings.
+            Button { showSettings = true } label: {
+                Circle()
+                    .fill(AngularGradient(gradient: StrandPalette.goldGradient, center: .center))
+                    .frame(width: 40, height: 40)
+                    .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+                    .overlay(Image(systemName: "person.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(StrandPalette.surfaceBase))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Settings")
         }
     }
 

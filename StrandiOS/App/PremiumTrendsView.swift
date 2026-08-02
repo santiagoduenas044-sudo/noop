@@ -49,8 +49,11 @@ struct PremiumTrendsView: View {
                     metricPicker
                     weekStrip
                     heroCard
+                    heatmapCard
                     comparisonCard
                     digestGrid
+                    histogramCard
+                    weekdayCard
                     insightCard
                     Color.clear.frame(height: 8)
                 }
@@ -64,10 +67,14 @@ struct PremiumTrendsView: View {
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text("YOUR LONG GAME").font(StrandFont.overline).tracking(1.4)
-                .foregroundStyle(StrandPalette.textTertiary)
-            Text("Trends").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
+        HStack(alignment: .center, spacing: 12) {
+            BrandMark(size: 30)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("YOUR LONG GAME").font(StrandFont.overline).tracking(1.4)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                Text("Trends").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
+            }
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -164,6 +171,39 @@ struct PremiumTrendsView: View {
         }
     }
 
+    // MARK: Heatmap — calendar-style grid over the selected range
+
+    /// A calendar heatmap of the selected range: one cell per day, oldest→newest, wrapped 7-per-row
+    /// (so each column lines up to a weekday, like a GitHub-contributions grid), opacity scaled to
+    /// that day's real value within the range's own min/max. A day with no recorded value draws a
+    /// flat inset cell — never a guessed shade.
+    @ViewBuilder private var heatmapCard: some View {
+        let days = Array(repo.days.suffix(ranges[rangeIndex].1))
+        let values = days.map(metric.key)
+        let present = values.compactMap { $0 }
+        if present.count >= 7 {
+            let lo = present.min() ?? 0, hi = present.max() ?? 1
+            let span = max(hi - lo, 0.0001)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Calendar").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("\(ranges[rangeIndex].0) · \(days.count) days").font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+                            ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                                RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                    .fill(v == nil ? StrandPalette.surfaceInset
+                                          : metric.tint.opacity(0.22 + 0.68 * CGFloat((v! - lo) / span)))
+                                    .aspectRatio(1, contentMode: .fit)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     private var rangeControl: some View {
         HStack(spacing: 2) {
             ForEach(Array(ranges.enumerated()), id: \.offset) { i, r in
@@ -231,13 +271,28 @@ struct PremiumTrendsView: View {
 
     private var digestGrid: some View {
         let best = metric.higherBetter ? series.max() : series.min()
+        let worst = metric.higherBetter ? series.min() : series.max()
+        let sd = Self.stdDev(series)
         return VStack(alignment: .leading, spacing: 14) {
             Text("Digest").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                 digestTile(metric.higherBetter ? "Best" : "Lowest", best.map(metric.fmt) ?? "—", metric.unit, metric.tint)
                 digestTile("Average", average.map(metric.fmt) ?? "—", metric.unit, StrandPalette.gold)
+                digestTile(metric.higherBetter ? "Lowest" : "Best", worst.map(metric.fmt) ?? "—", metric.unit,
+                           StrandPalette.textTertiary)
+                digestTile("Consistency", sd.map { metric.fmt($0) } ?? "—", metric.unit, StrandPalette.metricCyan)
             }
+            Text("Consistency is the standard deviation across the period — lower means steadier day to day.")
+                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
         }
+    }
+    /// Population standard deviation — how much the period's values actually wandered day to day, not
+    /// just their average. `nil` below 2 samples (a spread needs at least two points).
+    private static func stdDev(_ xs: [Double]) -> Double? {
+        guard xs.count >= 2 else { return nil }
+        let mean = xs.reduce(0, +) / Double(xs.count)
+        let variance = xs.reduce(0) { $0 + ($1 - mean) * ($1 - mean) } / Double(xs.count)
+        return variance.squareRoot()
     }
     private func digestTile(_ label: String, _ value: String, _ unit: String, _ tint: Color) -> some View {
         StrandCard {
@@ -251,6 +306,105 @@ struct PremiumTrendsView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    // MARK: Distribution histogram
+
+    /// A 10-bucket histogram of the period's real values — shape, not just trend. Hidden below 8
+    /// samples, where a histogram is just noise rather than a meaningful distribution.
+    @ViewBuilder private var histogramCard: some View {
+        if series.count >= 8 {
+            let buckets = Self.histogramCounts(series, bucketCount: 10)
+            let maxCount = max(1, buckets.max() ?? 1)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Distribution").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    GeometryReader { geo in
+                        let barW = geo.size.width / CGFloat(buckets.count)
+                        HStack(alignment: .bottom, spacing: 2) {
+                            ForEach(Array(buckets.enumerated()), id: \.offset) { _, count in
+                                RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                    .fill(metric.tint.opacity(0.75))
+                                    .frame(width: max(2, barW - 2),
+                                           height: max(2, geo.size.height * CGFloat(count) / CGFloat(maxCount)))
+                            }
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    }
+                    .frame(height: 80)
+                }
+            }
+        }
+    }
+    /// Bucket `values` into `bucketCount` equal-width bins over [min, max]; an all-equal series
+    /// collapses to one full bucket rather than dividing by zero.
+    private static func histogramCounts(_ values: [Double], bucketCount: Int) -> [Int] {
+        guard let lo = values.min(), let hi = values.max(), hi > lo else {
+            return values.isEmpty ? [] : [values.count]
+        }
+        var buckets = [Int](repeating: 0, count: bucketCount)
+        let span = hi - lo
+        for v in values {
+            let idx = min(bucketCount - 1, max(0, Int((v - lo) / span * Double(bucketCount))))
+            buckets[idx] += 1
+        }
+        return buckets
+    }
+
+    // MARK: Day-of-week breakdown
+
+    /// The metric's average by day of week (Mon…Sun), over the SELECTED metric's full banked history
+    /// (not just the current range — a weekday pattern needs more than a week or two to mean anything).
+    /// A weekday with no samples yet just shows no bar rather than a guessed average.
+    @ViewBuilder private var weekdayCard: some View {
+        let byWeekday = Self.weekdayAverages(repo.days, key: metric.key)
+        let present = byWeekday.compactMap { $0.1 }
+        if present.count >= 3 {
+            let lo = present.min() ?? 0, hi = present.max() ?? 1
+            let span = max(hi - lo, 0.0001)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("By day of week").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    HStack(alignment: .bottom, spacing: 10) {
+                        ForEach(Array(byWeekday.enumerated()), id: \.offset) { _, entry in
+                            let (label, v) = entry
+                            VStack(spacing: 6) {
+                                VStack {
+                                    Spacer(minLength: 0)
+                                    if let v {
+                                        Capsule().fill(metric.tint)
+                                            .frame(height: 8 + CGFloat((v - lo) / span) * 60)
+                                    } else {
+                                        Circle().fill(StrandPalette.surfaceInset).frame(width: 6, height: 6)
+                                    }
+                                }
+                                .frame(height: 70)
+                                Text(label).font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(StrandPalette.textTertiary)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    /// Mean value per weekday (Mon-first) across ALL banked days with a real value for this metric.
+    private static func weekdayAverages(_ days: [DailyMetric], key: (DailyMetric) -> Double?) -> [(String, Double?)] {
+        let cal = Calendar.current
+        let inF = DateFormatter(); inF.dateFormat = "yyyy-MM-dd"
+        var buckets: [Int: [Double]] = [:]
+        for d in days {
+            guard let v = key(d), let date = inF.date(from: d.day) else { continue }
+            buckets[cal.component(.weekday, from: date), default: []].append(v)
+        }
+        // Calendar.weekday is 1=Sun…7=Sat; reorder Mon…Sun for a familiar week strip.
+        let order: [(Int, String)] = [(2, "Mon"), (3, "Tue"), (4, "Wed"), (5, "Thu"),
+                                       (6, "Fri"), (7, "Sat"), (1, "Sun")]
+        return order.map { wd, label in
+            let vals = buckets[wd] ?? []
+            return (label, vals.isEmpty ? nil : vals.reduce(0, +) / Double(vals.count))
         }
     }
 
