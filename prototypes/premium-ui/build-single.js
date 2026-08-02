@@ -9,13 +9,21 @@ const { execSync } = require('child_process');
 const root = __dirname;
 const R = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
-const cssFiles = ['tokens', 'base', 'components', 'pages', 'animations'].map((n) => `styles/${n}.css`);
+// NOTE: 'expanded' was missing here for several milestones — the dist bundle was
+// silently shipping without ANY of the v2/v3 expansion component styles (vtile,
+// metric-hero, stage-tap, np-*, mpick, hyp, stress-*, etc.). Fixed alongside the
+// v3 pass since an Artifact built from the old list would have rendered unstyled.
+const cssFiles = ['tokens', 'base', 'components', 'pages', 'expanded', 'animations'].map((n) => `styles/${n}.css`);
+// Likewise, several page modules referenced by index.html's own <script> list
+// (strain/energy/spo2/stress/metric/more) were never in this bundle list, so
+// dist/index.html's router silently fell back to Home for those routes.
 const jsFiles = [
   'scripts/config.js',
   'scripts/data.js', 'scripts/icons.js', 'scripts/charts.js', 'scripts/components.js',
   'scripts/router.js',
-  'pages/home.js', 'pages/sleep.js', 'pages/readiness.js', 'pages/heart.js', 'pages/coach.js',
-  'pages/journal.js', 'pages/trends.js', 'pages/insights.js', 'pages/settings.js',
+  'pages/home.js', 'pages/sleep.js', 'pages/readiness.js', 'pages/strain.js', 'pages/energy.js',
+  'pages/spo2.js', 'pages/stress.js', 'pages/metric.js', 'pages/heart.js', 'pages/coach.js',
+  'pages/journal.js', 'pages/trends.js', 'pages/insights.js', 'pages/more.js', 'pages/settings.js',
   'pages/whatsnew.js',
   'scripts/app.js',
 ];

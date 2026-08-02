@@ -423,6 +423,168 @@
     { name: 'Tempo run', icon: 'run', tint: 'strain', dur: 38, strain: 9.1, kcal: 340, avgHr: 152, peakHr: 176, time: '12:24 PM' },
   ];
 
+  // ============================================================ EXPANSION v3
+  // Deeper Sleep / Heart / Stress / Trends / Journal / Coach / Home datasets —
+  // the product-experience pass. Deterministic mock only, clearly separated
+  // from the v1/v2 data above so it's obvious what's new.
+
+  // ---- Sleep: bedtime / wake-time / consistency / debt / awakenings --------
+  const bedtimeSeries = walk(30, 23 * 60 + 15, 22, 22 * 60 + 30, 24 * 60 + 15).map((v) => Math.round(v));
+  const waketimeSeries = walk(30, 6 * 60 + 50, 18, 6 * 60, 7 * 60 + 45).map((v) => Math.round(v));
+  const consistencySeries = walk(30, 82, 6, 55, 97).map((v) => Math.round(v));
+  const awakeningsSeries = walk(30, 2.4, 1.1, 0, 6).map((v) => Math.max(0, Math.round(v)));
+  const deepPctSeries = walk(30, 19, 3, 9, 28).map((v) => Math.round(v));
+  const remPctSeries = walk(30, 23, 3.4, 12, 33).map((v) => Math.round(v));
+  const lightPctSeries = deepPctSeries.map((dp, i) => Math.max(30, 100 - dp - remPctSeries[i] - 8));
+  const awakePctSeries = deepPctSeries.map((dp, i) => Math.max(2, 100 - dp - remPctSeries[i] - lightPctSeries[i]));
+  // Nightly AGGREGATE trend series (one value per night) — distinct from the per-minute
+  // `sleep.overnight` arrays, which only cover LAST night at high (3-min) resolution.
+  const hrvNightlySeries = hrvSeries.slice();
+  const respNightlySeries = respSeries.slice();
+  const spo2NightlySeries = spo2Series.slice();
+  const skinTempNightlySeries = walk(30, 0.1, 0.25, -0.6, 1.1).map((v) => round(v, 2));
+  // A rolling 14-night sleep-debt ledger: personal need vs actual, running balance in minutes.
+  const sleepDebtLedger = (() => {
+    const need = 498; // 8h18m — matches sleep.needed
+    const out = []; let bal = 0;
+    const last14 = sleepSeries.slice(-14).map((v) => Math.round((6 + v / 100 * 2.6) * 60));
+    last14.forEach((mins, i) => {
+      const delta = mins - need; bal += delta;
+      out.push({ day: i, actualMin: mins, needMin: need, deltaMin: delta, balanceMin: bal });
+    });
+    return out;
+  })();
+
+  // ---- Heart: baselines, weekday pattern, distribution ----------------------
+  const hrvBaselineRange = { lo: Math.round(mean(hrvSeries) - 14), hi: Math.round(mean(hrvSeries) + 14) };
+  const rhrBaselineRange = { lo: Math.round(mean(rhrSeries) - 4), hi: Math.round(mean(rhrSeries) + 4) };
+  const hrByWeekday = DAYS.map((dn, i) => ({ day: dn, avg: 58 + Math.round(Math.sin(i * 1.3) * 4 + rr(-2, 2)) }));
+  const hrHistogram = (() => {
+    const samples = dayHR(); const lo = Math.min(...samples), hi = Math.max(...samples);
+    const buckets = 8, span = (hi - lo) / buckets || 1; const counts = Array(buckets).fill(0);
+    samples.forEach((v) => { const i = Math.min(buckets - 1, Math.max(0, Math.floor((v - lo) / span))); counts[i]++; });
+    return { lo, hi, counts };
+  })();
+
+  // ---- Stress: rest vs elevated + phase breakdown (concept only) -----------
+  const stressRestVsElevated = { restPct: 64, elevatedPct: 36 };
+  const stressByPhase = { sleep: 0.6, awake: 1.5 };
+
+  // ---- Trends: correlation pairs + notable changes --------------------------
+  const correlationPairs = [
+    { a: 'hrv', b: 'sleep', an: 'HRV', bn: 'Sleep', r: 0.68, tint: 'hrv',
+      note: 'Nights with higher sleep performance are reliably followed by higher HRV.', confidence: 'consistent' },
+    { a: 'rhr', b: 'recovery', an: 'Resting HR', bn: 'Recovery', r: -0.61, tint: 'heart',
+      note: 'A lower resting heart rate lines up with a higher recovery score.', confidence: 'consistent' },
+    { a: 'sleep', b: 'recovery', an: 'Sleep', bn: 'Recovery', r: 0.74, tint: 'sleep',
+      note: 'Sleep performance is the strongest single driver of next-day recovery in your data.', confidence: 'consistent' },
+    { a: 'strain', b: 'recovery', an: 'Effort', bn: 'Next-day recovery', r: -0.52, tint: 'strain',
+      note: 'Higher strain days tend to be followed by a softer recovery the next morning.', confidence: 'emerging' },
+    { a: 'stress', b: 'sleep', an: 'Stress', bn: 'Sleep', r: -0.58, tint: 'gold',
+      note: 'Higher daytime physiological load tends to precede a lower sleep score that night.', confidence: 'emerging' },
+  ];
+  const notableChanges = [
+    { metric: 'HRV', change: '+12%', when: 'last 7 days', dir: 'up', tint: 'hrv',
+      note: 'Climbed after 3 consecutive earlier bedtimes.' },
+    { metric: 'Resting HR', change: '−2 bpm', when: 'last 14 days', dir: 'down', tint: 'heart',
+      note: 'Trending down alongside the HRV gain.' },
+    { metric: 'Sleep debt', change: '+18 min', when: 'last 7 days', dir: 'up', tint: 'sleep',
+      note: 'Two shorter nights this week added to the running balance.' },
+  ];
+
+  // ---- Journal v2: quick chips, history, streak, correlations ---------------
+  const behaviorCatalog = [
+    { key: 'caffeine', label: 'Caffeine', ic: 'coffee', tint: 'gold', pinned: true },
+    { key: 'alcohol', label: 'Alcohol', ic: 'wine', tint: 'sleep', pinned: true },
+    { key: 'lateMeal', label: 'Late meal', ic: 'plate', tint: 'strain', pinned: true },
+    { key: 'exercise', label: 'Exercise', ic: 'flame', tint: 'strain', pinned: true },
+    { key: 'intenseExercise', label: 'Intense exercise', ic: 'run', tint: 'heart', pinned: false },
+    { key: 'stressHigh', label: 'Stress', ic: 'wave', tint: 'hrv', pinned: true },
+    { key: 'illness', label: 'Illness', ic: 'thermo', tint: 'heart', pinned: false },
+    { key: 'travel', label: 'Travel', ic: 'run', tint: 'gold', pinned: false },
+    { key: 'lateBedtime', label: 'Late bedtime', ic: 'moon', tint: 'sleep', pinned: true },
+    { key: 'hydration', label: 'Hydration', ic: 'drop', tint: 'recovery', pinned: false },
+    { key: 'screenBeforeBed', label: 'Screen before bed', ic: 'zzz', tint: 'sleep', pinned: false },
+    { key: 'nap', label: 'Nap', ic: 'moon', tint: 'hrv', pinned: false },
+    { key: 'medication', label: 'Medication', ic: 'pill', tint: 'hrv', pinned: false },
+    { key: 'soreness', label: 'Soreness', ic: 'thermo', tint: 'strain', pinned: false },
+  ];
+  const moodCatalog = [
+    { key: 'great', label: 'Great', ic: 'smile' }, { key: 'good', label: 'Good', ic: 'smile' },
+    { key: 'ok', label: 'Okay', ic: 'wave' }, { key: 'low', label: 'Low', ic: 'drop' },
+  ];
+  // 14-night history: which behaviours were logged + mood that day (deterministic pseudo-pattern).
+  const journalHistory = (() => {
+    const out = [];
+    for (let i = 0; i < 14; i++) {
+      const seed = i * 7 + 3;
+      const on = behaviorCatalog.filter((_, bi) => (Math.sin(seed * 1.7 + bi * 2.3) + 1) / 2 > 0.72);
+      out.push({
+        dayIndex: i, behaviours: on.map((b) => b.key),
+        mood: moodCatalog[Math.floor(Math.abs(Math.sin(seed)) * moodCatalog.length) % moodCatalog.length].key,
+      });
+    }
+    return out;
+  })();
+  const journalStreak = 6;
+  const journalCorrelations = [
+    { behavior: 'lateMeal', behaviorLabel: 'Late meals', metric: 'hrv', metricLabel: 'HRV', effectPct: -8,
+      occurrences: 12, confidence: 'emerging',
+      text: 'On days after late meals, your HRV has been lower than your baseline.' },
+    { behavior: 'exercise', behaviorLabel: 'exercise', metric: 'recovery', metricLabel: 'recovery',
+      pairedWithLabel: 'an earlier bedtime', effectPct: 6, occurrences: 9, confidence: 'consistent',
+      text: 'Your recovery tends to be higher following days when you logged exercise and an earlier bedtime.' },
+    { behavior: 'alcohol', behaviorLabel: 'Alcohol', metric: 'hrv', metricLabel: 'HRV', effectPct: -12,
+      occurrences: 5, confidence: 'early',
+      text: 'On the few nights you logged alcohol, HRV read lower the next morning — too few occurrences yet to be sure.' },
+  ];
+
+  // ---- Coach v2: richer example thread, tagged fact / association / hypothesis / general ---
+  const coachThreadV2 = [
+    { who: 'you', text: 'Why has my recovery been lower lately?' },
+    { who: 'coach', kind: 'fact', text: 'Over the last 7 days your recovery averaged <b>64%</b>, down from a 30-day average of <b>78%</b>. That’s a measured drop against your own history.' },
+    { who: 'coach', kind: 'association', text: 'It lines up with 3 nights you logged a <b>late meal</b> and one <b>late bedtime</b> — in your data, those two show up together with a lower next-day HRV about 70% of the time.' },
+    { who: 'coach', kind: 'hypothesis', text: 'My best guess is the combination of later meals and shorter sleep windows is the main driver, not any one factor alone — but that’s an inference, not a confirmed cause.' },
+    { who: 'you', text: 'What should I focus on improving?' },
+    { who: 'coach', kind: 'fact', text: 'Sleep performance has the strongest relationship with your recovery of anything I track (r = 0.74).' },
+    { who: 'coach', kind: 'general', text: 'In general, a consistent bedtime and a cool, dark room are the most reliable levers for sleep quality — that’s well-established sleep science, not specific to your data.' },
+    { who: 'coach', kind: 'association', text: 'Specifically for you: your 5 earliest nights this month all preceded an HRV reading above baseline. Protecting that bedtime window looks like your highest-leverage change.' },
+  ];
+
+  // ---- Home: full metric catalog + default layout + weekly narrative -------
+  const metricCatalog = [
+    { key: 'heartRateNow', name: 'Heart Rate', unit: 'bpm', ic: 'heart', tint: 'heart', group: 'Heart' },
+    { key: 'rhr', name: 'Resting HR', unit: 'bpm', ic: 'heart', tint: 'hrv', group: 'Heart' },
+    { key: 'hrv', name: 'HRV', unit: 'ms', ic: 'hrv', tint: 'hrv', group: 'Heart' },
+    { key: 'respiratory', name: 'Respiratory Rate', unit: 'rpm', ic: 'lungs', tint: 'recovery', group: 'Sleep' },
+    { key: 'spo2', name: 'Blood Oxygen', unit: '%', ic: 'spo2', tint: 'strain', group: 'Sleep', sometimes: true },
+    { key: 'skinTemp', name: 'Skin Temperature', unit: '°C', ic: 'thermo', tint: 'gold', group: 'Sleep', sometimes: true },
+    { key: 'steps', name: 'Steps', unit: '', ic: 'steps', tint: 'recovery', group: 'Activity' },
+    { key: 'active', name: 'Active Energy', unit: 'kcal', ic: 'flame', tint: 'flame', group: 'Activity' },
+    { key: 'resting', name: 'Resting Energy', unit: 'kcal', ic: 'flame', tint: 'gold', group: 'Activity' },
+    { key: 'totalEnergy', name: 'Total Energy', unit: 'kcal', ic: 'flame', tint: 'flame', group: 'Activity' },
+    { key: 'workouts', name: 'Workouts', unit: '', ic: 'run', tint: 'strain', group: 'Activity' },
+    { key: 'sleepDuration', name: 'Sleep Duration', unit: 'h', ic: 'moon', tint: 'sleep', group: 'Sleep' },
+    { key: 'sleepEfficiency', name: 'Sleep Efficiency', unit: '%', ic: 'check', tint: 'sleep', group: 'Sleep' },
+    { key: 'restorative', name: 'Restorative Sleep', unit: '%', ic: 'moon', tint: 'sleep', group: 'Sleep' },
+    { key: 'recovery', name: 'Recovery', unit: '%', ic: 'recovery', tint: 'recovery', group: 'Recovery' },
+    { key: 'strain', name: 'Effort / Strain', unit: '', ic: 'strain', tint: 'strain', group: 'Recovery' },
+    { key: 'stress', name: 'Stress', unit: '', ic: 'stress', tint: 'gold', group: 'Recovery', sometimes: true, preview: true },
+    { key: 'sleepConsistency', name: 'Sleep Consistency', unit: '%', ic: 'calendar', tint: 'hrv', group: 'Sleep' },
+    { key: 'bedtime', name: 'Bedtime', unit: '', ic: 'moon', tint: 'sleep', group: 'Sleep' },
+    { key: 'waketime', name: 'Wake Time', unit: '', ic: 'today', tint: 'gold', group: 'Sleep' },
+    { key: 'sleepDebt', name: 'Sleep Debt', unit: 'min', ic: 'timer', tint: 'heart', group: 'Sleep' },
+  ];
+  const defaultHomeLayout = ['hrv', 'rhr', 'respiratory', 'spo2', 'active', 'steps'];
+
+  function weekNarrative() {
+    const rec7 = recSeries.slice(-7), sleep7 = sleepSeries.slice(-7);
+    const recUp = rec7.filter((v, i) => i > 0 && v >= rec7[i - 1]).length;
+    const sleepDelta = sleep7[sleep7.length - 1] - sleep7[0];
+    const sleepDir = sleepDelta > 2 ? 'increased' : sleepDelta < -2 ? 'decreased' : 'held steady';
+    return `Recovery improved on ${recUp} of the last 7 days while sleep ${sleepDir}.`;
+  }
+
   NS.data = {
     today, DAYS,
     recovery, strain, strainTarget, sleepScore, hrv, rhr, respiratory, spo2, skinTemp, liveHR,
@@ -435,5 +597,15 @@
     spo2Available, spo2Series, spo2Latest, spo2NightAvg, spo2Low, spo2High,
     stressDay, stressNow, stressDist, stressSeries,
     baselines, metrics, recoveryContribs, workouts,
+    // expansion v3 — product-experience pass
+    bedtimeSeries, waketimeSeries, consistencySeries, awakeningsSeries,
+    deepPctSeries, remPctSeries, lightPctSeries, awakePctSeries,
+    hrvNightlySeries, respNightlySeries, spo2NightlySeries, skinTempNightlySeries, sleepDebtLedger,
+    hrvBaselineRange, rhrBaselineRange, hrByWeekday, hrHistogram,
+    stressRestVsElevated, stressByPhase,
+    correlationPairs, notableChanges,
+    behaviorCatalog, moodCatalog, journalHistory, journalStreak, journalCorrelations,
+    coachThreadV2,
+    metricCatalog, defaultHomeLayout, weekNarrative,
   };
 })(window.NOOP = window.NOOP || {});

@@ -1,8 +1,10 @@
 /* ============================================================================
-   NOOP · Premium UI — Heart rate  (the showcase screen)
+   NOOP · Premium UI — Heart rate (v3, significantly expanded)
    A live BPM with an animated pulse + halo, a real-time ECG ribbon, the
-   day-in-the-life HR chart with zone shading, HR zones with time-in-zone, and
-   resting / max / recovery stats with weekly & monthly graphs.
+   day-in-the-life HR chart with zone shading, a distribution of today's
+   readings, HR by context (now / sleep / workout / resting), HR zones with
+   time-in-zone, HRV + resting-HR baselines, a weekly day-of-week pattern, the
+   overnight curve (linked to Sleep), and a recovery correlation callout.
    ============================================================================ */
 (function (NS) {
   'use strict';
@@ -42,12 +44,44 @@
         <div class="axis"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>now</span></div>
       </section>
 
+      <!-- Distribution -->
+      <div class="section-title" data-reveal><h2>Today's distribution</h2><span class="link">${d.hrHistogram.lo}–${d.hrHistogram.hi} bpm</span></div>
+      <section class="card" data-reveal>
+        <div class="chart" style="height:90px"><canvas data-hr-hist></canvas></div>
+        <p class="note" style="margin-top:var(--s-3)">How much of today you spent at each heart rate — a wide, low-peaked spread usually means a mix of rest and activity; a tall narrow peak means a mostly steady day.</p>
+      </section>
+
+      <!-- HR by context -->
+      <div class="section-title" data-reveal><h2>By context</h2></div>
+      <section class="card" data-reveal>
+        ${ctxRow('Right now', d.liveHR, 'heart', true)}
+        ${ctxRow('Resting', d.rhr, 'hrv')}
+        ${ctxRow('Overnight avg', Math.round(data.mean(d.sleep.overnight.hr)), 'sleep')}
+        ${d.workouts.length ? ctxRow(`${d.workouts[0].name} (avg)`, d.workouts[0].avgHr, 'strain') : ''}
+        ${d.workouts.length ? ctxRow(`${d.workouts[0].name} (peak)`, d.workouts[0].peakHr, 'strain') : ''}
+      </section>
+
       <!-- Zones -->
       <div class="section-title" data-reveal><h2>Zones today</h2><span class="link">2h 30m active</span></div>
       <section class="card" data-reveal>
         <div class="zones">
           ${d.hrZones.map((z) => zoneRow(z)).join('')}
         </div>
+      </section>
+
+      <!-- Overnight (linked to Sleep) -->
+      <div class="section-title" data-reveal><h2>Overnight</h2><span class="link" data-route="sleep">Full sleep detail ›</span></div>
+      <section class="card tap" data-reveal data-route="sleep">
+        <div class="chart" style="height:100px"><canvas data-hr-overnight></canvas></div>
+        <p class="note" style="margin-top:var(--s-3)">Last night's heart rate, from ${d.sleep.times.bed} to ${d.sleep.times.wake}. Dips during deep sleep and rises toward wake are normal — see the Sleep tab for the stage-by-stage view.</p>
+      </section>
+
+      <!-- Stress teaser (concept, closely tied to physiology) -->
+      <section class="card tap" data-reveal data-route="stress" style="margin-top:var(--s-4);--tint:var(--accent-gold)">
+        <div class="rec"><span class="glyph tint">${icon('stress', 18)}</span>
+          <div class="rec-body"><div class="rec-title">Stress <span class="future-tag" style="margin-left:6px">preview</span></div>
+            <div class="rec-sub">An estimated physiological-load view, built from these same signals</div></div>
+          <span class="chev">${icon('chevR', 16)}</span></div>
       </section>
 
       <!-- Recovery HR + trends -->
@@ -73,6 +107,24 @@
         <div class="chart" style="margin-top:8px"><canvas data-rhr-trend></canvas></div>
         <div class="axis" data-axis></div>
       </section>
+
+      <!-- Baselines -->
+      <div class="section-title" data-reveal><h2>Baselines</h2><span class="link">30-day range</span></div>
+      <section class="card" data-reveal>
+        ${devRow('HRV', 'data-hrv-baseline', 'var(--accent-hrv)', d.hrv + ' ms')}
+        ${devRow('Resting HR', 'data-rhr-baseline', 'var(--accent-heart)', d.rhr + ' bpm')}
+        <p class="note" style="margin-top:var(--s-2)">The shaded band is your typical 30-day range. Today's HRV and resting HR both sit inside it, which is itself a good sign of stability.</p>
+      </section>
+
+      <!-- Weekly pattern -->
+      <div class="section-title" data-reveal><h2>Weekly pattern</h2><span class="link">Avg HR by day</span></div>
+      <section class="card" data-reveal>
+        <div class="chart" style="height:130px"><canvas data-hr-weekday></canvas></div>
+      </section>
+
+      <!-- Correlation with recovery -->
+      <div class="section-title" data-reveal><h2>Connected to recovery</h2></div>
+      ${patternCard(d.correlationPairs.find((p) => p.a === 'rhr'))}
       <div style="height:8px"></div>`;
     },
 
@@ -85,11 +137,27 @@
       const day = ui.$('[data-hr-day]', root);
       if (day) charts.heartDay(day, d.dayHR(), { height: 200,
         labels: Array.from({ length: 288 }, (_, i) => fmtClock(i)) });
+      // distribution
+      const hist = ui.$('[data-hr-hist]', root);
+      if (hist) charts.histogram(hist, d.hrHistogram.counts, { color: 'heart', height: 90 });
+      // overnight
+      const on = ui.$('[data-hr-overnight]', root);
+      if (on) charts.area(on, d.sleep.overnight.hr, { color: 'sleep', height: 100, fmt: (v) => Math.round(v) + ' bpm' });
       // zone bars width
-      const totalActive = d.hrZones.reduce((a, z) => a + (z.name === 'Resting' ? 0 : z.minutes), 0);
       ui.$$('[data-zw]', root).forEach((i) => {
         const m = +i.dataset.zm; requestAnimationFrame(() => { i.style.width = Math.max(4, m / 60 * 100) + '%'; });
       });
+      // baselines
+      const hb = ui.$('[data-hrv-baseline]', root);
+      if (hb) charts.bandArea(hb, d.hrvSeries.slice(-30), { color: 'hrv', height: 40, pad: { l: 2, r: 2, t: 4, b: 2 },
+        bandLo: d.hrvBaselineRange.lo, bandHi: d.hrvBaselineRange.hi, interactive: false });
+      const rb = ui.$('[data-rhr-baseline]', root);
+      if (rb) charts.bandArea(rb, d.rhrSeries.slice(-30), { color: 'heart', height: 40, pad: { l: 2, r: 2, t: 4, b: 2 },
+        bandLo: d.rhrBaselineRange.lo, bandHi: d.rhrBaselineRange.hi, interactive: false });
+      // weekday pattern
+      const wd = ui.$('[data-hr-weekday]', root);
+      if (wd) charts.bars(wd, d.hrByWeekday.map((x) => x.avg), { color: 'heart', height: 130,
+        labels: d.hrByWeekday.map((x) => x.day), fmt: (v) => Math.round(v) + ' bpm' });
       // trend
       const cv = ui.$('[data-rhr-trend]', root), axis = ui.$('[data-axis]', root), avg = ui.$('[data-avg]', root);
       const draw = (n) => {
@@ -120,6 +188,30 @@
       <div class="metric"><div class="value" style="font-size:26px"><span class="count" data-to="${val}">0</span><span class="unit">${unit}</span></div>
       <div class="label">${label}</div></div></div>`;
   }
+  function ctxRow(label, val, tint, live) {
+    return `<div class="row" style="--tint:var(--accent-${tint})">
+      <span class="glyph tint">${icon('heart', 16)}</span>
+      <div class="r-body"><div class="r-title">${label}</div></div>
+      <div class="r-val">${val}<small> bpm</small>${live ? ' <span class="tchip pos" style="margin-left:6px">live</span>' : ''}</div></div>`;
+  }
+  function devRow(name, chartAttr, color, val) {
+    return `<div class="dev-row"><span class="dr-name">${name}</span>
+      <div class="dr-chart chart"><canvas ${chartAttr}></canvas></div>
+      <span class="dr-val" style="color:${color}">${val}</span></div>`;
+  }
+  function patternCard(p) {
+    if (!p) return '';
+    return `<section class="pattern-card" data-reveal style="--tint:var(--accent-${p.tint})">
+      <span class="glyph tint">${icon('insight', 16)}</span>
+      <div class="pc-body">
+        <div class="pc-head"><span class="pc-title">${p.an} ↔ ${p.bn}</span>
+          <span class="conf-tag ${p.confidence}"><i></i>${confLabel(p.confidence)}</span></div>
+        <div class="pc-text">${p.note}</div>
+        <div class="pc-meta">r = ${p.r.toFixed(2)} over the last 30 days</div>
+      </div>
+    </section>`;
+  }
+  function confLabel(c) { return ({ early: 'Early signal', emerging: 'Emerging pattern', consistent: 'Consistent pattern' })[c] || c; }
   function zoneRow(z) {
     return `<div class="zone" style="--tint:var(--accent-${z.color})">
       <div class="z-name">${z.name}<small>${z.sub} bpm</small></div>

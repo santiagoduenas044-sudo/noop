@@ -213,8 +213,22 @@
     return `<button class="chip ${on ? 'on' : ''}" data-chip style="--tint:var(--accent-${tint||'gold'})"><span class="swatch"></span>${label}</button>`;
   }
 
+  /* ---------------------------------------------------- consistency dot-grid */
+  // One dot per value in `values01` (each 0..1), wrapped every `cols` — a calendar-
+  // style regularity read (e.g. bedtime consistency). Brighter/bigger = closer to 1.
+  function dotGrid(values01, tintName, cols) {
+    cols = cols || 7;
+    const dots = values01.map((v) => {
+      const op = 0.25 + 0.75 * Math.max(0, Math.min(1, v));
+      const scale = 0.6 + 0.4 * Math.max(0, Math.min(1, v));
+      return `<span style="width:9px;height:9px;border-radius:3px;background:var(--accent-${tintName});
+        opacity:${op.toFixed(2)};transform:scale(${scale.toFixed(2)})"></span>`;
+    }).join('');
+    return `<div style="display:grid;grid-template-columns:repeat(${cols},1fr);gap:6px;align-items:center">${dots}</div>`;
+  }
+
   NS.ui = {
     h, $, $$, esc, ring, animateRings, countUp, reveal, ripple, initSegments,
-    initExpandables, initChips, initSwitches, sheet, toast, metricCard, chip, icon,
+    initExpandables, initChips, initSwitches, sheet, toast, metricCard, chip, dotGrid, icon,
   };
 })(window.NOOP = window.NOOP || {});

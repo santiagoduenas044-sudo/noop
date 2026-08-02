@@ -39,8 +39,23 @@
         ${advice('Sleep', 'Lights out by 10:50 PM to clear debt', 'moon', 'sleep')}
       </div>
 
+      <!-- The future, Claude-powered Coach: a preview conversation -->
+      <div class="section-title" data-reveal><h2>The future Coach</h2><span class="future-tag">Preview · not live yet</span></div>
+      <section class="card" data-reveal>
+        <p class="note" style="margin-bottom:var(--s-3)">A real Claude-powered Coach will read your health data, sleep, heart, stress, Trends and Journal together — and it will always say which kind of statement it's making.</p>
+        <div class="chip-row" style="margin-bottom:var(--s-4)">
+          <span class="tag" style="--tint:var(--accent-hrv)">Measured fact</span>
+          <span class="tag" style="--tint:var(--accent-gold)">Association</span>
+          <span class="tag" style="--tint:var(--accent-strain)">Hypothesis</span>
+          <span class="tag" style="--tint:var(--ink-3)">General info</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:var(--s-3)">
+          ${data.coachThreadV2.map(bubbleV2).join('')}
+        </div>
+      </section>
+
       <!-- Conversation -->
-      <div class="section-title" data-reveal><h2>Ask the coach</h2></div>
+      <div class="section-title" data-reveal><h2>Ask the coach</h2><span class="link">Live demo</span></div>
       <section class="card chat" data-reveal>
         <div class="thread" data-thread>
           ${data.coachThread.map(bubble).join('')}
@@ -94,6 +109,11 @@
 
   function bubble(m) {
     return `<div class="bubble ${m.who}">${m.text}</div>`;
+  }
+  function bubbleV2(m) {
+    if (m.who === 'you') return `<div class="bubble you">${m.text}</div>`;
+    const tag = { fact: 'MEASURED FACT', association: 'ASSOCIATION', hypothesis: 'HYPOTHESIS', general: 'GENERAL INFO' }[m.kind] || '';
+    return `<div class="bubble coach k-${m.kind}">${tag ? `<span class="msg-tag">${tag}</span>` : ''}${m.text}</div>`;
   }
   function fcCard(day, title, ic, tint, sub) {
     return `<div class="fc-card" style="--tint:var(--accent-${tint})">

@@ -13,10 +13,25 @@
   'use strict';
   const { ui, data, charts, icon } = NS;
 
-  // Open the detail for a metric key (set target, then route).
+  // Open the detail for a metric key (set target, then route). The router's
+  // go() short-circuits to a scroll-to-top when the target is already the
+  // current page (fine for a dock tab, wrong here — the "Related metrics"
+  // strip lets you jump from one metric detail straight to another), so when
+  // we're already on 'metric' this re-renders the same page in place instead.
   NS.openMetric = function (key) {
     if (!data.metrics[key]) return;
     NS.pages.metric._key = key;
+    if (NS.router.state.current === 'metric') {
+      const view = document.querySelector('#view .page-view[data-page="metric"]');
+      if (view) {
+        view.innerHTML = NS.pages.metric.render();
+        ui.reveal(view); ui.countUp(view); ui.animateRings(view);
+        ui.initSegments(view); ui.initExpandables(view); ui.initChips(view);
+        NS.pages.metric.mount(view);
+        ui.$('.scroll')?.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+      }
+    }
     NS.router.go('metric');
   };
 
@@ -130,13 +145,29 @@
         </div>
       </section>
 
-      <div class="section-title" data-reveal><h2 style="font-size:19px">What it means</h2></div>
-      <section class="card" data-reveal><p class="explain">${m.explain}</p></section>
+      <div class="section-title" data-reveal><h2 style="font-size:19px">Related metrics</h2></div>
+      <section class="card" data-reveal>
+        <div class="related-strip" data-related>
+          ${relatedMetrics(this._key).map((k) => relatedChip(k)).join('')}
+        </div>
+      </section>
 
-      <section class="card" data-reveal style="--tint:var(--accent-${m.tint});margin-top:var(--s-4)">
+      <div class="section-title" data-reveal><h2 style="font-size:19px">What it means</h2></div>
+      <section class="card" data-reveal>
+        <div class="disclose">
+          <div class="disclose-step"><span class="ds-k">What happened</span><span class="ds-v">${whatHappenedText(m, base)}</span></div>
+          <div class="disclose-step"><span class="ds-k">Why it matters</span><span class="ds-v">${m.explain}</span></div>
+          <div class="disclose-step"><span class="ds-k">Show me the data</span><span class="ds-v">The chart and 30-day range above are this metric's real recorded history.</span></div>
+        </div>
+      </section>
+
+      <section class="card tap" data-reveal style="--tint:var(--accent-${m.tint});margin-top:var(--s-4)" data-ask-coach="${this._key}">
         <div class="insight-line">
           <span class="il-ic">${icon('sparkles', 16)}</span>
           <div class="il-body">${m.insight}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:12px;color:var(--tint, var(--accent-gold));font-size:var(--fs-sm);font-weight:600">
+          ${icon('coach', 14)} Ask the coach about ${m.short.toLowerCase()} ${icon('chevR', 13)}
         </div>
       </section>
       <div style="height:8px"></div>`;
@@ -166,11 +197,40 @@
       };
       draw('M');
       ui.initSegments(root, (i, val) => draw(val));
+      // related metrics → jump the detail to that metric
+      ui.$$('[data-related-key]', root).forEach((c) => c.addEventListener('click', (e) => {
+        ui.ripple(e, c); NS.openMetric(c.dataset.relatedKey);
+      }));
+      // ask the coach about this metric
+      ui.$('[data-ask-coach]', root)?.addEventListener('click', (e) => {
+        ui.ripple(e, e.currentTarget); NS.router.go('coach');
+      });
     },
   };
 
   function statBlk(cap, val, unit) {
     return `<div class="stat-blk"><div class="sb-cap">${cap}</div>
       <div class="sb-val">${val}<small> ${unit || ''}</small></div></div>`;
+  }
+
+  function whatHappenedText(m, base) {
+    const diff = m.value - base;
+    const dir = diff > 0.001 ? 'above' : diff < -0.001 ? 'below' : 'right on';
+    return `${fmt(m.value, m)}${m.unit ? ' ' + m.unit : ''} today — ${dir} your ${fmt(base, m)}${m.unit ? ' ' + m.unit : ''} baseline.`;
+  }
+  // A small, fixed relatedness map so the strip always shows metrics that
+  // plausibly move together, not a random sample of the catalog.
+  const RELATED = {
+    hrv: ['rhr', 'sleep', 'recovery'], rhr: ['hrv', 'recovery'], respiratory: ['hrv', 'spo2'],
+    spo2: ['respiratory', 'sleep'], steps: ['active', 'strain'], recovery: ['hrv', 'rhr', 'sleep'],
+    sleep: ['hrv', 'recovery'], strain: ['recovery', 'active'], active: ['steps', 'strain'],
+  };
+  function relatedMetrics(key) { return (RELATED[key] || []).filter((k) => data.metrics[k]); }
+  function relatedChip(key) {
+    const rm = data.metrics[key];
+    return `<div class="related-chip" data-related-key="${key}" style="--tint:var(--accent-${rm.tint})">
+      <div class="rc-val">${fmt(rm.value, rm)}${rm.unit ? ' ' + rm.unit : ''}</div>
+      <div class="rc-name">${rm.short}</div>
+    </div>`;
   }
 })(window.NOOP = window.NOOP || {});

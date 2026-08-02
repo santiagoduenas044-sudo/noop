@@ -376,6 +376,111 @@
     };
   }
 
+  /* --------------------------------------------------------- Distribution histogram */
+  // opts: { color, height, bins:8, fmt }
+  function histogram(canvas, counts, opts = {}) {
+    const height = opts.height || 90;
+    const color = opts.color || 'hrv';
+    const [c1, c2] = tint(color);
+    const pad = { l: 4, r: 4, t: 6, b: 4 };
+    const render = () => {
+      const { ctx, w, h } = prep(canvas, height);
+      const n = counts.length, max = Math.max(...counts, 1);
+      const innerW = w - pad.l - pad.r, innerH = h - pad.t - pad.b;
+      const gap = 3, bw = (innerW - gap * (n - 1)) / n;
+      counts.forEach((v, i) => {
+        const bh = Math.max(3, (v / max) * innerH);
+        const x = pad.l + i * (bw + gap), y = pad.t + innerH - bh;
+        const g = ctx.createLinearGradient(0, y, 0, y + bh);
+        g.addColorStop(0, c1); g.addColorStop(1, hexA(c2, 0.5));
+        ctx.fillStyle = g;
+        roundRect(ctx, x, y, bw, bh, Math.min(bw / 2, 5)); ctx.fill();
+      });
+    };
+    render();
+    onVisible(canvas, render);
+    return { redraw: render };
+  }
+
+  /* --------------------------------------------------------- Baseline-band area */
+  // Area/line chart with a shaded "typical range" band [bandLo,bandHi] drawn behind
+  // it, so "today vs typical" reads at a glance. opts as `area()` plus { bandLo, bandHi }.
+  function bandArea(canvas, data, opts = {}) {
+    const height = opts.height || 160;
+    const color = opts.color || 'recovery';
+    const [c1, c2] = tint(color);
+    const pad = opts.pad || { l: 6, r: 6, t: 14, b: 8 };
+    const min = opts.min != null ? opts.min : Math.min(...data, opts.bandLo ?? Infinity) - 4;
+    const max = opts.max != null ? opts.max : Math.max(...data, opts.bandHi ?? -Infinity) + 4;
+    const render = () => {
+      const { ctx, w, h } = prep(canvas, height);
+      const pts = scalePoints(data, w, h, pad, min, max);
+      const innerH = h - pad.t - pad.b;
+      // typical band
+      if (opts.bandLo != null && opts.bandHi != null) {
+        const y1 = pad.t + innerH * (1 - (opts.bandHi - min) / (max - min));
+        const y2 = pad.t + innerH * (1 - (opts.bandLo - min) / (max - min));
+        ctx.fillStyle = hexA(cssVar('--ink-3'), 0.14);
+        roundRect(ctx, pad.l, y1, w - pad.l - pad.r, Math.max(2, y2 - y1), 6); ctx.fill();
+        ctx.strokeStyle = hexA(cssVar('--ink-3'), 0.4); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(pad.l, y1); ctx.lineTo(w - pad.r, y1); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad.l, y2); ctx.lineTo(w - pad.r, y2); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      // line
+      ctx.beginPath(); smoothPath(ctx, pts);
+      ctx.lineTo(pts[pts.length - 1].x, h - pad.b); ctx.lineTo(pts[0].x, h - pad.b); ctx.closePath();
+      const g = ctx.createLinearGradient(0, pad.t, 0, h);
+      g.addColorStop(0, hexA(c1, 0.28)); g.addColorStop(1, hexA(c1, 0));
+      ctx.fillStyle = g; ctx.fill();
+      ctx.beginPath(); smoothPath(ctx, pts);
+      const lg = ctx.createLinearGradient(pad.l, 0, w - pad.r, 0);
+      lg.addColorStop(0, c2); lg.addColorStop(1, c1);
+      ctx.lineWidth = 2.6; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.strokeStyle = lg; ctx.stroke();
+      const tip = pts[pts.length - 1];
+      ctx.beginPath(); ctx.arc(tip.x, tip.y, 3.6, 0, 7); ctx.fillStyle = c1; ctx.fill();
+      canvas._pts = pts; canvas._pad = pad; canvas._h = h;
+    };
+    render();
+    onVisible(canvas, render);
+    if (opts.interactive !== false) attachHover(canvas, color, opts);
+    return { redraw: render };
+  }
+
+  /* --------------------------------------------------------- Scatter + trend line */
+  // opts: { color, height, xLabel, yLabel, fmtX, fmtY }. points: [{x,y}] already 0..1 normalised,
+  // OR raw values with opts.xRange/opts.yRange to normalise internally.
+  function scatter(canvas, points, opts = {}) {
+    const height = opts.height || 140;
+    const color = opts.color || 'hrv';
+    const [c1] = tint(color);
+    const pad = { l: 10, r: 10, t: 10, b: 10 };
+    const render = () => {
+      const { ctx, w, h } = prep(canvas, height);
+      const innerW = w - pad.l - pad.r, innerH = h - pad.t - pad.b;
+      const norm = points.map((p) => ({ x: pad.l + p.x * innerW, y: pad.t + innerH - p.y * innerH }));
+      // regression trend line (least squares over the ORIGINAL 0..1 points)
+      const n = points.length;
+      const mx = points.reduce((s, p) => s + p.x, 0) / n, my = points.reduce((s, p) => s + p.y, 0) / n;
+      let num = 0, den = 0;
+      points.forEach((p) => { num += (p.x - mx) * (p.y - my); den += (p.x - mx) ** 2; });
+      const slope = den ? num / den : 0, intercept = my - slope * mx;
+      const x0 = 0, x1 = 1, y0 = intercept, y1 = intercept + slope;
+      const ty0 = pad.t + innerH * (1 - clamp(y0, 0, 1)), ty1 = pad.t + innerH * (1 - clamp(y1, 0, 1));
+      ctx.beginPath(); ctx.moveTo(pad.l + x0 * innerW, ty0); ctx.lineTo(pad.l + x1 * innerW, ty1);
+      ctx.strokeStyle = hexA(c1, 0.55); ctx.lineWidth = 2; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+      // points
+      norm.forEach((p, i) => {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 7);
+        ctx.fillStyle = hexA(c1, 0.85); ctx.shadowColor = hexA(c1, 0.5); ctx.shadowBlur = 6;
+        ctx.fill(); ctx.shadowBlur = 0;
+      });
+    };
+    render();
+    onVisible(canvas, render);
+    return { redraw: render };
+  }
+
   /* --------------------------------------------------------- Hover plumbing */
   function attachHover(canvas, color, opts = {}) {
     const tip = ensureTip(canvas);
@@ -479,5 +584,5 @@
       if (r.top < window.innerHeight && r.bottom > 0) cb(); });
   }
 
-  NS.charts = { area, bars, spark, heartDay, liveECG, overnight, tint, hexA };
+  NS.charts = { area, bars, spark, heartDay, liveECG, overnight, histogram, bandArea, scatter, tint, hexA };
 })(window.NOOP = window.NOOP || {});
