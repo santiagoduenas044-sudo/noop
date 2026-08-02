@@ -13,6 +13,10 @@ import StrandDesign
 /// appending to the tab's bound `NavigationPath` — so a tab re-tap can still pop these off (#135/#198).
 enum PremiumRoute: Hashable {
     case metric(PremiumMetricKind)
+    /// Any metric in the full `PremiumMetricCatalog`, rendered by the catalog-driven detail screen.
+    /// This is what Home's customisable grid pushes, so every one of the ~24 catalog metrics has a
+    /// real detail view rather than only the six legacy `PremiumMetricKind` cases.
+    case catalogMetric(PremiumMetricID)
     case energy
     case bloodOxygen
     case strain
@@ -26,10 +30,11 @@ extension View {
         navigationDestination(for: PremiumRoute.self) { route in
             Group {
                 switch route {
-                case .metric(let kind): PremiumMetricDetailView(kind: kind)
-                case .energy:           PremiumEnergyView()
-                case .bloodOxygen:      PremiumBloodOxygenView()
-                case .strain:           PremiumStrainView()
+                case .metric(let kind):    PremiumMetricDetailView(kind: kind)
+                case .catalogMetric(let id): PremiumCatalogDetailView(metric: id)
+                case .energy:             PremiumEnergyView()
+                case .bloodOxygen:        PremiumBloodOxygenView()
+                case .strain:             PremiumStrainView()
                 }
             }
             .background(StrandPalette.surfaceBase.ignoresSafeArea())

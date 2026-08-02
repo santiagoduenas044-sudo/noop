@@ -16,9 +16,19 @@ import WhoopStore
 struct PremiumHomeView: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var router: NavRouter
+    @EnvironmentObject var profile: ProfileStore
     @Environment(\.scrollToTopSignal) private var scrollToTopSignal
     @State private var showReadiness = false
     @State private var showSettings = false
+    /// The user's Home dashboard configuration — which metric cards show, in what order, and
+    /// whether the grid renders compact. Persisted in `UserDefaults` by the store itself.
+    @StateObject private var layout = PremiumHomeLayoutStore()
+    @State private var showEditHome = false
+    /// Deterministic findings (baseline deviations, trends, associations) computed from the user's
+    /// own history by `PremiumAnalysis` — never model-generated.
+    @State private var findings: [PremiumFinding] = []
+    @State private var journalStreak: Int = 0
+    @State private var journalLoggedToday = false
 
     // MARK: Data helpers (real Repository data)
 
@@ -64,6 +74,8 @@ struct PremiumHomeView: View {
                     hero
                     quickStatsRow
                     storyCard
+                    journalQuickCard
+                    insightsCard
                     weekOverviewCard
                     vitalsSection
                     sleepCard
@@ -105,7 +117,53 @@ struct PremiumHomeView: View {
                         }
                 }
             }
+            .sheet(isPresented: $showEditHome) {
+                NavigationStack {
+                    PremiumEditHomeView(layout: layout)
+                        .navigationTitle("Edit Home")
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button("Done") { showEditHome = false }
+                                    .foregroundStyle(StrandPalette.accent)
+                            }
+                        }
+                }
+            }
+            .task(id: repo.refreshSeq) { await loadInsights() }
         }
+    }
+
+    /// Computes the personal findings and journal status. Runs off the main actor for the heavy
+    /// correlation work, then publishes the results.
+    private func loadInsights() async {
+        let entries = await repo.journalEntries()
+        let loggedDays = Set(entries.filter(\.answeredYes).map(\.day))
+        let streak = PremiumCoachContext.streak(days: loggedDays)
+        let today = loggedDays.contains(Repository.localDayKey(Date()))
+
+        // Baseline + relationship findings across the headline signals.
+        var out: [PremiumFinding] = []
+        for id in [PremiumMetricID.hrv, .restingHr, .recovery, .sleepDuration] {
+            let a = PremiumMetricCatalog.analysis(id, repo: repo)
+            let d = PremiumMetricCatalog.def(id)
+            if let f = PremiumAnalysis.baselineFinding(a, name: d.shortName, unit: d.unit, tint: d.tint) {
+                out.append(f)
+            }
+        }
+        let sleepSeries = PremiumMetricCatalog.series(.sleepDuration, repo: repo)
+        let recoverySeries = PremiumMetricCatalog.series(.recovery, repo: repo)
+        if let best = PremiumAnalysis.bestRelationship(sleepSeries, recoverySeries),
+           let f = PremiumAnalysis.relationshipFinding(
+            id: "home.rel.sleep.recovery", aName: "Sleep duration", bName: "Recovery",
+            correlation: best.correlation, lagDays: best.lagDays, tint: StrandPalette.sleepDeep) {
+            out.append(f)
+        }
+        out.sort { $0.confidence > $1.confidence }
+
+        findings = out
+        journalStreak = streak
+        journalLoggedToday = today
     }
 
     // MARK: Ambient background (prototype's living glow)
@@ -259,6 +317,63 @@ struct PremiumHomeView: View {
         return s
     }
 
+    // MARK: Journal quick check-in (fast access — one tap from Home)
+
+    /// A prominent Home shortcut into the Journal, so logging is never buried in a menu. Shows
+    /// today's status and the current streak, and opens the journal sheet directly.
+    private var journalQuickCard: some View {
+        Button {
+            router.openJournal()
+        } label: {
+            StrandCard(tint: journalLoggedToday ? StrandPalette.recoveryColor(85) : StrandPalette.gold) {
+                HStack(spacing: 14) {
+                    iconTile(journalLoggedToday ? "checkmark.seal.fill" : "square.and.pencil",
+                             tint: journalLoggedToday ? StrandPalette.recoveryColor(85) : StrandPalette.gold)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(journalLoggedToday ? "Logged today" : "Log today's check-in")
+                            .font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                        Text(journalSubtitle)
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(journalLoggedToday ? "Journal, logged today" : "Log today's journal check-in")
+    }
+
+    private var journalSubtitle: String {
+        if journalStreak >= 2 { return "\(journalStreak)-day streak · a few taps" }
+        if journalLoggedToday { return "Add more any time" }
+        return "Takes a few taps — powers your personal patterns"
+    }
+
+    // MARK: Personal insights (deterministic — computed, never model-generated)
+
+    /// The top computed findings from `PremiumAnalysis`: baseline deviations, sustained trends and
+    /// journal associations, each carrying its own confidence label. This is also exactly what the
+    /// future Coach is handed, so what the user reads here and what the Coach explains agree.
+    @ViewBuilder private var insightsCard: some View {
+        if !findings.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                sectionTitle("Your patterns")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(Array(findings.prefix(3))) { f in
+                            PremiumFindingRow(finding: f)
+                        }
+                        Text("Computed on-device from your own history. Associations, not causes.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: This week — recovery/strain/sleep at a glance
 
     /// A 7-day mini bar chart for recovery, strain and sleep, real `repo.days` history scaled to
@@ -323,67 +438,135 @@ struct PremiumHomeView: View {
 
     // MARK: Live vitals grid
 
+    /// The customisable metric grid. Driven entirely by `PremiumHomeLayoutStore` over the full
+    /// `PremiumMetricCatalog`, so the user chooses which of the ~24 available signals appear, in
+    /// what order, and whether cards render compact (value only) or expanded (value + trend).
+    /// Metrics the device has never recorded are filtered out rather than shown empty.
     private var vitalsSection: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            sectionTitle("Live vitals")
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14),
-                                GridItem(.flexible(), spacing: 14)], spacing: 14) {
-                vitalCard(icon: "heart.fill", tint: StrandPalette.metricRose, label: "Resting HR",
-                          value: rhr.map(String.init) ?? "—", unit: "bpm",
-                          spark: series { $0.restingHr.map(Double.init) }, route: .metric(.restingHr))
-                vitalCard(icon: "waveform.path.ecg", tint: StrandPalette.metricCyan, label: "HRV",
-                          value: hrv.map { String(Int($0.rounded())) } ?? "—", unit: "ms",
-                          spark: series { $0.avgHrv }, route: .metric(.hrv))
-                vitalCard(icon: "lungs.fill", tint: StrandPalette.recoveryColor(80), label: "Respiratory",
-                          value: resp.map { String(format: "%.1f", $0) } ?? "—", unit: "rpm",
-                          spark: series { $0.respRateBpm }, route: .metric(.respiratory))
-                vitalCard(icon: "drop.fill", tint: StrandPalette.metricPurple, label: "Blood oxygen",
-                          value: spo2.map { String(Int($0.rounded())) } ?? "—", unit: "%",
-                          spark: series { $0.spo2Pct }, route: .bloodOxygen)
-                vitalCard(icon: "flame.fill", tint: StrandPalette.metricAmber, label: "Active energy",
-                          value: activeKcal.map { String(Int($0.rounded())) } ?? "—", unit: "kcal",
-                          spark: series { $0.activeKcalEst }, route: .energy)
-                vitalCard(icon: "figure.walk", tint: StrandPalette.recoveryColor(80), label: "Steps",
-                          value: steps.map(String.init) ?? "—", unit: "",
-                          spark: series { $0.steps.map(Double.init) }, route: .metric(.steps))
+        let ids: [PremiumMetricID] = layout.visible.filter { id in
+            PremiumMetricCatalog.def(id).isDerived || !PremiumMetricCatalog.series(id, repo: repo).isEmpty
+        }
+        let columns: [GridItem] = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)]
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                sectionTitle("Your metrics")
+                Spacer()
+                Button { showEditHome = true } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "slider.horizontal.3").font(.system(size: 11, weight: .semibold))
+                        Text("Edit").font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundStyle(StrandPalette.accent)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Edit Home metrics")
+            }
+            if ids.isEmpty {
+                StrandCard {
+                    PremiumEmptyState(icon: "square.grid.2x2",
+                                      title: "No metrics on Home",
+                                      message: "Tap Edit to choose which health metrics appear here.")
+                }
+            } else {
+                LazyVGrid(columns: columns, spacing: 14) {
+                    ForEach(ids) { id in
+                        metricCard(id)
+                    }
+                }
             }
         }
     }
 
-    /// One tappable vital tile. `route` deep-links into the matching Premium detail screen (metric detail,
-    /// energy, blood oxygen) via the tab's `NavigationStack` — registered by `.premiumRouteDestinations()`.
-    private func vitalCard(icon: String, tint: Color, label: String, value: String, unit: String,
-                           spark: [Double], route: PremiumRoute) -> some View {
-        NavigationLink(value: route) {
+    /// One tappable metric tile, rendered from the catalog. Every card deep-links to a real detail
+    /// screen; derived metrics (live HR, regularity…) route to the screen that owns them so a tap
+    /// always lands somewhere useful.
+    private func metricCard(_ id: PremiumMetricID) -> some View {
+        let d: PremiumMetricDef = PremiumMetricCatalog.def(id)
+        let value: Double? = metricValue(id)
+        let spark: [Double] = layout.compact ? [] : Array(
+            PremiumMetricCatalog.series(id, repo: repo).suffix(14).map(\.value))
+        return NavigationLink(value: route(for: id)) {
             StrandCard {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
-                        iconTile(icon, tint: tint)
+                        iconTile(d.icon, tint: d.tint)
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(StrandPalette.textTertiary)
                     }
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(value).font(.system(size: 28, weight: .heavy)).monospacedDigit()
+                        Text(value.map { d.format($0, withUnit: false) } ?? "—")
+                            .font(.system(size: 26, weight: .heavy)).monospacedDigit()
                             .foregroundStyle(StrandPalette.textPrimary)
-                        if !unit.isEmpty {
-                            Text(unit).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                            .lineLimit(1).minimumScaleFactor(0.6)
+                        if !d.unit.isEmpty && value != nil {
+                            Text(d.unit).font(StrandFont.caption)
+                                .foregroundStyle(StrandPalette.textTertiary)
                         }
                     }
-                    Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
-                    if spark.count >= 2 {
-                        Sparkline(values: spark,
-                                  gradient: Gradient(colors: [tint, tint.opacity(0.55)]),
-                                  lineWidth: 2, showsArea: true, showsHead: true, showsHover: false)
-                            .frame(height: 34)
-                    } else {
-                        Color.clear.frame(height: 34)
+                    Text(d.shortName).font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .lineLimit(1)
+                    if !layout.compact {
+                        if spark.count >= 2 {
+                            Sparkline(values: spark,
+                                      gradient: Gradient(colors: [d.tint, d.tint.opacity(0.55)]),
+                                      lineWidth: 2, showsArea: true, showsHead: true, showsHover: false)
+                                .frame(height: 34)
+                        } else {
+                            Color.clear.frame(height: 34)
+                        }
                     }
                 }
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// Current value for a catalog metric. Derived metrics that Home can resolve cheaply (energy
+    /// totals, sleep balance) are computed here; the rest report nil and their card shows "—".
+    private func metricValue(_ id: PremiumMetricID) -> Double? {
+        switch id {
+        case .liveHeartRate:
+            return nil                                    // live-only; the Heart tab owns it
+        case .restingEnergy:
+            return restingKcalEstimate
+        case .totalEnergy:
+            guard let a = activeKcal, let r = restingKcalEstimate else { return nil }
+            return a + r
+        case .journalStatus:
+            return Double(journalStreak)
+        case .sleepRegularity, .sleepBalance, .bedtime, .wakeTime, .stressLoad:
+            return nil                                    // owned by the Sleep / Heart screens
+        default:
+            return PremiumMetricCatalog.latest(id, repo: repo)
+        }
+    }
+
+    /// Resting energy is not a stored column — it is a Mifflin–St Jeor BMR estimate from the
+    /// user's profile, the SAME formula `PremiumEnergyView.restingKcal` uses so the two screens
+    /// can never disagree. Returns nil when the profile lacks weight/height/age, so the card shows
+    /// "—" rather than a fabricated figure.
+    private var restingKcalEstimate: Double? {
+        let w = profile.weightKg, h = profile.heightCm, a = Double(profile.age)
+        guard w > 0, h > 0, a > 0 else { return nil }
+        let constant: Double
+        switch profile.sex.lowercased() {
+        case "male":   constant = 5
+        case "female": constant = -161
+        default:       constant = -78   // neutral midpoint for non-binary / unspecified
+        }
+        return 10 * w + 6.25 * h - 5 * a + constant
+    }
+
+    private func route(for id: PremiumMetricID) -> PremiumRoute {
+        switch id {
+        case .spo2:                       return .bloodOxygen
+        case .activeEnergy, .totalEnergy, .restingEnergy: return .energy
+        case .strain, .workouts:          return .strain
+        default:                          return .catalogMetric(id)
+        }
     }
 
     // MARK: Sleep summary
