@@ -101,13 +101,14 @@ struct PremiumSettingsView: View {
                 .clipShape(Circle())
                 .overlay(Circle().strokeBorder(StrandPalette.hairline, lineWidth: 1))
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text("\(whoopModel.displayName)")
                         .font(StrandFont.headline)
                         .foregroundStyle(StrandPalette.textPrimary)
                     Text(strapStatusLine)
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
+                    if let pct = live.batteryPct { batteryRow(pct) }
                 }
                 Spacer()
                 PremiumBadge(text: "On-device", tint: StrandPalette.recoveryColor(80))
@@ -117,9 +118,26 @@ struct PremiumSettingsView: View {
 
     private var strapStatusLine: String {
         var parts: [String] = [live.connected ? "Connected" : "Not connected"]
-        if let pct = live.batteryPct { parts.append("battery \(Int(pct))%") }
         parts.append("age \(profile.age)")
         return parts.joined(separator: " · ")
+    }
+
+    /// The strap's real, live battery reading (`LiveState.batteryPct`) as a tiny gauge bar next to its
+    /// percentage — previously plain text buried in the status line.
+    private func batteryRow(_ pct: Double) -> some View {
+        let tint: Color = pct >= 50 ? StrandPalette.recoveryColor(80)
+                         : pct >= 20 ? StrandPalette.gold : StrandPalette.metricRose
+        return HStack(spacing: 6) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(StrandPalette.surfaceInset)
+                    Capsule().fill(tint)
+                        .frame(width: max(3, geo.size.width * CGFloat(max(0, min(100, pct)) / 100)))
+                }
+            }
+            .frame(width: 44, height: 6)
+            Text("\(Int(pct))% battery").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+        }
     }
 
     // MARK: - Appearance (real: AppearanceMode + ChartStyle)

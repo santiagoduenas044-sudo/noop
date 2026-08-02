@@ -11,7 +11,7 @@ struct PremiumWhatsNewView: View {
     var onClose: (() -> Void)? = nil
 
     private struct Item { let screen: String; let component: String; let change: String; let status: Status }
-    private enum Status { case connected, partial, prototype, notStarted, limitation
+    private enum Status: Equatable { case connected, partial, prototype, notStarted, limitation
         var badge: (String, Color) {
             switch self {
             case .connected:  return ("Connected", StrandPalette.recoveryColor(80))
@@ -52,6 +52,7 @@ struct PremiumWhatsNewView: View {
             VStack(alignment: .leading, spacing: 20) {
                 header
                 versionCard
+                statusBar
                 ForEach(Array(groups.enumerated()), id: \.offset) { _, g in groupBlock(g) }
                 Color.clear.frame(height: 8)
             }
@@ -82,6 +83,45 @@ struct PremiumWhatsNewView: View {
                 PremiumInfoRow(label: "Commit", value: BuildInfo.commit)
                 PremiumInfoRow(label: "Built", value: BuildInfo.builtAt)
                 PremiumInfoRow(label: "Prototype", value: BuildInfo.prototypeVersion)
+            }
+        }
+    }
+
+    /// A real distribution bar over the milestone's own item list above — counted from `groups`
+    /// itself, not a separate tracked number, so it can never drift from the items shown below it.
+    private var statusCounts: [(status: Status, count: Int)] {
+        let all = groups.flatMap(\.items)
+        let order: [Status] = [.connected, .partial, .prototype, .limitation, .notStarted]
+        return order.compactMap { s in
+            let c = all.filter { $0.status == s }.count
+            return c > 0 ? (s, c) : nil
+        }
+    }
+    private var statusBar: some View {
+        let counts = statusCounts
+        let total = max(1, counts.reduce(0) { $0 + $1.count })
+        return StrandCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("STATUS AT A GLANCE").font(StrandFont.overline).tracking(1.3)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                GeometryReader { geo in
+                    HStack(spacing: 2) {
+                        ForEach(Array(counts.enumerated()), id: \.offset) { _, c in
+                            Capsule().fill(c.status.badge.1)
+                                .frame(width: max(4, geo.size.width * CGFloat(c.count) / CGFloat(total)))
+                        }
+                    }
+                }
+                .frame(height: 10)
+                HStack(spacing: 14) {
+                    ForEach(Array(counts.enumerated()), id: \.offset) { _, c in
+                        HStack(spacing: 5) {
+                            Circle().fill(c.status.badge.1).frame(width: 7, height: 7)
+                            Text("\(c.status.badge.0) \(c.count)").font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                        }
+                    }
+                }
             }
         }
     }
