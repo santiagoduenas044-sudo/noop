@@ -32,6 +32,7 @@ struct PremiumBloodOxygenView: View {
                     statsRow
                     trendCard
                     rangeCard
+                    heatmapCard
                 }
                 explanationCard
                 Color.clear.frame(height: 8)
@@ -137,6 +138,34 @@ struct PremiumBloodOxygenView: View {
                     Text("\(Int(lo.rounded()))%").font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
                     Spacer()
                     Text("\(Int(hi.rounded()))%").font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+    }
+
+    // MARK: 30-day calendar heatmap
+
+    /// One cell per calendar day over the last 30, shaded to that night's real SpO₂ within the
+    /// period's own min/max — the same calendar-heatmap language as Strain/Energy/Trends. A night
+    /// with no calibrated reading draws a flat inset cell, never a guessed shade.
+    @ViewBuilder private var heatmapCard: some View {
+        let days = Array(repo.days.suffix(30))
+        let values = days.map { $0.spo2Pct }
+        let present = values.compactMap { $0 }
+        if present.count >= 7 {
+            let lo = present.min() ?? 90, hi = present.max() ?? 100
+            let span = max(hi - lo, 0.0001)
+            VStack(alignment: .leading, spacing: 14) {
+                sectionLabel("SpO₂ · last 30 days")
+                StrandCard {
+                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
+                        ForEach(Array(values.enumerated()), id: \.offset) { _, v in
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(v == nil ? StrandPalette.surfaceInset
+                                      : tint.opacity(0.22 + 0.68 * CGFloat((v! - lo) / span)))
+                                .aspectRatio(1, contentMode: .fit)
+                        }
+                    }
                 }
             }
         }
