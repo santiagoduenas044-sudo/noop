@@ -20,17 +20,18 @@ struct PremiumInsightsView: View {
     }
 
     private struct Insight: Identifiable { let id = UUID(); let icon: String; let tint: Color
-        let title: String; let body: String; let tags: [String] }
+        let title: String; let body: String; let tags: [String]; let history: [Double] }
 
     private var insights: [Insight] {
         var out: [Insight] = []
+        let hrvHistory = repo.days.suffix(30).compactMap { $0.avgHrv }
         if let h = latest({ $0.avgHrv }), let base = mean({ $0.avgHrv }) {
             let pct = Int(((h - base) / base * 100).rounded())
             let dir = pct >= 0 ? "above" : "below"
             out.append(.init(icon: "waveform.path.ecg", tint: StrandPalette.metricCyan,
                 title: pct >= 0 ? "HRV is holding strong" : "HRV dipped below baseline",
                 body: "Your HRV is \(Int(h.rounded())) ms — about \(abs(pct))% \(dir) your 30-day baseline of \(Int(base.rounded())) ms. Consistent sleep timing is the strongest lever.",
-                tags: ["HRV", "Recovery"]))
+                tags: ["HRV", "Recovery"], history: hrvHistory))
         }
         let rec = repo.days.suffix(14).compactMap { $0.recovery }
         if rec.count >= 4 {
@@ -42,11 +43,12 @@ struct PremiumInsightsView: View {
                 tint: StrandPalette.recoveryColor(80),
                 title: up ? "Recovery is trending up" : "Recovery has eased",
                 body: "Your recovery moved from about \(Int(a.rounded()))% to \(Int(b.rounded()))% over the last two weeks. \(up ? "Whatever you're doing is working — keep it steady." : "Look at sleep debt and recent strain to bring it back up.")",
-                tags: ["Recovery", "14-day"]))
+                tags: ["Recovery", "14-day"], history: rec))
         }
         // DailyMetric.efficiency is a FRACTION in [0,1] (see SleepStageTotals.DailySleep's doc), not a
         // 0-100 percentage — normalize both before use, same defensive `<= 1.0 ? *100 : as-is` guard
         // SleepView.efficiencyPct uses, or "efficiency was 92%" would read "was 0%".
+        let effHistory = repo.days.suffix(30).compactMap { $0.efficiency }.map { $0 <= 1.0 ? $0 * 100 : $0 }
         if let eRaw = latest({ $0.efficiency }), let baseRaw = mean({ $0.efficiency }) {
             let e = eRaw <= 1.0 ? eRaw * 100 : eRaw
             let base = baseRaw <= 1.0 ? baseRaw * 100 : baseRaw
@@ -54,13 +56,14 @@ struct PremiumInsightsView: View {
             out.append(.init(icon: "moon.zzz.fill", tint: StrandPalette.sleepDeep,
                 title: diff >= 0 ? "Sleep efficiency is solid" : "Restless nights lately",
                 body: "Last night's sleep efficiency was \(Int(e))%, \(abs(diff)) points \(diff >= 0 ? "above" : "below") your recent average. A cooler, darker room is the highest-yield fix.",
-                tags: ["Sleep", "Efficiency"]))
+                tags: ["Sleep", "Efficiency"], history: effHistory))
         }
+        let tempHistory = repo.days.suffix(14).compactMap { $0.skinTempDevC }
         if let s = latest({ $0.skinTempDevC }) {
             out.append(.init(icon: "thermometer.medium", tint: StrandPalette.gold,
                 title: abs(s) < 0.3 ? "Skin temp is stable" : "Skin temp nudged \(s >= 0 ? "up" : "down")",
                 body: "Overnight skin temperature was \(String(format: "%+.1f", s))°C versus your baseline. \(abs(s) < 0.3 ? "Right in your normal range." : "Often tied to a warm room or a late meal — worth a glance if it persists.")",
-                tags: ["Temperature"]))
+                tags: ["Temperature"], history: tempHistory))
         }
         return out
     }
@@ -124,6 +127,12 @@ struct PremiumInsightsView: View {
                 }
                 Text(ins.body).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
+                if ins.history.count >= 2 {
+                    Sparkline(values: ins.history,
+                              gradient: Gradient(colors: [ins.tint, ins.tint.opacity(0.55)]),
+                              lineWidth: 2, showsArea: true, showsHead: true, showsHover: true)
+                        .frame(height: 40)
+                }
                 HStack(spacing: 6) {
                     ForEach(ins.tags, id: \.self) { t in
                         Text(t.uppercased()).font(StrandFont.overline).tracking(0.6)

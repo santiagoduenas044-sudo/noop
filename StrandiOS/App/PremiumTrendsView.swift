@@ -47,6 +47,7 @@ struct PremiumTrendsView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     metricPicker
+                    weekStrip
                     heroCard
                     comparisonCard
                     digestGrid
@@ -90,6 +91,46 @@ struct PremiumTrendsView: View {
                 }
             }
         }
+    }
+
+    /// A 7-day "week at a glance" bar strip for the selected metric — bars scaled to that week's own
+    /// real min/max (not a fixed 0–100 band, since strain/HRV/RHR don't share the recovery/sleep scale),
+    /// tinted to the metric's colour, with a day-of-week label under each bar. A day with no value
+    /// (strap not worn / not yet logged) draws a faint placeholder dot instead of a fabricated bar.
+    private var weekStrip: some View {
+        let days = Array(repo.days.suffix(7))
+        let values = days.map(metric.key)
+        let present = values.compactMap { $0 }
+        let lo = present.min() ?? 0, hi = present.max() ?? 1
+        let span = max(hi - lo, 0.0001)
+        return StrandCard {
+            HStack(alignment: .bottom, spacing: 10) {
+                ForEach(Array(days.enumerated()), id: \.offset) { i, day in
+                    let v = values[i]
+                    VStack(spacing: 6) {
+                        if let v {
+                            Capsule().fill(metric.tint)
+                                .frame(width: 14, height: 8 + CGFloat((v - lo) / span) * 44)
+                        } else {
+                            Circle().fill(StrandPalette.surfaceInset)
+                                .frame(width: 6, height: 6)
+                                .frame(height: 8, alignment: .bottom)
+                        }
+                        Text(dayAbbrev(day.day)).font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 60, alignment: .bottom)
+        }
+    }
+    /// "Mon" style single-letter-safe short label for a `YYYY-MM-DD` key.
+    private func dayAbbrev(_ key: String) -> String {
+        let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"
+        guard let date = f.date(from: key) else { return "" }
+        let out = DateFormatter(); out.dateFormat = "EEE"
+        return out.string(from: date)
     }
 
     private var heroCard: some View {

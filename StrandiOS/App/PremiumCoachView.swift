@@ -30,6 +30,7 @@ struct PremiumCoachView: View {
                     VStack(alignment: .leading, spacing: 20) {
                         header
                         forecastStrip
+                        recoveryTrendCard
                         if coach.isConfigured {
                             thread
                         } else {
@@ -88,11 +89,37 @@ struct PremiumCoachView: View {
     private var forecastStrip: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 12) {
-                forecastCard("TODAY", recTitle, "flame.fill", StrandPalette.recoveryColor(80))
+                todayForecastCard
                 forecastCard("TOMORROW", "Recovery pending", "shield.fill", StrandPalette.sleepDeep)
                 forecastCard("THIS WEEK", "Build & balance", "chart.line.uptrend.xyaxis", StrandPalette.gold)
             }
         }
+    }
+    /// Same card shape as `forecastCard`, but TODAY carries the real, live recovery score as a
+    /// glyph-mode `RecoveryRing` (score ring + core dot, no centre number) instead of a flat SF Symbol —
+    /// the one forecast that has a real number behind it gets to show it.
+    private var todayForecastCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let r = recovery {
+                RecoveryRing(score: r, diameter: 34, lineWidth: 4,
+                             showsLabel: false, showsWordmark: false, showsHover: false)
+            } else {
+                Image(systemName: "flame.fill").font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(StrandPalette.recoveryColor(80))
+                    .frame(width: 34, height: 34)
+                    .background(RoundedRectangle(cornerRadius: 11, style: .continuous)
+                        .fill(StrandPalette.recoveryColor(80).opacity(0.16)))
+            }
+            Text("TODAY").font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
+            Text(recTitle).font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(14)
+        .frame(width: 168, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+            .fill(StrandPalette.surfaceRaised))
+        .overlay(RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
     }
     private func forecastCard(_ day: String, _ title: String, _ icon: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -113,6 +140,27 @@ struct PremiumCoachView: View {
     private var recTitle: String {
         guard let r = recovery else { return "Ease in" }
         return r >= 67 ? "Ready to push" : r >= 34 ? "Train with care" : "Rest & restore"
+    }
+
+    /// Real 14-day recovery history so the coach's context has a visible trend, not just a
+    /// single-day forecast strip.
+    private var recoveryTrendCard: some View {
+        let history = repo.days.suffix(14).compactMap { $0.recovery }
+        return StrandCard {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("RECOVERY · LAST 14 DAYS").font(StrandFont.overline).tracking(1.2)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                if history.count >= 2 {
+                    Sparkline(values: history, gradient: StrandPalette.recoveryGradient,
+                              lineWidth: 2.5, showsArea: true, showsHead: true, showsHover: true,
+                              valueFormat: { "\(Int($0.rounded()))%" })
+                        .frame(height: 56)
+                } else {
+                    Text("Keep logging to see your recovery trend here.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
     }
 
     // MARK: Thread
