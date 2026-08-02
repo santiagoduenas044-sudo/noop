@@ -54,6 +54,7 @@ struct PremiumTrendsView: View {
                     digestGrid
                     histogramCard
                     weekdayCard
+                    correlationCard
                     insightCard
                     Color.clear.frame(height: 8)
                 }
@@ -406,6 +407,86 @@ struct PremiumTrendsView: View {
             let vals = buckets[wd] ?? []
             return (label, vals.isEmpty ? nil : vals.reduce(0, +) / Double(vals.count))
         }
+    }
+
+    // MARK: Correlation scatter
+
+    /// The metric paired against Recovery (or, when Recovery itself is selected, against Sleep — so
+    /// there's always a distinct second variable), same-day pairs only, over the current range.
+    private var correlationPartner: Metric { metrics[metricIndex == 0 ? 3 : 0] }
+    private var pairedSeries: (x: [Double], y: [Double]) {
+        let partner = correlationPartner
+        let days = Array(repo.days.suffix(ranges[rangeIndex].1))
+        var xs: [Double] = [], ys: [Double] = []
+        for d in days {
+            if let xv = metric.key(d), let yv = partner.key(d) { xs.append(xv); ys.append(yv) }
+        }
+        return (xs, ys)
+    }
+    /// Pearson correlation coefficient over paired same-day samples. `nil` below 3 pairs (too few to
+    /// mean anything) or when one series has zero variance (a flat line correlates with nothing).
+    private static func pearson(_ xs: [Double], _ ys: [Double]) -> Double? {
+        guard xs.count == ys.count, xs.count >= 3 else { return nil }
+        let n = Double(xs.count)
+        let mx = xs.reduce(0, +) / n, my = ys.reduce(0, +) / n
+        var num = 0.0, dx2 = 0.0, dy2 = 0.0
+        for i in 0..<xs.count {
+            let dx = xs[i] - mx, dy = ys[i] - my
+            num += dx * dy; dx2 += dx * dx; dy2 += dy * dy
+        }
+        let denom = (dx2 * dy2).squareRoot()
+        guard denom > 0 else { return nil }
+        return num / denom
+    }
+
+    @ViewBuilder private var correlationCard: some View {
+        let partner = correlationPartner
+        let pair = pairedSeries
+        if let r = Self.pearson(pair.x, pair.y) {
+            let xlo = pair.x.min() ?? 0, xhi = pair.x.max() ?? 1
+            let ylo = pair.y.min() ?? 0, yhi = pair.y.max() ?? 1
+            let xspan = max(xhi - xlo, 0.0001), yspan = max(yhi - ylo, 0.0001)
+            let points: [CGPoint] = zip(pair.x, pair.y).map { x, y in
+                CGPoint(x: CGFloat((x - xlo) / xspan), y: CGFloat(1 - (y - ylo) / yspan))
+            }
+            VStack(alignment: .leading, spacing: 14) {
+                Text("\(metric.name) vs \(partner.name)").font(StrandFont.title2)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(alignment: .top) {
+                            Text(correlationText(r, partner: partner)).font(StrandFont.subhead)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer()
+                            Text("r \(String(format: "%.2f", r))").font(StrandFont.captionNumber)
+                                .foregroundStyle(metric.tint)
+                        }
+                        Canvas { ctx, size in
+                            for p in points {
+                                let c = CGPoint(x: p.x * size.width, y: p.y * size.height)
+                                ctx.fill(Path(ellipseIn: CGRect(x: c.x - 3, y: c.y - 3, width: 6, height: 6)),
+                                         with: .color(metric.tint.opacity(0.65)))
+                            }
+                        }
+                        .frame(height: 140)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(StrandPalette.surfaceInset))
+                        HStack {
+                            Text(metric.name).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            Spacer()
+                            Text(partner.name).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    /// A plain-language, non-causal read of the coefficient — "tend to move together", never "causes".
+    private func correlationText(_ r: Double, partner: Metric) -> String {
+        let mag = abs(r)
+        let strength = mag >= 0.6 ? "a strong" : mag >= 0.3 ? "a moderate" : "a weak"
+        let dir = r >= 0 ? "tend to rise and fall together" : "tend to move in opposite directions"
+        return "Over this period, \(metric.name) and \(partner.name) show \(strength) relationship — they \(dir)."
     }
 
     private var insightCard: some View {
