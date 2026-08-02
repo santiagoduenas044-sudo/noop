@@ -245,9 +245,10 @@ struct PremiumJournalView: View {
         let groupItems = items(in: group)
         if !groupItems.isEmpty || editing {
             let collapsed = collapsedGroups.contains(group.rawValue)
+            let answeredCount = groupItems.filter(isAnswered).count
             VStack(alignment: .leading, spacing: 8) {
                 Button { toggleCollapsed(group) } label: {
-                    HStack(spacing: 6) {
+                    HStack(spacing: 8) {
                         Text(group.title.uppercased())
                             .font(StrandFont.overline)
                             .tracking(StrandFont.overlineTracking)
@@ -255,6 +256,9 @@ struct PremiumJournalView: View {
                         Text("\(groupItems.count)")
                             .font(StrandFont.caption)
                             .foregroundStyle(StrandPalette.textTertiary)
+                        if !editing {
+                            groupProgressBar(answered: answeredCount, total: groupItems.count)
+                        }
                         Spacer()
                         Image(systemName: collapsed ? "chevron.right" : "chevron.down")
                             .font(.system(size: 10, weight: .semibold))
@@ -262,13 +266,31 @@ struct PremiumJournalView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(group.title), \(groupItems.count) items, \(collapsed ? "collapsed" : "expanded")")
+                .accessibilityLabel("\(group.title), \(answeredCount) of \(groupItems.count) logged, \(collapsed ? "collapsed" : "expanded")")
 
                 if !collapsed {
                     ForEach(groupItems) { item in itemRow(item) }
                 }
             }
         }
+    }
+
+    /// Whether today's log already has a value for this item — a bool answer or a numeric one.
+    private func isAnswered(_ item: JournalCatalogItem) -> Bool {
+        item.kind.isNumeric ? numericAnswers[item.canonical] != nil : answers[item.canonical] != nil
+    }
+
+    /// A tiny real completion bar for the group header: answered-today / total-in-group, from the
+    /// same `answers`/`numericAnswers` the rows below write to — never a separate tracked count.
+    private func groupProgressBar(answered: Int, total: Int) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(StrandPalette.surfaceInset)
+                Capsule().fill(StrandPalette.gold)
+                    .frame(width: max(2, geo.size.width * CGFloat(total > 0 ? Double(answered) / Double(total) : 0)))
+            }
+        }
+        .frame(width: 36, height: 5)
     }
 
     @ViewBuilder private func itemRow(_ item: JournalCatalogItem) -> some View {

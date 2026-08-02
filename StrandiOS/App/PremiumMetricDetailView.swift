@@ -46,6 +46,7 @@ struct PremiumMetricDetailView: View {
                 } else {
                     hero(d)
                     chartCard(d)
+                    if values.count >= 8 { histogramCard(d) }
                     statsRow(d)
                     rangeCard(d)
                     recentCard(d)
@@ -146,6 +147,50 @@ struct PremiumMetricDetailView: View {
                     .frame(height: 150)
             }
         }
+    }
+
+    // MARK: Distribution
+
+    /// A 10-bucket histogram of the windowed values — how the metric's real samples are actually
+    /// distributed, not just where the trend line has been. Only shown once there are enough samples
+    /// (≥8) for the shape to mean anything; below that it's just noise, so it's hidden rather than drawn.
+    private func histogramCard(_ d: PremiumMetricDescriptor) -> some View {
+        let buckets = Self.histogramCounts(values, bucketCount: 10)
+        let maxCount = max(1, buckets.max() ?? 1)
+        return StrandCard {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionLabel("Distribution · last \(window.label)")
+                GeometryReader { geo in
+                    let barW = geo.size.width / CGFloat(buckets.count)
+                    HStack(alignment: .bottom, spacing: 2) {
+                        ForEach(Array(buckets.enumerated()), id: \.offset) { _, count in
+                            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                                .fill(d.tint.opacity(0.75))
+                                .frame(width: max(2, barW - 2),
+                                       height: max(2, geo.size.height * CGFloat(count) / CGFloat(maxCount)))
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                }
+                .frame(height: 70)
+            }
+        }
+    }
+
+    /// Bucket `values` into `bucketCount` equal-width bins over [min, max] and return each bin's count.
+    /// A degenerate range (all-equal values) collapses to a single full bucket rather than dividing by
+    /// zero.
+    private static func histogramCounts(_ values: [Double], bucketCount: Int) -> [Int] {
+        guard let lo = values.min(), let hi = values.max(), hi > lo else {
+            return values.isEmpty ? [] : [values.count]
+        }
+        var buckets = [Int](repeating: 0, count: bucketCount)
+        let span = hi - lo
+        for v in values {
+            let idx = min(bucketCount - 1, max(0, Int((v - lo) / span * Double(bucketCount))))
+            buckets[idx] += 1
+        }
+        return buckets
     }
 
     // MARK: Stats
