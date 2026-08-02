@@ -34,6 +34,10 @@ struct PremiumJournalView: View {
     @State private var customGroup: JournalGroup = .other
     @State private var renaming: JournalCatalogItem?
     @State private var renameDraft = ""
+    /// How often each behaviour has been logged, used to rank the quick-log shortlist.
+    @State private var usageCounts: [String: Int] = [:]
+    /// Computed behaviour ↔ metric associations (never causal claims).
+    @State private var associations: [PremiumFinding] = []
     @AppStorage("journal.collapsedGroups") private var collapsedGroupsRaw = ""
 
     /// Same bounded, chronological range as the classic `JournalLogCard` (#656): Tomorrow through
@@ -71,7 +75,9 @@ struct PremiumJournalView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     dayPicker
+                    quickLogCard
                     moodCard
+                    associationsCard
                     moodHistoryCard
                     logSection
                     addCustomCard
@@ -85,6 +91,7 @@ struct PremiumJournalView: View {
             }
         }
         .task(id: repo.refreshSeq) { await load() }
+        .task(id: repo.refreshSeq) { await loadAssociations() }
         .task(id: dayOffset) { await loadDay() }
         .sheet(item: $renaming) { item in renameSheet(item) }
         // #656: honour a day the Today journal widget deep-linked to (tapping a bar opens the journal
@@ -209,6 +216,135 @@ struct PremiumJournalView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Quick log (one-tap, favourites first)
+
+    /// The fast path: your most-logged yes/no behaviours as one-tap chips, so a typical check-in is
+    /// a few taps rather than a scroll through the whole catalog. Tapping toggles the behaviour on
+    /// for this day; tapping an already-on chip clears it. The full grouped list below is still
+    /// there for anything not in this shortlist.
+    @ViewBuilder private var quickLogCard: some View {
+        let quick: [JournalCatalogItem] = quickItems
+        if !quick.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Quick log", trailing: "one tap")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8),
+                                            GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                            ForEach(quick) { item in
+                                quickChip(item)
+                            }
+                        }
+                        Text("Your most-logged behaviours. Tap to log, tap again to clear.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    /// The shortlist: the yes/no items the user has logged most often, falling back to the catalog's
+    /// first few when there's no history yet — so the quick row is useful on day one and gets more
+    /// personal as it learns what this user actually tracks.
+    private var quickItems: [JournalCatalogItem] {
+        let yesNo: [JournalCatalogItem] = resolved.filter { !$0.kind.isNumeric }
+        guard !yesNo.isEmpty else { return [] }
+        let ranked: [JournalCatalogItem] = yesNo.sorted { a, b in
+            let ca = usageCounts[a.canonical] ?? 0
+            let cb = usageCounts[b.canonical] ?? 0
+            if ca != cb { return ca > cb }
+            return a.display < b.display
+        }
+        return Array(ranked.prefix(6))
+    }
+
+    private func quickChip(_ item: JournalCatalogItem) -> some View {
+        let isOn: Bool = answers[item.canonical] == true
+        return Button {
+            Task {
+                if isOn {
+                    await repo.clearJournalAnswer(day: dayKey, question: item.canonical)
+                } else {
+                    await repo.saveJournalAnswer(day: dayKey, question: item.canonical, answeredYes: true)
+                }
+                await loadDay()
+            }
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 14, weight: .semibold))
+                Text(item.display)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(isOn ? StrandPalette.goldDeepText : StrandPalette.textSecondary)
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isOn ? StrandPalette.gold : StrandPalette.surfaceInset))
+            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(isOn ? StrandPalette.gold : StrandPalette.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(item.display), \(isOn ? "logged" : "not logged")")
+    }
+
+    // MARK: - Associations (computed, never causal)
+
+    /// What your logged behaviours have coincided with, from `PremiumAnalysis`. Every statement is
+    /// an association measured in the user's own history, carries a confidence label, and is worded
+    /// so it can't be read as a claim of cause.
+    @ViewBuilder private var associationsCard: some View {
+        if !associations.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "What your logs line up with")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(associations) { f in PremiumFindingRow(finding: f) }
+                        Text("These are associations from your own logged history — not proven causes. More logging sharpens them.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Loads behaviour usage counts (for the quick row's ranking) and computes the associations.
+    private func loadAssociations() async {
+        let entries = await repo.journalEntries()
+        var counts: [String: Int] = [:]
+        var behaviorDays: [String: Set<String>] = [:]
+        for e in entries where e.answeredYes {
+            counts[e.question, default: 0] += 1
+            behaviorDays[e.question, default: []].insert(e.day)
+        }
+        usageCounts = counts
+
+        let outcomes: [(PremiumMetricID, Color)] = [
+            (.hrv, StrandPalette.metricCyan),
+            (.recovery, StrandPalette.recoveryColor(85)),
+            (.sleepDuration, StrandPalette.sleepDeep),
+        ]
+        var out: [PremiumFinding] = []
+        for (behavior, days) in behaviorDays {
+            for (id, tint) in outcomes {
+                let series = PremiumMetricCatalog.series(id, repo: repo)
+                let name = PremiumMetricCatalog.def(id).shortName
+                guard let assoc = PremiumAnalysis.behaviorAssociation(
+                    behaviorDays: days, behaviorName: behavior,
+                    outcome: series, outcomeName: name) else { continue }
+                if let f = PremiumAnalysis.behaviorFinding(effect: assoc.effect,
+                                                           lagDays: assoc.lagDays, tint: tint) {
+                    out.append(f)
+                }
+            }
+        }
+        out.sort { $0.confidence > $1.confidence }
+        associations = Array(out.prefix(5))
     }
 
     // MARK: - Log (real: JournalCatalogStore / repo.saveJournalAnswer / saveJournalNumeric / clearJournalAnswer)

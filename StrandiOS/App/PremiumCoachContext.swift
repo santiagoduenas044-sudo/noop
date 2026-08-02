@@ -411,16 +411,21 @@ extension PremiumCoachContext {
     }
 
     /// Consecutive days ending today (or yesterday) present in `days`.
+    ///
+    /// Uses `PremiumAnalysis.dayParser` rather than `Repository.localDayKey` because that helper is
+    /// main-actor isolated and this needs to stay callable from any context. Both produce the same
+    /// `yyyy-MM-dd` key in the current time zone, so the two agree.
     static func streak(days: Set<String>) -> Int {
         let cal = Calendar.current
+        let fmt = PremiumAnalysis.dayParser
         var count = 0
         var cursor = Date()
         // A streak survives "haven't logged yet today": start from yesterday if today is absent.
-        if !days.contains(Repository.localDayKey(cursor)) {
+        if !days.contains(fmt.string(from: cursor)) {
             guard let y = cal.date(byAdding: .day, value: -1, to: cursor) else { return 0 }
             cursor = y
         }
-        while days.contains(Repository.localDayKey(cursor)) {
+        while days.contains(fmt.string(from: cursor)) {
             count += 1
             guard let prev = cal.date(byAdding: .day, value: -1, to: cursor) else { break }
             cursor = prev

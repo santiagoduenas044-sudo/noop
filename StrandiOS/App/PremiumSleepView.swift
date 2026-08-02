@@ -4,87 +4,58 @@ import StrandDesign
 import WhoopStore
 import StrandAnalytics
 
-/// Phase 2 · Sleep — the approved prototype's Sleep screen, native SwiftUI on real
-/// `Repository`/`DailyMetric` data: an efficiency score ring, a time-resolved hypnogram of last
-/// night's real stage timeline, the dual "Hours of sleep / Restorative sleep" headline with
-/// 30-day-typical baselines, per-stage breakdown lanes (Deep / REM / Light / Awake) sized from
-/// the real recorded stage minutes, and a weekly sleep-hours trend.
+/// Phase 3 · Sleep — a real sleep-analysis dashboard on the user's own recorded nights.
 ///
-/// The hypnogram reuses `SleepView.decodedIntervals` — the SAME tested stage-segment decode the
-/// classic Sleep screen's timeline uses — over the day's real main-night session (picked by
-/// `SleepView.mainNightSession`, the same learned-timing winner logic), rather than re-deriving
-/// that decode. Falls back to the proportional lanes alone when a night has no time-resolved
-/// data (an imported night stores only stage minutes, no segment timing).
+/// The centrepiece is `SleepNightPanel`: last night's stage timeline and overnight heart rate are
+/// ONE connected instrument rather than two cards repeating each other. Tapping a stage isolates it
+/// everywhere at once — the ribbon dims every other stage and the heart-rate chart shades exactly
+/// the windows that stage occupied — while the HR curve itself stays fully drawn so physiology
+/// remains comparable across stages. Dragging anywhere on the chart reads out the precise time,
+/// heart rate and stage at that moment.
+///
+/// Around it sit the analyses that make a night interpretable rather than merely described:
+/// continuity (WASO, awakenings, longest wake), regularity (a timing map plus bed/wake/midpoint
+/// variability), timing trends against personal baselines, sleep balance versus personal need, and
+/// overnight vitals each compared to their own 30-day baseline.
+///
+/// All sleep intelligence comes from `PremiumSleepIntel`, shared with the Coach context so the
+/// screen and the Coach can never disagree. Every figure is real: nights with impossible windows
+/// are rejected upstream, and any section without enough history says so instead of estimating.
 struct PremiumSleepView: View {
     @EnvironmentObject var repo: Repository
     @Environment(\.scrollToTopSignal) private var scrollToTopSignal
 
-    @State private var hypnogramIntervals: [SleepInterval] = []
-    @State private var hypnogramNightStart: Date?
-    @State private var hypnogramNightEnd: Date?
-    /// Which stage lane is tapped-open, WHOOP style: the selected row keeps its colour while every
-    /// other row's blocks grey out, and the insight line below compares it to the 30-day typical.
-    @State private var selectedStage: SleepStage? = nil
-    /// Real overnight heart-rate samples across the main-night window (downsampled buckets). Heart rate is
-    /// the ONLY per-time overnight signal NOOP stores on-device — HRV / respiratory / SpO₂ are nightly
-    /// aggregates, so the scrubber charts HR honestly and shows the others as nightly-average references,
-    /// never fabricated overnight curves.
-    @State private var overnightHR: [OvernightSample] = []
-    /// Real per-night bedtime/wake-time, one entry per calendar-day group over the trailing 30 nights
-    /// (same main-night winner logic `loadHypnogram` uses for last night, just looped) — the source for
-    /// Sleep regularity / timing / the timing map below. Oldest → newest.
-    @State private var nightlyBedWake: [(day: Date, bed: Date, wake: Date)] = []
+    @State private var intel = PremiumSleepIntel(nights: [], latestIntervals: [], latestBed: nil,
+                                                 latestWake: nil, overnightHR: [])
+    @State private var selectedStage: SleepStage?
+    @State private var findings: [PremiumFinding] = []
+
+    // MARK: Real per-day values
 
     private func latest<T>(_ key: (DailyMetric) -> T?) -> T? {
         for d in repo.days.reversed() { if let v = key(d) { return v } }
         return repo.today.flatMap(key)
     }
     private func mean(_ key: (DailyMetric) -> Double?) -> Double? {
-        let xs = repo.days.suffix(30).compactMap(key)
-        return xs.isEmpty ? nil : xs.reduce(0, +) / Double(xs.count)
-    }
-    private func stdev(_ xs: [Double]) -> Double? {
-        guard xs.count >= 2 else { return nil }
-        let m = xs.reduce(0, +) / Double(xs.count)
-        return (xs.reduce(0) { $0 + ($1 - m) * ($1 - m) } / Double(xs.count)).squareRoot()
-    }
-    /// Personal sleep need: the same "≥ 7.5h, else your own 30-day mean" floor `SleepView.sleepNeedMin`
-    /// uses, recomputed locally so this view doesn't reach into that file's private state.
-    private var sleepNeedMin: Double { max(450, mean { $0.totalSleepMin } ?? 450) }
-    /// Minutes since the PRECEDING noon (0..<1440) — anchors an evening bedtime and the following
-    /// morning's wake time on the same increasing scale (11 PM → ~660, 6 AM → ~1080) without the
-    /// sign flip a plain "minutes since midnight" would need across the midnight crossing.
-    private func minutesSinceNoon(_ d: Date) -> Double {
-        let c = Calendar.current.dateComponents([.hour, .minute], from: d)
-        let raw = Double((c.hour ?? 0) * 60 + (c.minute ?? 0)) - 12 * 60
-        return raw < 0 ? raw + 1440 : raw
-    }
-    private func clockHM(_ m: Double) -> String {
-        let total = (Int(m.rounded()) + 12 * 60) % 1440
-        let h = total / 60, mm = total % 60, ap = h < 12 ? "AM" : "PM", hh = h % 12 == 0 ? 12 : h % 12
-        return String(format: "%d:%02d %@", hh, mm, ap)
+        PremiumAnalysis.mean(repo.days.suffix(30).compactMap(key))
     }
 
-    /// `DailyMetric.efficiency` (like `CachedSleepSession.efficiency`) is stored as a FRACTION in [0,1]
-    /// — see `SleepStageTotals.DailySleep`'s own doc ("efficiency is asleep / in-bed … in [0,1]") — not
-    /// a 0-100 percentage. Treating it as already-percent here previously divided it by 100 a second
-    /// time, which for `inBedMin` (dividing sleep minutes by a ~100x-too-small fraction) inflated "time
-    /// in bed" into the hundreds of hours, and for the ring display rounded a value like 0.92 to "1".
-    /// Normalized ONCE here — the same defensive `<= 1.0 ? *100 : as-is` conversion `SleepView.
-    /// efficiencyPct` uses (some import paths already write 0-100) — so every consumer below works in
-    /// one consistent 0-100 scale.
-    private var efficiencyRaw: Double? { latest { $0.efficiency } }
-    private var efficiencyPct: Double? { efficiencyRaw.map { $0 <= 1.0 ? $0 * 100 : $0 } }
-    private var sleepMin: Double  { latest { $0.totalSleepMin } ?? 0 }
-    private var deepMin: Double   { latest { $0.deepMin } ?? 0 }
-    private var remMin: Double    { latest { $0.remMin } ?? 0 }
-    private var lightMin: Double  { latest { $0.lightMin } ?? 0 }
-    private var restorativeMin: Double { deepMin + remMin }
-    private var inBedMin: Double {
-        guard let e = efficiencyPct, e > 0 else { return sleepMin }
-        return sleepMin / (e / 100.0)
+    private var efficiencyPct: Double? {
+        latest { $0.efficiency }.map { $0 <= 1.0 ? $0 * 100 : $0 }
     }
-    private var awakeMin: Double { max(0, inBedMin - sleepMin) }
+    private var asleepMin: Double? { latest { $0.totalSleepMin } }
+    private var inBedMin: Double? {
+        // Prefer the REAL recorded window; fall back to deriving it from efficiency only when the
+        // night has no session row. Never let a bad efficiency produce an absurd time-in-bed.
+        if let n = intel.nights.last, n.inBedMin > 0 { return n.inBedMin }
+        guard let asleep = asleepMin, let e = efficiencyPct, e > 20, e <= 100 else { return asleepMin }
+        return asleep / (e / 100.0)
+    }
+    private var deepMin: Double { latest { $0.deepMin } ?? 0 }
+    private var remMin: Double { latest { $0.remMin } ?? 0 }
+    private var lightMin: Double { latest { $0.lightMin } ?? 0 }
+    private var restorativeMin: Double { deepMin + remMin }
+    private var sleepNeedMin: Double { max(450, mean { $0.totalSleepMin } ?? 450) }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -93,15 +64,14 @@ struct PremiumSleepView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     scoreHero
-                    dataTrustNote
-                    overnightCard
-                    breakdownCard
-                    continuityCard
-                    regularityCard
-                    timingCard
-                    balanceCard
-                    overnightVitalsCard
-                    trendCard
+                    nightPanelSection
+                    findingsSection
+                    continuitySection
+                    regularitySection
+                    timingSection
+                    balanceSection
+                    overnightVitalsSection
+                    historySection
                     Color.clear.frame(height: 8)
                 }
                 .padding(.horizontal, 20)
@@ -113,89 +83,41 @@ struct PremiumSleepView: View {
                 withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
             }
         }
-        .task(id: repo.refreshSeq) { await loadHypnogram() }
+        .task(id: repo.refreshSeq) { await load() }
     }
 
-    // MARK: - Hypnogram (real, time-resolved)
-
-    /// The most recent night's real stage timeline: group sessions by the calendar day they END on
-    /// (mirroring `SleepView.navDays`), take the newest day, pick its main-night session (the same
-    /// learned-timing winner `SleepView` uses), and decode its stored segment JSON into the
-    /// `Hypnogram`'s `[SleepInterval]` domain. Empty when the newest night has no time-resolved data
-    /// (an imported night stores only stage minutes) — `hypnogramCard` hides itself in that case, and
-    /// `breakdownCard`'s proportional lanes below still show the real per-stage minutes either way.
-    private func loadHypnogram() async {
-        let sessions = await repo.allSleepSessions()
-        guard !sessions.isEmpty else {
-            await MainActor.run { clearNight() }
-            return
-        }
-        let habitual = await repo.habitualMidsleepSec()
-        let cal = Calendar.current
-        let groups = Dictionary(grouping: sessions) { s in
-            cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(s.endTs)))
-        }
-        guard let newestDay = groups.keys.max(),
-              let main = SleepView.mainNightSession(groups[newestDay] ?? [], habitualMidsleepSec: habitual)
-        else {
-            await MainActor.run { clearNight() }
-            return
-        }
-        // Real per-night bedtime/wake-time across the trailing 30 groups, reusing the SAME main-night
-        // winner logic as above. Skips days with no winning session rather than fabricating a time.
-        let recentDays = groups.keys.sorted().suffix(30)
-        let bedWake: [(day: Date, bed: Date, wake: Date)] = recentDays.compactMap { day in
-            guard let m = SleepView.mainNightSession(groups[day] ?? [], habitualMidsleepSec: habitual) else { return nil }
-            return (day: day,
-                    bed: Date(timeIntervalSince1970: TimeInterval(m.effectiveStartTs)),
-                    wake: Date(timeIntervalSince1970: TimeInterval(m.endTs)))
-        }
-        let intervals = SleepView.decodedIntervals(main.stagesJSON, sessionStart: main.effectiveStartTs) ?? []
-        let start = Date(timeIntervalSince1970: TimeInterval(main.effectiveStartTs))
-        let end = Date(timeIntervalSince1970: TimeInterval(main.endTs))
-        // Real overnight heart rate across the main-night window, 2-minute buckets (aggregated in SQL so a
-        // whole night never loads the raw ~1 Hz rows). Zero-bpm gaps are dropped so the line reflects only
-        // recorded beats.
-        let buckets = await repo.hrBuckets(from: main.effectiveStartTs, to: main.endTs, bucketSeconds: 120)
-        let hr = buckets.compactMap { b -> OvernightSample? in
-            guard b.bpm > 0 else { return nil }
-            return OvernightSample(t: Date(timeIntervalSince1970: TimeInterval(b.ts)), bpm: b.bpm)
-        }
-        await MainActor.run {
-            hypnogramIntervals = intervals
-            hypnogramNightStart = intervals.isEmpty ? nil : start
-            hypnogramNightEnd = intervals.isEmpty ? nil : end
-            overnightHR = hr
-            nightlyBedWake = bedWake
-        }
-    }
-
-    private func clearNight() {
-        hypnogramIntervals = []; hypnogramNightStart = nil; hypnogramNightEnd = nil; overnightHR = []
-        selectedStage = nil; nightlyBedWake = []
-    }
-
-    // MARK: - Overnight physiology (synchronized scrubber)
-
-    /// The interactive overnight panel: a scrubbable heart-rate line synchronized to the same night timeline
-    /// as the hypnogram above, with a stage ribbon beneath it and nightly-average references for the signals
-    /// NOOP only stores as aggregates. Shown only when the night has both a time-resolved stage timeline and
-    /// real overnight HR.
-    @ViewBuilder private var overnightCard: some View {
-        if let start = hypnogramNightStart, let end = hypnogramNightEnd,
-           overnightHR.count >= 3, end > start {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Overnight").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
-                StrandCard {
-                    SleepOvernightPanel(samples: overnightHR, intervals: hypnogramIntervals,
-                                        nightStart: start, nightEnd: end,
-                                        restingHr: latest { $0.restingHr },
-                                        nightlyHRV: latest { $0.avgHrv },
-                                        nightlyResp: latest { $0.respRateBpm },
-                                        nightlySpO2: latest { $0.spo2Pct })
-                }
+    private func load() async {
+        intel = await PremiumSleepIntel.load(repo: repo)
+        var out: [PremiumFinding] = []
+        // Bedtime drift: this week's nights against the week before.
+        let bed = intel.bedtimeSeries(window: 30)
+        if bed.count >= 10 {
+            let recent = Array(bed.suffix(7))
+            let prior = Array(bed.dropLast(7).suffix(7))
+            if let f = PremiumAnalysis.timingFinding(id: "sleep.bedtime.drift", label: "bedtime",
+                                                     recent: recent, prior: prior,
+                                                     tint: StrandPalette.sleepDeep) {
+                out.append(f)
             }
         }
+        // Duration against its own baseline.
+        let durA = PremiumMetricCatalog.analysis(.sleepDuration, repo: repo)
+        if let f = PremiumAnalysis.baselineFinding(durA, name: "sleep duration", unit: "",
+                                                   tint: StrandPalette.sleepREM) {
+            out.append(f)
+        }
+        // Does sleep duration track next-day recovery for this person?
+        let dur = PremiumMetricCatalog.series(.sleepDuration, repo: repo)
+        let rec = PremiumMetricCatalog.series(.recovery, repo: repo)
+        if let best = PremiumAnalysis.bestRelationship(dur, rec),
+           let f = PremiumAnalysis.relationshipFinding(id: "sleep.rel.recovery",
+                                                       aName: "Sleep duration", bName: "Recovery",
+                                                       correlation: best.correlation,
+                                                       lagDays: best.lagDays,
+                                                       tint: StrandPalette.sleepDeep) {
+            out.append(f)
+        }
+        findings = out.sorted { $0.confidence > $1.confidence }
     }
 
     private var ambient: some View {
@@ -221,19 +143,17 @@ struct PremiumSleepView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: Score hero ring
+    // MARK: Score hero
 
-    /// Animated ring fill — draws in on appear/change, the same `StrandMotion.drawIn` curve
-    /// `RecoveryRing` uses, instead of snapping straight to the target fraction.
-    @State private var animatedRingFraction: Double = 0
+    @State private var ringFraction: Double = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var scoreHero: some View {
-        let frac = min(1, max(0, (efficiencyPct ?? 0) / 100))
-        return VStack(spacing: 14) {
+        let frac: Double = min(1, max(0, (efficiencyPct ?? 0) / 100))
+        return VStack(spacing: 12) {
             ZStack {
                 Circle().stroke(StrandPalette.surfaceInset, lineWidth: 14)
-                Circle().trim(from: 0, to: animatedRingFraction)
+                Circle().trim(from: 0, to: ringFraction)
                     .stroke(LinearGradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep],
                                            startPoint: .topTrailing, endPoint: .bottomLeading),
                             style: StrokeStyle(lineWidth: 14, lineCap: .round))
@@ -241,7 +161,7 @@ struct PremiumSleepView: View {
                     .shadow(color: StrandPalette.sleepDeep.opacity(0.5), radius: 10)
                 VStack(spacing: 2) {
                     CountUpText(value: efficiencyPct ?? 0,
-                                format: { efficiencyPct == nil ? "—" : "\(Int($0.rounded()))" },
+                                format: { self.efficiencyPct == nil ? "—" : "\(Int($0.rounded()))" },
                                 font: .system(size: 58, weight: .heavy),
                                 color: StrandPalette.textPrimary)
                         .monospacedDigit()
@@ -250,738 +170,766 @@ struct PremiumSleepView: View {
                 }
             }
             .frame(width: 208, height: 208)
-            .onAppear { withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { animatedRingFraction = frac } }
+            .onAppear { withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { ringFraction = frac } }
             .onChange(of: frac) { _, new in
-                withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { animatedRingFraction = new }
+                withAnimation(StrandMotion.drawIn(reduced: reduceMotion)) { ringFraction = new }
             }
-            Text("\(durText(sleepMin)) asleep · \(durText(inBedMin)) in bed")
+            Text(heroSubtitle)
                 .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
         }
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Stage breakdown
+    private var heroSubtitle: String {
+        guard let a = asleepMin, a > 0 else { return "No sleep recorded yet" }
+        var s = "\(PremiumAnalysis.durText(a)) asleep"
+        if let b = inBedMin, b > 0 { s += " · \(PremiumAnalysis.durText(b)) in bed" }
+        return s
+    }
 
-    private var breakdownCard: some View {
-        StrandCard {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Stage breakdown").font(StrandFont.title2)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                // Dual headline: hours + restorative, each with a typical baseline.
-                HStack(alignment: .top, spacing: 16) {
-                    dualStat(title: "Hours of sleep", value: durText(sleepMin),
-                             typical: mean { $0.totalSleepMin }.map { "typically \(durText($0))" },
-                             tint: StrandPalette.textPrimary)
-                    dualStat(title: "Restorative", value: durText(restorativeMin),
-                             typical: restorativeTypicalText, tint: StrandPalette.sleepDeep)
+    // MARK: The unified night panel (stages ↔ overnight heart rate)
+
+    @ViewBuilder private var nightPanelSection: some View {
+        if let bed = intel.latestBed, let wake = intel.latestWake,
+           !intel.latestIntervals.isEmpty, wake > bed {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    PremiumSectionHeader(title: "Last night")
+                    Spacer()
+                    ProvenanceChip(provenance: .estimated)
                 }
-                if let start = hypnogramNightStart, let end = hypnogramNightEnd,
-                   !hypnogramIntervals.isEmpty, end > start {
-                    // Real, time-resolved lanes: one full-width row per stage, a hatched track for the
-                    // whole night, solid blocks exactly where that stage occurred — WHOOP's own sleep-
-                    // detail layout, adapted from `SleepView.stageTimelineRow`. Tap a row to highlight it.
-                    timeResolvedStages(start: start, end: end)
-                } else {
-                    // No time-resolved segment data for this night (e.g. an imported night that only
-                    // stores stage minutes) — fall back to the proportional density lanes.
-                    stageLane("Awake", awakeMin, StrandPalette.sleepAwake)
-                    stageLane("Light", lightMin, StrandPalette.sleepLight)
-                    stageLane("Deep", deepMin, StrandPalette.sleepDeep)
-                    stageLane("REM", remMin, StrandPalette.sleepREM)
-                    Text("Stage proportions from your recorded sleep · on-device")
+                StrandCard {
+                    SleepNightPanel(intervals: intel.latestIntervals,
+                                    hr: intel.overnightHR,
+                                    nightStart: bed, nightEnd: wake,
+                                    selected: $selectedStage,
+                                    typicalMinutes: typicalStageMinutes)
+                }
+            }
+        } else if intel.nights.isEmpty {
+            StrandCard {
+                PremiumEmptyState(icon: "bed.double",
+                                  title: "No sleep recorded yet",
+                                  message: "Wear your strap overnight and NOOP will build your sleep picture here.")
+            }
+        } else {
+            StrandCard {
+                MetricUnavailable(name: "Stage timeline",
+                                  reason: "Last night has no minute-level stage data — an imported night stores only stage totals.")
+            }
+        }
+    }
+
+    /// 30-day typical minutes per stage, used for the "vs typical" comparison inside the panel.
+    /// `nil` for a stage without a stored daily column (awake) so the panel omits the comparison
+    /// rather than deriving a fake typical.
+    private var typicalStageMinutes: [SleepStage: Double] {
+        var out: [SleepStage: Double] = [:]
+        if let d = mean({ $0.deepMin }) { out[.deep] = d }
+        if let r = mean({ $0.remMin }) { out[.rem] = r }
+        if let l = mean({ $0.lightMin }) { out[.light] = l }
+        return out
+    }
+
+    // MARK: Findings
+
+    @ViewBuilder private var findingsSection: some View {
+        if !findings.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "What changed")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(findings) { f in PremiumFindingRow(finding: f) }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Continuity
+
+    @ViewBuilder private var continuitySection: some View {
+        if !intel.latestIntervals.isEmpty {
+            let waso: Double = intel.wasoMin
+            let longest: Double = intel.longestAwakeMin
+            let count: Int = intel.awakeningCount
+            let effTypical: Double? = mean { $0.efficiency }.map { $0 <= 1 ? $0 * 100 : $0 }
+
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    PremiumSectionHeader(title: "Continuity")
+                    Spacer()
+                    ProvenanceChip(provenance: .calculated)
+                }
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 14) {
+                            statBlock("Awake in bed", PremiumAnalysis.durText(waso),
+                                      StrandPalette.sleepAwake)
+                            statBlock("Longest wake", PremiumAnalysis.durText(longest),
+                                      StrandPalette.sleepAwake)
+                            statBlock("Awakenings", "\(count)", StrandPalette.sleepLight)
+                        }
+                        if let e = efficiencyPct {
+                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                            efficiencyRow(e, typical: effTypical)
+                        }
+                        Text("Time awake after first falling asleep, from your real decoded stage timeline. Sleep-onset latency is excluded — it isn't an awakening.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private func efficiencyRow(_ value: Double, typical: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Efficiency").font(StrandFont.body).foregroundStyle(StrandPalette.textSecondary)
+                Spacer()
+                Text("\(Int(value.rounded()))%")
+                    .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.sleepDeep)
+                if let t = typical {
+                    Text("typ \(Int(t.rounded()))%")
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 }
             }
+            PremiumBar(fraction: value / 100, tint: StrandPalette.sleepDeep, height: 8)
         }
     }
 
-    // MARK: Real time-resolved stage lanes (WHOOP sleep-detail style)
-
-    private func timeResolvedStages(start: Date, end: Date) -> some View {
-        let span = max(1, end.timeIntervalSince(start))
-        let total = max(1, inBedMin)
-        return VStack(alignment: .leading, spacing: 10) {
-            timelineRow(.awake, minutes: awakeMin, total: total, span: span)
-            timelineRow(.light, minutes: lightMin, total: total, span: span)
-            timelineRow(.deep,  minutes: deepMin,  total: total, span: span)
-            timelineRow(.rem,   minutes: remMin,   total: total, span: span)
-            HStack {
-                Text(clockText(start)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                Spacer()
-                Text(clockText(start.addingTimeInterval(span / 2))).font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                Spacer()
-                Text(clockText(end)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-            }
-            stageInsight
-        }
-    }
-
-    /// One WHOOP-style stage lane: header (STAGE · coloured % · right-aligned duration) over a hatched
-    /// night-long track with solid segments exactly where that stage occurred, positioned from the
-    /// REAL decoded interval times (`iv.start`/`iv.end`, seconds from night start) — not a proportional
-    /// fill. Tap toggles the highlight: the selected row keeps colour, the rest grey out.
-    private func timelineRow(_ stage: SleepStage, minutes: Double, total: Double, span: Double) -> some View {
-        let color = StrandPalette.sleepStageColor(stage)
-        let isSelected = selectedStage == stage
-        let dimmed = selectedStage != nil && !isSelected
-        let percent = total > 0 ? Int((minutes / total * 100).rounded()) : 0
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 8) {
-                Text(stage.label.uppercased()).font(StrandFont.overline).tracking(0.8)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Text("\(percent)%").font(StrandFont.captionNumber)
-                    .foregroundStyle(dimmed ? StrandPalette.textTertiary : color)
-                Spacer()
-                Text(durText(minutes)).font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .topLeading) {
-                    SleepHatchedTrack()
-                    ForEach(hypnogramIntervals.filter { $0.stage == stage }) { iv in
-                        let x0 = CGFloat(iv.start / span) * geo.size.width
-                        let w = max(2, CGFloat((iv.end - iv.start) / span) * geo.size.width)
-                        RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                            .fill(dimmed ? StrandPalette.textTertiary.opacity(0.55) : color)
-                            .frame(width: w, height: geo.size.height)
-                            .offset(x: x0)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-            }
-            .frame(height: 20)
-        }
-        .padding(.vertical, 8).padding(.horizontal, 10)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(StrandPalette.textPrimary.opacity(0.045)))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .stroke(isSelected ? StrandPalette.hairlineStrong : Color.clear, lineWidth: 1.5))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(StrandMotion.fade) { selectedStage = isSelected ? nil : stage }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(stage.label): \(durText(minutes)), \(percent) percent of the night")
-        .accessibilityHint("Highlights this stage on the sleep chart")
-        .accessibilityAddTraits(.isButton)
-    }
-
-    /// Tonight vs 30-day-typical for the tapped stage (Light/Deep/REM have a stored daily column to
-    /// average; Awake doesn't, so it's shown without a typical rather than a derived estimate).
-    @ViewBuilder private var stageInsight: some View {
-        if let sel = selectedStage {
-            let minutes = stageMinutes(sel)
-            if let t = stageTypicalMinutes(sel) {
-                let phrase = minutes > t * 1.15 ? "above your usual"
-                           : minutes < t * 0.85 ? "below your usual" : "about your usual"
-                Text("\(sel.label) \(durText(minutes)) tonight · typically \(durText(t)), \(phrase).")
-                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
-            } else {
-                Text("\(sel.label): \(durText(minutes)) tonight.")
-                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
-            }
-        } else {
-            Text("Tap a stage to compare with your 30-day typical.")
-                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-        }
-    }
-    private func stageMinutes(_ stage: SleepStage) -> Double {
-        switch stage {
-        case .awake: return awakeMin
-        case .light: return lightMin
-        case .deep:  return deepMin
-        case .rem:   return remMin
-        }
-    }
-    private func stageTypicalMinutes(_ stage: SleepStage) -> Double? {
-        switch stage {
-        case .awake: return nil
-        case .light: return mean { $0.lightMin }
-        case .deep:  return mean { $0.deepMin }
-        case .rem:   return mean { $0.remMin }
-        }
-    }
-    private func clockText(_ d: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: d)
-    }
-
-    private var restorativeTypicalText: String? {
-        guard let d = mean({ $0.deepMin }), let r = mean({ $0.remMin }) else { return nil }
-        return "typically \(durText(d + r))"
-    }
-
-    private func dualStat(title: String, value: String, typical: String?, tint: Color) -> some View {
+    private func statBlock(_ label: String, _ value: String, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(value).font(.system(size: 30, weight: .heavy)).monospacedDigit()
+            Text(value).font(.system(size: 20, weight: .heavy)).monospacedDigit()
                 .foregroundStyle(tint)
-            Text(title.uppercased()).font(StrandFont.overline).tracking(1.2)
+                .lineLimit(1).minimumScaleFactor(0.7)
+            Text(label.uppercased()).font(StrandFont.overline).tracking(1.0)
                 .foregroundStyle(StrandPalette.textTertiary)
-            if let t = typical {
-                Text(t).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-            }
+                .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// One per-stage density lane: name · % of night · duration, over a hatched track with a
-    /// proportional filled block. (Proportional, not time-resolved — see the file header.)
-    private func stageLane(_ name: String, _ minutes: Double, _ color: Color) -> some View {
-        let total = max(1, inBedMin)
-        let pct = Int((minutes / total * 100).rounded())
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 10) {
-                Text(name.uppercased()).font(StrandFont.overline).tracking(0.8)
-                    .foregroundStyle(StrandPalette.textPrimary)
-                Text("\(pct)%").font(StrandFont.captionNumber).foregroundStyle(color)
-                Spacer()
-                Text(durText(minutes)).font(StrandFont.captionNumber)
-                    .foregroundStyle(StrandPalette.textSecondary)
-            }
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(StrandPalette.surfaceInset)
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(color)
-                        .frame(width: max(3, geo.size.width * CGFloat(minutes / total)))
-                        .shadow(color: color.opacity(0.5), radius: 6)
-                        .padding(3)
-                }
-            }
-            .frame(height: 26)
-        }
-    }
+    // MARK: Regularity
 
-    // MARK: Trend
-
-    private var trendCard: some View {
-        let hours = Array(repo.days.suffix(90).compactMap { $0.totalSleepMin }.map { $0 / 60 }.suffix(14))
-        return VStack(alignment: .leading, spacing: 14) {
-            Text("Sleep hours · last 14 days").font(StrandFont.title2)
-                .foregroundStyle(StrandPalette.textPrimary)
-            StrandCard {
-                if hours.count >= 2 {
-                    Sparkline(values: hours,
-                              gradient: Gradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep]),
-                              lineWidth: 2.5, showsArea: true, showsHead: true, showsHover: true,
-                              valueFormat: { String(format: "%.1f h", $0) })
-                        .frame(height: 120)
-                } else {
-                    Text("Not enough nights yet").font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .frame(maxWidth: .infinity, minHeight: 120)
-                }
-            }
-        }
-    }
-
-    private func durText(_ minutes: Double) -> String {
-        let m = Int(minutes.rounded()); let h = m / 60, mm = m % 60
-        return h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
-    }
-
-    // MARK: - Data trust
-
-    /// A short legend distinguishing what's a direct sensor reading, what's an on-device estimate
-    /// from sensor patterns, and what's simple arithmetic on other stored values — so a wearable-
-    /// estimated sleep stage is never read as a clinical measurement.
-    private var dataTrustNote: some View {
-        StrandCard {
-            VStack(alignment: .leading, spacing: 8) {
-                trustRow("Measured", StrandPalette.metricRose, "A direct sensor reading — heart rate is sampled continuously overnight.")
-                trustRow("Wearable-estimated", StrandPalette.recoveryColor(80), "Computed on-device from sensor patterns — sleep stages, HRV, respiratory rate and blood oxygen. Not a clinical measurement.")
-                trustRow("Calculated", StrandPalette.textTertiary, "Simple arithmetic on other stored values — efficiency, consistency, debt and balance.")
-            }
-        }
-    }
-    private func trustRow(_ label: String, _ color: Color, _ body: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Text(label.uppercased()).font(.system(size: 10, weight: .bold)).tracking(0.6)
-                .foregroundStyle(color)
-                .padding(.horizontal, 8).padding(.vertical, 4)
-                .background(Capsule().fill(color.opacity(0.16)))
-                .fixedSize()
-            Text(body).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    // MARK: - Sleep continuity (real, from tonight's decoded stages)
-
-    /// WASO / longest-awake-spell / awakening count, all derived from the SAME real decoded
-    /// hypnogram the stage lanes above draw — never a separate invented field. The first `.awake`
-    /// interval is sleep-onset latency, not an awakening, so it's excluded from all three.
-    private var awakeningsTonight: [SleepInterval] { Array(hypnogramIntervals.filter { $0.stage == .awake }.dropFirst()) }
-    private var wasoTonight: Double { awakeningsTonight.reduce(0) { $0 + ($1.end - $1.start) } / 60 }
-    private var longestAwakeTonight: Double { (awakeningsTonight.map { $0.end - $0.start }.max() ?? 0) / 60 }
-
-    @ViewBuilder private var continuityCard: some View {
-        if !hypnogramIntervals.isEmpty {
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Sleep continuity").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
-                StrandCard {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack(alignment: .top, spacing: 16) {
-                            dualStat(title: "Time in bed", value: durText(inBedMin), typical: nil, tint: StrandPalette.textPrimary)
-                            dualStat(title: "Time asleep", value: durText(sleepMin), typical: nil, tint: StrandPalette.sleepDeep)
-                        }
-                        HStack(alignment: .top, spacing: 16) {
-                            dualStat(title: "Awake in bed (WASO)", value: durText(wasoTonight), typical: nil, tint: StrandPalette.sleepAwake)
-                            dualStat(title: "Longest awake spell", value: durText(longestAwakeTonight), typical: nil, tint: StrandPalette.sleepAwake)
-                        }
-                        if let effTypical = mean({ $0.efficiency }).map({ $0 <= 1 ? $0 * 100 : $0 }) {
-                            Text("Efficiency is \(Int((efficiencyPct ?? 0).rounded()))% tonight, typically \(Int(effTypical.rounded()))%.")
-                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                        }
-                        Text("\(awakeningsTonight.count) awakening\(awakeningsTonight.count == 1 ? "" : "s") logged tonight, from your decoded sleep stages.")
-                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: - Sleep regularity (real bedtime/wake-time series)
-
-    @ViewBuilder private var regularityCard: some View {
-        if nightlyBedWake.count >= 4 {
-            let last14 = Array(nightlyBedWake.suffix(14))
-            let bedMins = last14.map { minutesSinceNoon($0.bed) }
-            let wakeMins = last14.map { minutesSinceNoon($0.wake) }
-            let midMins = zip(bedMins, wakeMins).map { ($0 + $1) / 2 }
+    @ViewBuilder private var regularitySection: some View {
+        if intel.nights.count >= 4 {
+            let nights: [PremiumSleepIntel.Night] = Array(intel.nights.suffix(14))
+            let score: Double? = intel.regularityScore()
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    Text("Sleep regularity").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                    PremiumSectionHeader(title: "Regularity")
                     Spacer()
-                    Text("CALCULATED").font(.system(size: 9, weight: .bold)).tracking(0.6)
-                        .foregroundStyle(StrandPalette.textTertiary)
+                    ProvenanceChip(provenance: .calculated)
                 }
                 StrandCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Each row is one of your last \(last14.count) nights, positioned by clock time — the more the bars line up, the more regular your schedule.")
-                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                        timingMap(nights: last14)
-                    }
-                }
-                StrandCard {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(alignment: .top, spacing: 16) {
-                            dualStat(title: "Bedtime variability", value: "±\(durText(stdev(bedMins) ?? 0))", typical: nil, tint: StrandPalette.sleepDeep)
-                            dualStat(title: "Wake-time variability", value: "±\(durText(stdev(wakeMins) ?? 0))", typical: nil, tint: StrandPalette.metricAmber)
+                    VStack(alignment: .leading, spacing: 16) {
+                        if let s = score {
+                            MetricValueHeader(value: "\(Int(s.rounded()))", unit: "/ 100",
+                                              deltaText: nil, deltaGood: nil,
+                                              caption: regularityCaption(s),
+                                              tint: StrandPalette.metricCyan)
                         }
-                        dualStat(title: "Sleep midpoint variability", value: "±\(durText(stdev(midMins) ?? 0))", typical: nil, tint: StrandPalette.sleepREM)
-                        Text("Variability is how much your bed/wake/midpoint clock-times swing night to night over your last \(last14.count) nights — smaller is steadier.")
+                        SleepTimingMap(nights: nights)
+                        HStack(spacing: 14) {
+                            statBlock("Bedtime ±", variabilityText(intel.bedtimeVariability()),
+                                      StrandPalette.sleepDeep)
+                            statBlock("Wake ±", variabilityText(intel.wakeVariability()),
+                                      StrandPalette.metricAmber)
+                            statBlock("Midpoint ±", variabilityText(intel.midpointVariability()),
+                                      StrandPalette.metricCyan)
+                        }
+                        Text("Each bar is one night, positioned by clock time. The tighter they line up, the steadier your body clock.")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
         }
     }
 
-    /// A compact "timing map": one row per night, a bar spanning bedtime→wake positioned on a shared
-    /// clock axis, so a regular schedule visually lines up and a drifting one visibly staggers.
-    private func timingMap(nights: [(day: Date, bed: Date, wake: Date)]) -> some View {
-        let beds = nights.map { minutesSinceNoon($0.bed) }
-        let wakes = nights.map { minutesSinceNoon($0.wake) + 1440 }
-        let winStart = (beds.min() ?? 0) - 20
-        let winEnd = (wakes.max() ?? 1440) + 20
-        let span = max(1, winEnd - winStart)
-        let rowH: CGFloat = 12
-        return VStack(alignment: .leading, spacing: 4) {
-            GeometryReader { geo in
-                ZStack(alignment: .topLeading) {
-                    ForEach(Array(nights.enumerated()), id: \.offset) { i, night in
-                        let bed = minutesSinceNoon(night.bed)
-                        let wake = minutesSinceNoon(night.wake) + 1440
-                        let x0 = CGFloat((bed - winStart) / span) * geo.size.width
-                        let w = max(2, CGFloat((wake - bed) / span) * geo.size.width)
-                        let op = 0.4 + 0.6 * Double(i) / Double(max(1, nights.count - 1))
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(StrandPalette.sleepDeep.opacity(op))
-                            .frame(width: w, height: rowH)
-                            .offset(x: x0, y: CGFloat(i) * (rowH + 4))
+    private func regularityCaption(_ score: Double) -> String {
+        let band: String
+        if score >= 80 { band = "Very consistent" }
+        else if score >= 60 { band = "Fairly consistent" }
+        else if score >= 40 { band = "Variable" }
+        else { band = "Highly variable" }
+        return "\(band) — how tightly your sleep midpoint clusters across your last \(min(14, intel.nights.count)) nights."
+    }
+    private func variabilityText(_ minutes: Double?) -> String {
+        guard let m = minutes else { return "—" }
+        return PremiumAnalysis.durText(m)
+    }
+
+    // MARK: Timing
+
+    @ViewBuilder private var timingSection: some View {
+        if intel.nights.count >= 4 {
+            let bedSeries: [Double] = intel.bedtimeSeries(window: 30)
+            let wakeSeries: [Double] = intel.wakeSeries(window: 30)
+            let midSeries: [Double] = intel.midpointSeries(window: 30)
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Timing", trailing: "\(bedSeries.count) nights")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 18) {
+                        timingChart("Bedtime", bedSeries, StrandPalette.sleepDeep)
+                        timingChart("Wake time", wakeSeries, StrandPalette.metricAmber)
+                        timingChart("Midpoint", midSeries, StrandPalette.metricCyan)
+                        if let shift = intel.weekendShiftMinutes(), abs(shift) >= 10 {
+                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                            Text("Weekend bedtime runs \(PremiumAnalysis.durText(abs(shift))) \(shift > 0 ? "later" : "earlier") than your weekdays.")
+                                .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                 }
             }
-            .frame(height: CGFloat(nights.count) * (rowH + 4))
+        }
+    }
+
+    /// A timing trend against its own personal band — the shaded range is this metric's own mean ±
+    /// spread, so "am I drifting?" is answerable at a glance rather than by reading a bare line.
+    private func timingChart(_ label: String, _ values: [Double], _ tint: Color) -> some View {
+        let base: Double? = PremiumAnalysis.mean(values)
+        let sd: Double? = PremiumAnalysis.stdev(values)
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(clockHM(winStart)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                Text(label.uppercased()).font(StrandFont.overline).tracking(1.2)
+                    .foregroundStyle(StrandPalette.textTertiary)
                 Spacer()
-                Text(clockHM((winStart + winEnd) / 2)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                Spacer()
-                Text(clockHM(winEnd)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-            }
-        }
-    }
-
-    // MARK: - Sleep timing (bedtime / wake-time / midpoint / weekday vs weekend)
-
-    @ViewBuilder private var timingCard: some View {
-        if nightlyBedWake.count >= 4 {
-            let bySeries = nightlyBedWake.map { minutesSinceNoon($0.bed) }
-            let wakeSeries = nightlyBedWake.map { minutesSinceNoon($0.wake) }
-            let midSeries = zip(bySeries, wakeSeries).map { ($0 + $1) / 2 }
-            VStack(alignment: .leading, spacing: 14) {
-                Text("Sleep timing").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
-                StrandCard {
-                    VStack(alignment: .leading, spacing: 14) {
-                        if bySeries.count >= 2 {
-                            Text("BEDTIME").font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
-                            Sparkline(values: bySeries, gradient: Gradient(colors: [StrandPalette.sleepREM, StrandPalette.sleepDeep]),
-                                      lineWidth: 2, showsArea: true, showsHead: true, showsHover: false,
-                                      valueFormat: { self.clockHM($0) })
-                                .frame(height: 90)
-                        }
-                        if wakeSeries.count >= 2 {
-                            Text("WAKE TIME").font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
-                            Sparkline(values: wakeSeries, gradient: Gradient(colors: [StrandPalette.metricAmber, StrandPalette.metricAmber]),
-                                      lineWidth: 2, showsArea: true, showsHead: true, showsHover: false,
-                                      valueFormat: { self.clockHM($0) })
-                                .frame(height: 90)
-                        }
-                        if midSeries.count >= 2 {
-                            Text("SLEEP MIDPOINT").font(StrandFont.overline).tracking(1.2).foregroundStyle(StrandPalette.textTertiary)
-                            Sparkline(values: midSeries, gradient: Gradient(colors: [StrandPalette.metricPurple, StrandPalette.metricPurple]),
-                                      lineWidth: 2, showsArea: true, showsHead: true, showsHover: false,
-                                      valueFormat: { self.clockHM($0) })
-                                .frame(height: 90)
-                            Text("The midway point between falling asleep and waking — a steadier midpoint usually means a steadier body clock.")
-                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                        }
-                        weekdayWeekendText
-                    }
+                if let b = base {
+                    Text("typ \(PremiumSleepIntel.clockText(b))")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 }
             }
+            if values.count >= 2 {
+                BaselineBandChart(values: values, baseline: base, spread: sd, tint: tint, height: 92,
+                                  valueFormat: { PremiumSleepIntel.clockText($0) })
+            } else {
+                MetricUnavailable(name: label, reason: "Need at least two nights.")
+            }
         }
     }
 
-    @ViewBuilder private var weekdayWeekendText: some View {
-        let cal = Calendar.current
-        let weekend = nightlyBedWake.filter { [6, 7].contains(cal.component(.weekday, from: $0.day)) }
-        let weekday = nightlyBedWake.filter { ![6, 7].contains(cal.component(.weekday, from: $0.day)) }
-        if weekend.count >= 2 && weekday.count >= 2 {
-            let wkdBed = weekday.map { minutesSinceNoon($0.bed) }.reduce(0, +) / Double(weekday.count)
-            let wknBed = weekend.map { minutesSinceNoon($0.bed) }.reduce(0, +) / Double(weekend.count)
-            let diff = wknBed - wkdBed
-            let phrase = abs(diff) < 8 ? "about the same time" : "\(durText(abs(diff))) \(diff > 0 ? "later" : "earlier")"
-            Text("On weekends you tend to go to bed \(phrase) than on weekdays.")
-                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-        }
-    }
+    // MARK: Balance
 
-    // MARK: - Sleep balance (target vs actual, via the shared SleepDebt analytics)
-
-    @ViewBuilder private var balanceCard: some View {
-        let need = sleepNeedMin
-        let series = repo.days.map { (day: $0.day, totalSleepMin: $0.totalSleepMin) }
-        let weekly = SleepDebt.ledger(series: series, needHours: need / 60.0, window: 7)
-        if weekly.nightCount >= 3 {
-            let above = weekly.nights.filter { $0.deltaMin >= 0 }.count
-            let avg7 = weekly.nights.reduce(0) { $0 + $1.sleptMin } / Double(weekly.nightCount)
+    @ViewBuilder private var balanceSection: some View {
+        let durations: [PremiumSample] = PremiumMetricCatalog.series(.sleepDuration, repo: repo)
+        let last7: [PremiumSample] = Array(durations.suffix(7))
+        if last7.count >= 3 {
+            let need: Double = sleepNeedMin
+            let deltas: [Double] = last7.map { $0.value - need }
+            let above: Int = deltas.filter { $0 >= 0 }.count
+            let avg: Double = PremiumAnalysis.mean(last7.map(\.value)) ?? need
             VStack(alignment: .leading, spacing: 14) {
-                Text("Sleep balance").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                HStack {
+                    PremiumSectionHeader(title: "Balance")
+                    Spacer()
+                    ProvenanceChip(provenance: .calculated)
+                }
                 StrandCard {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack(alignment: .top, spacing: 16) {
-                            dualStat(title: "Personal target", value: durText(need), typical: nil, tint: StrandPalette.textPrimary)
-                            dualStat(title: "\(weekly.nightCount)-night average", value: durText(avg7), typical: nil, tint: StrandPalette.sleepDeep)
+                    VStack(alignment: .leading, spacing: 16) {
+                        MetricValueHeader(
+                            value: (avg - need >= 0 ? "+" : "") + PremiumAnalysis.durText(avg - need),
+                            unit: "avg / night",
+                            deltaText: nil, deltaGood: nil,
+                            caption: "Against your \(PremiumAnalysis.durText(need)) personal sleep need, across your last \(last7.count) nights.",
+                            tint: avg >= need ? StrandPalette.recoveryColor(85) : StrandPalette.metricRose)
+                        DeviationBars(deltas: deltas, height: 84,
+                                      labels: last7.map { Self.weekdayLetter($0.day) })
+                        HStack(spacing: 14) {
+                            statBlock("Target", PremiumAnalysis.durText(need), StrandPalette.textSecondary)
+                            statBlock("Above", "\(above)", StrandPalette.recoveryColor(85))
+                            statBlock("Below", "\(last7.count - above)", StrandPalette.metricRose)
                         }
-                        HStack(alignment: .top, spacing: 16) {
-                            dualStat(title: "Nights above target", value: "\(above)", typical: nil, tint: StrandPalette.recoveryColor(90))
-                            dualStat(title: "Nights below target", value: "\(weekly.nightCount - above)", typical: nil, tint: StrandPalette.metricRose)
-                        }
-                        Text("Average nightly balance: \(weekly.balanceMin >= 0 ? "+" : "−")\(durText(abs(weekly.balanceMin) / Double(weekly.nightCount))) vs your \(durText(need)) target over your last \(weekly.nightCount) nights.")
+                        Text("Your sleep need is the greater of 7h 30m and your own 30-day average — the same rule the rest of NOOP uses.")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
         }
     }
 
-    // MARK: - Overnight vitals (30-night trend + baseline)
+    private static func weekdayLetter(_ dayKey: String) -> String {
+        guard let d = PremiumAnalysis.dayParser.date(from: dayKey) else { return "" }
+        let f = DateFormatter(); f.dateFormat = "EEE"
+        return String(f.string(from: d).prefix(1))
+    }
 
-    @ViewBuilder private var overnightVitalsCard: some View {
+    // MARK: Overnight vitals
+
+    private var overnightVitalsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Overnight vitals").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+            PremiumSectionHeader(title: "Overnight vitals", trailing: "vs your baseline")
+            StrandCard {
+                VStack(spacing: 0) {
+                    vitalRow(.restingHr)
+                    vitalRow(.hrv)
+                    vitalRow(.respiratory)
+                    vitalRow(.spo2)
+                    vitalRow(.skinTemp)
+                    Text("Heart rate is measured continuously overnight — see the chart above. These are stored as one value per night, so they're shown as nightly figures rather than invented minute-by-minute curves.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 12)
+                }
+            }
+        }
+    }
+
+    /// One overnight signal with its value, its own 30-day baseline and a signed deviation. Renders
+    /// nothing at all when the signal has never been recorded, so the card never shows an empty row.
+    @ViewBuilder private func vitalRow(_ id: PremiumMetricID) -> some View {
+        let a: PremiumMetricAnalysis = PremiumMetricCatalog.analysis(id, repo: repo)
+        if let v = a.latest {
+            let d: PremiumMetricDef = PremiumMetricCatalog.def(id)
+            NavigationLink(value: PremiumRoute.catalogMetric(id)) {
+                VStack(spacing: 0) {
+                    HStack(spacing: 12) {
+                        PremiumIconTile(system: d.icon, tint: d.tint, size: 30)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(d.shortName).font(StrandFont.body)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                            if let b = a.baseline {
+                                Text("baseline \(d.format(b))")
+                                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            } else {
+                                Text("no baseline yet")
+                                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            }
+                        }
+                        Spacer(minLength: 4)
+                        VStack(alignment: .trailing, spacing: 2) {
+                            Text(d.format(v, withUnit: false))
+                                .font(StrandFont.captionNumber).foregroundStyle(d.tint)
+                            if let dev = a.deviationPct, a.hasBaseline {
+                                Text(PremiumAnalysis.signedPct(dev))
+                                    .font(StrandFont.footnote)
+                                    .foregroundStyle(StrandPalette.textTertiary)
+                            }
+                        }
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    }
+                    .padding(.vertical, 10)
+                    Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: History
+
+    private var historySection: some View {
+        let a: PremiumMetricAnalysis = PremiumMetricCatalog.analysis(.sleepDuration, repo: repo)
+        let values: [Double] = Array(a.series.suffix(30).map(\.value))
+        return VStack(alignment: .leading, spacing: 14) {
+            PremiumSectionHeader(title: "Sleep history", trailing: "30 nights")
             StrandCard {
                 VStack(alignment: .leading, spacing: 12) {
-                    vitalRow("Resting HR", latest { $0.restingHr.map(Double.init) }, mean { $0.restingHr.map(Double.init) }, "bpm", StrandPalette.metricRose)
-                    vitalRow("HRV", latest { $0.avgHrv }, mean { $0.avgHrv }, "ms", StrandPalette.metricCyan)
-                    vitalRow("Respiratory", latest { $0.respRateBpm }, mean { $0.respRateBpm }, "rpm", StrandPalette.recoveryColor(80))
-                    vitalRow("Blood oxygen", latest { $0.spo2Pct }, mean { $0.spo2Pct }, "%", StrandPalette.metricPurple)
-                    vitalRow("Skin temp", latest { $0.skinTempDevC }, mean { $0.skinTempDevC }, "°C", StrandPalette.metricAmber)
-                    Text("Heart rate is measured continuously overnight (see Overnight above). Resting HR, HRV, respiratory rate, blood oxygen and skin temperature are stored as nightly averages, so they're shown as one value per night — never invented minute-by-minute curves.")
-                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    if values.count >= 2 {
+                        BaselineBandChart(values: values, baseline: a.baseline, spread: a.spread,
+                                          tint: StrandPalette.sleepREM, height: 150,
+                                          valueFormat: { PremiumAnalysis.durText($0) })
+                        HStack(spacing: 14) {
+                            changeBlock("7 days", a.change7)
+                            changeBlock("30 days", a.change30)
+                            changeBlock("90 days", a.change90)
+                        }
+                    } else {
+                        MetricUnavailable(name: "Sleep history",
+                                          reason: "Need at least two recorded nights.")
+                    }
                 }
             }
         }
     }
 
-    @ViewBuilder private func vitalRow(_ name: String, _ value: Double?, _ baseline: Double?, _ unit: String, _ color: Color) -> some View {
-        if let v = value {
-            HStack {
-                Text(name).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
-                Spacer()
-                Text(unit == "°C" ? String(format: "%+.2f%@", v, unit) : "\(Int(v.rounded()))\(unit == "%" ? "%" : " " + unit)")
-                    .font(StrandFont.captionNumber).foregroundStyle(color)
-                if let b = baseline {
-                    Text(unit == "°C" ? String(format: "typ %+.2f", b) : "typ \(Int(b.rounded()))")
-                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                }
+    private func changeBlock(_ label: String, _ pct: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let p = pct {
+                Text(PremiumAnalysis.signedPct(p))
+                    .font(.system(size: 17, weight: .heavy)).monospacedDigit()
+                    .foregroundStyle(p >= 0 ? StrandPalette.recoveryColor(85) : StrandPalette.metricRose)
+            } else {
+                Text("—").font(.system(size: 17, weight: .heavy))
+                    .foregroundStyle(StrandPalette.textTertiary)
             }
+            Text(label.uppercased()).font(StrandFont.overline).tracking(1.0)
+                .foregroundStyle(StrandPalette.textTertiary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
-/// The whole-night diagonal-hatched timeline track behind each stage lane's solid blocks — adapted
-/// from `SleepView.StageHatchedTrack` (same visual language, private to that file so duplicated here
-/// rather than exposed). Reads as "the whole night"; gaps (other stages) are implicit, nothing drawn.
-private struct SleepHatchedTrack: View {
-    var body: some View {
-        ZStack {
-            Rectangle().fill(StrandPalette.surfaceInset.opacity(0.9))
-            Canvas { context, size in
-                var path = Path()
-                let step: CGFloat = 5
-                var x: CGFloat = -size.height
-                while x < size.width {
-                    path.move(to: CGPoint(x: x, y: size.height))
-                    path.addLine(to: CGPoint(x: x + size.height, y: 0))
-                    x += step
-                }
-                context.stroke(path, with: .color(StrandPalette.textTertiary.opacity(0.16)), lineWidth: 1)
-            }
-        }
-    }
-}
+// MARK: - The unified night panel
 
-// MARK: - Overnight sample + synchronized scrubber
-
-/// One real overnight heart-rate reading (bucketed mean) at a wall-clock time.
-struct OvernightSample: Identifiable {
-    let t: Date
-    let bpm: Double
-    var id: TimeInterval { t.timeIntervalSince1970 }
-}
-
-/// WHOOP-style interactive overnight panel. Draws the REAL overnight heart-rate curve on the same time
-/// domain as the hypnogram, a stage ribbon beneath it, and a shared cursor the user taps/drags to read the
-/// exact bpm, clock time and sleep stage at any moment. HRV / respiratory / SpO₂ are shown as the night's
-/// AVERAGES (the only form NOOP stores for them) — labelled as averages, never drawn as invented curves.
-private struct SleepOvernightPanel: View {
-    let samples: [OvernightSample]
+/// Last night's stages and heart rate as ONE instrument.
+///
+/// Selecting a stage (by tapping its row, or its legend chip) isolates it everywhere simultaneously:
+/// the ribbon dims every other stage, and the heart-rate chart shades exactly the time windows that
+/// stage occupied. The HR curve itself is never dimmed — the point of the interaction is to compare
+/// physiology BETWEEN stages, which requires the curve to stay legible throughout.
+///
+/// Dragging the chart scrubs: the readout reports the precise clock time, the heart rate at that
+/// moment and which stage the user was in.
+private struct SleepNightPanel: View {
     let intervals: [SleepInterval]
+    let hr: [(t: Date, bpm: Double)]
     let nightStart: Date
     let nightEnd: Date
-    let restingHr: Int?
-    let nightlyHRV: Double?
-    let nightlyResp: Double?
-    let nightlySpO2: Double?
+    @Binding var selected: SleepStage?
+    /// 30-day typical minutes per stage, for the "vs typical" line. Missing stages omit it.
+    let typicalMinutes: [SleepStage: Double]
 
-    /// Cursor position as a fraction of the night [0,1]; nil = not scrubbing (readout shows the average).
-    @State private var cursorFrac: Double? = nil
+    @State private var scrubFraction: Double?
 
     private var span: Double { max(1, nightEnd.timeIntervalSince(nightStart)) }
-    private var bpms: [Double] { samples.map(\.bpm) }
-    private var lo: Double { (bpms.min() ?? 40) - 4 }
-    private var hi: Double { (bpms.max() ?? 120) + 4 }
-    private var avgBpm: Double { bpms.isEmpty ? 0 : bpms.reduce(0, +) / Double(bpms.count) }
+    private var bpmValues: [Double] { hr.map(\.bpm) }
 
-    private func fracOf(_ s: OvernightSample) -> Double { min(1, max(0, s.t.timeIntervalSince(nightStart) / span)) }
-    private func stageAt(_ frac: Double) -> SleepStage? {
-        let sec = frac * span
-        return intervals.first { $0.start <= sec && sec < $0.end }?.stage
-    }
-    private func sampleAt(_ frac: Double) -> OvernightSample? {
-        guard !samples.isEmpty else { return nil }
-        return samples.min(by: { abs(fracOf($0) - frac) < abs(fracOf($1) - frac) })
-    }
-    private func stageColor(_ st: SleepStage) -> Color {
-        switch st {
-        case .awake: return StrandPalette.sleepAwake
-        case .light: return StrandPalette.sleepLight
-        case .deep:  return StrandPalette.sleepDeep
-        case .rem:   return StrandPalette.sleepREM
-        }
-    }
-    private let tint = StrandPalette.metricRose
+    /// Stage order top-to-bottom in the legend and rows: the conventional hypnogram ordering.
+    private static let order: [SleepStage] = [.awake, .rem, .light, .deep]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             readout
-            GeometryReader { geo in
-                let w = geo.size.width
-                VStack(spacing: 6) {
-                    hrChart.frame(height: 118)
-                    ribbon.frame(height: 14)
-                }
-                .overlay(alignment: .leading) {
-                    if let f = cursorFrac {
-                        Rectangle().fill(StrandPalette.textSecondary.opacity(0.55))
-                            .frame(width: 1).frame(maxHeight: .infinity)
-                            .offset(x: w * CGFloat(f))
-                    }
-                }
-                .contentShape(Rectangle())
-                .gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { v in cursorFrac = min(1, max(0, Double(v.location.x / max(1, w)))) }
-                )
-            }
-            .frame(height: 118 + 6 + 14)
-            axisRow
-            referenceChips
+            legend
+            chartStack
+            axis
+            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+            stageRows
+            footnote
         }
     }
 
     // MARK: Readout
 
     private var readout: some View {
-        let bpm = cursorFrac.flatMap { sampleAt($0)?.bpm } ?? avgBpm
-        let stage = cursorFrac.flatMap { stageAt($0) }
-        let label = cursorFrac.map { timeLabel(at: $0) } ?? "AVG OVERNIGHT · TAP OR DRAG"
-        return HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 5) {
-                Text(label).font(StrandFont.overline).tracking(1.2)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(scrubFraction == nil ? "OVERNIGHT AVERAGE" : "AT \(timeText(scrubFraction ?? 0))")
+                    .font(StrandFont.overline).tracking(1.2)
                     .foregroundStyle(StrandPalette.textTertiary)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("\(Int(bpm.rounded()))").font(.system(size: 30, weight: .heavy)).monospacedDigit()
-                        .foregroundStyle(tint)
-                    Text("bpm").font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
-                    if let st = stage { stageChip(st) }
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                miniStat("AVG", avgBpm)
-                miniStat("MIN", bpms.min() ?? 0)
-                miniStat("MAX", bpms.max() ?? 0)
-            }
-        }
-    }
-
-    private func miniStat(_ label: String, _ v: Double) -> some View {
-        HStack(spacing: 5) {
-            Text(label).font(.system(size: 9, weight: .bold)).tracking(0.6)
-                .foregroundStyle(StrandPalette.textTertiary)
-            Text("\(Int(v.rounded()))").font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
-        }
-    }
-
-    private func stageChip(_ st: SleepStage) -> some View {
-        Text(st.label).font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(stageColor(st))
-            .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(Capsule().fill(stageColor(st).opacity(0.16)))
-    }
-
-    // MARK: HR chart (Canvas)
-
-    private var hrChart: some View {
-        Canvas { ctx, size in
-            guard samples.count >= 2, hi > lo else { return }
-            func pt(_ s: OvernightSample) -> CGPoint {
-                let x = CGFloat(fracOf(s)) * size.width
-                let y = CGFloat(1 - (s.bpm - lo) / (hi - lo)) * size.height
-                return CGPoint(x: x, y: y)
-            }
-            let pts = samples.map(pt)
-            var line = Path(); line.addLines(pts)
-            var area = line
-            area.addLine(to: CGPoint(x: pts.last!.x, y: size.height))
-            area.addLine(to: CGPoint(x: pts.first!.x, y: size.height))
-            area.closeSubpath()
-            ctx.fill(area, with: .linearGradient(
-                Gradient(colors: [tint.opacity(0.30), tint.opacity(0.02)]),
-                startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: size.height)))
-            ctx.stroke(line, with: .color(tint), lineWidth: 2)
-            // Resting-HR baseline (real), dashed, when it's within the drawn range.
-            if let rhr = restingHr, Double(rhr) >= lo, Double(rhr) <= hi {
-                let y = CGFloat(1 - (Double(rhr) - lo) / (hi - lo)) * size.height
-                var base = Path(); base.move(to: CGPoint(x: 0, y: y)); base.addLine(to: CGPoint(x: size.width, y: y))
-                ctx.stroke(base, with: .color(StrandPalette.metricCyan.opacity(0.5)),
-                           style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
-            }
-            // Cursor dot on the line at the scrub position.
-            if let f = cursorFrac, let s = sampleAt(f) {
-                let p = pt(s)
-                let r: CGFloat = 4.5
-                ctx.fill(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
-                         with: .color(tint))
-                ctx.stroke(Path(ellipseIn: CGRect(x: p.x - r, y: p.y - r, width: r * 2, height: r * 2)),
-                           with: .color(StrandPalette.surfaceBase), lineWidth: 1.5)
-            }
-        }
-    }
-
-    // MARK: Stage ribbon (synchronized)
-
-    private var ribbon: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 4, style: .continuous).fill(StrandPalette.surfaceInset)
-                ForEach(intervals) { iv in
-                    let x0 = CGFloat(min(1, max(0, iv.start / span))) * geo.size.width
-                    let x1 = CGFloat(min(1, max(0, iv.end / span))) * geo.size.width
-                    Rectangle().fill(stageColor(iv.stage).opacity(0.9))
-                        .frame(width: max(1, x1 - x0))
-                        .offset(x: x0)
-                }
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-        }
-    }
-
-    // MARK: Axis + references
-
-    private var axisRow: some View {
-        HStack {
-            Text(clock(nightStart)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-            Spacer()
-            Text(clock(nightStart.addingTimeInterval(span / 2))).font(StrandFont.footnote)
-                .foregroundStyle(StrandPalette.textTertiary)
-            Spacer()
-            Text(clock(nightEnd)).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-        }
-    }
-
-    private var referenceChips: some View {
-        // Nightly AVERAGES for the signals NOOP stores only as aggregates — shown as reference values, not
-        // fabricated overnight curves.
-        let items: [(String, String, Color)] = [
-            nightlyHRV.map { ("HRV", "\(Int($0.rounded())) ms", StrandPalette.metricCyan) },
-            nightlyResp.map { ("Respiratory", String(format: "%.1f rpm", $0), StrandPalette.recoveryColor(80)) },
-            nightlySpO2.map { ("SpO₂", "\(Int($0.rounded()))%", StrandPalette.metricPurple) },
-        ].compactMap { $0 }
-        return VStack(alignment: .leading, spacing: 8) {
-            if !items.isEmpty {
-                HStack(spacing: 8) {
-                    ForEach(Array(items.enumerated()), id: \.offset) { _, it in
-                        HStack(spacing: 5) {
-                            Circle().fill(it.2).frame(width: 7, height: 7)
-                            Text("\(it.0) \(it.1)").font(.system(size: 11, weight: .medium))
-                                .foregroundStyle(StrandPalette.textSecondary)
-                            Text("avg").font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(StrandPalette.textTertiary)
-                        }
-                        .padding(.horizontal, 9).padding(.vertical, 5)
-                        .background(Capsule().fill(StrandPalette.surfaceInset))
+                    Text(bpmText)
+                        .font(.system(size: 30, weight: .heavy)).monospacedDigit()
+                        .foregroundStyle(StrandPalette.metricRose)
+                    Text("bpm").font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                    if let stage = scrubbedStage {
+                        stageChip(stage)
                     }
                 }
             }
-            Text("Heart rate is measured continuously overnight. HRV, respiratory rate and blood oxygen are stored as nightly averages, so they're shown as reference values — never as invented minute-by-minute curves.")
-                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            VStack(alignment: .trailing, spacing: 3) {
+                miniStat("MIN", bpmValues.min())
+                miniStat("MAX", bpmValues.max())
+            }
         }
     }
 
-    // MARK: Formatting
-
-    private func clock(_ d: Date) -> String {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f.string(from: d)
+    private var bpmText: String {
+        if let f = scrubFraction, let s = sample(at: f) { return "\(Int(s.bpm.rounded()))" }
+        guard let avg = PremiumAnalysis.mean(bpmValues) else { return "—" }
+        return "\(Int(avg.rounded()))"
     }
-    private func timeLabel(at frac: Double) -> String {
-        clock(nightStart.addingTimeInterval(frac * span))
+    private var scrubbedStage: SleepStage? {
+        guard let f = scrubFraction else { return nil }
+        return stage(at: f)
+    }
+    private func miniStat(_ label: String, _ v: Double?) -> some View {
+        HStack(spacing: 5) {
+            Text(label).font(.system(size: 9, weight: .bold)).tracking(0.6)
+                .foregroundStyle(StrandPalette.textTertiary)
+            Text(v.map { "\(Int($0.rounded()))" } ?? "—")
+                .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
+        }
+    }
+    private func stageChip(_ s: SleepStage) -> some View {
+        Text(s.label)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(StrandPalette.sleepStageColor(s))
+            .padding(.horizontal, 8).padding(.vertical, 3)
+            .background(Capsule().fill(StrandPalette.sleepStageColor(s).opacity(0.18)))
+    }
+
+    // MARK: Legend (doubles as the stage selector)
+
+    private var legend: some View {
+        HStack(spacing: 8) {
+            ForEach(Self.order, id: \.self) { stage in
+                let isOn: Bool = selected == stage
+                Button {
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        selected = isOn ? nil : stage
+                    }
+                } label: {
+                    HStack(spacing: 5) {
+                        Circle().fill(StrandPalette.sleepStageColor(stage))
+                            .frame(width: 7, height: 7)
+                        Text(stage.label).font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundStyle(isOn ? StrandPalette.textPrimary : StrandPalette.textTertiary)
+                    .padding(.horizontal, 9).padding(.vertical, 5)
+                    .background(Capsule().fill(isOn
+                        ? StrandPalette.sleepStageColor(stage).opacity(0.20)
+                        : StrandPalette.surfaceInset))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(stage.label) stage, \(isOn ? "selected" : "not selected")")
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    // MARK: Chart + ribbon (the shared time domain)
+
+    private var chartStack: some View {
+        GeometryReader { geo in
+            let w: CGFloat = geo.size.width
+            VStack(spacing: 8) {
+                hrChart.frame(height: 130)
+                StageRibbon(blocks: ribbonBlocks, selected: selected?.rawValue, height: 16)
+            }
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { g in
+                        guard w > 0 else { return }
+                        scrubFraction = Double(min(max(0, g.location.x / w), 1))
+                    }
+                    .onEnded { _ in scrubFraction = nil }
+            )
+        }
+        .frame(height: 130 + 8 + 16)
+    }
+
+    /// Ribbon blocks in normalised [0,1] time, tagged by stage so `StageRibbon` can dim the
+    /// unselected ones.
+    private var ribbonBlocks: [StageRibbon.Block] {
+        intervals.enumerated().map { idx, iv in
+            StageRibbon.Block(id: idx,
+                              start: iv.start / span,
+                              end: iv.end / span,
+                              category: iv.stage.rawValue,
+                              tint: StrandPalette.sleepStageColor(iv.stage))
+        }
+    }
+
+    /// The heart-rate curve. When a stage is selected its time windows are shaded behind the line,
+    /// which is what visually connects "REM" in the stage list to *when* REM happened overnight.
+    private var hrChart: some View {
+        Canvas { ctx, size in
+            guard hr.count >= 2 else { return }
+            let values: [Double] = bpmValues
+            let r = PremiumCharts.range(values: values)
+            let h: CGFloat = size.height
+            let w: CGFloat = size.width
+
+            // 1. Selected-stage windows, shaded across the full chart height.
+            if let sel = selected {
+                for iv in intervals where iv.stage == sel {
+                    let x0: CGFloat = w * CGFloat(min(max(iv.start / span, 0), 1))
+                    let x1: CGFloat = w * CGFloat(min(max(iv.end / span, 0), 1))
+                    let rect = CGRect(x: x0, y: 0, width: max(1, x1 - x0), height: h)
+                    ctx.fill(Path(rect), with: .color(StrandPalette.sleepStageColor(sel).opacity(0.22)))
+                }
+            }
+
+            // 2. The heart-rate line — never dimmed, so stages stay comparable.
+            var pts: [CGPoint] = []
+            pts.reserveCapacity(hr.count)
+            for s in hr {
+                let frac: Double = min(max(s.t.timeIntervalSince(nightStart) / span, 0), 1)
+                let px: CGFloat = w * CGFloat(frac)
+                let py: CGFloat = PremiumCharts.y(s.bpm, lo: r.lo, hi: r.hi, height: h)
+                pts.append(CGPoint(x: px, y: py))
+            }
+            var line = Path()
+            line.addLines(pts)
+            var area = line
+            area.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: h))
+            area.addLine(to: CGPoint(x: pts[0].x, y: h))
+            area.closeSubpath()
+            ctx.fill(area, with: .linearGradient(
+                Gradient(colors: [StrandPalette.metricRose.opacity(0.26),
+                                  StrandPalette.metricRose.opacity(0.02)]),
+                startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: h)))
+            ctx.stroke(line, with: .color(StrandPalette.metricRose), lineWidth: 2)
+
+            // 3. Scrub cursor.
+            if let f = scrubFraction {
+                let cx: CGFloat = w * CGFloat(f)
+                var v = Path()
+                v.move(to: CGPoint(x: cx, y: 0))
+                v.addLine(to: CGPoint(x: cx, y: h))
+                ctx.stroke(v, with: .color(StrandPalette.textSecondary.opacity(0.55)), lineWidth: 1)
+                if let s = sample(at: f) {
+                    let py: CGFloat = PremiumCharts.y(s.bpm, lo: r.lo, hi: r.hi, height: h)
+                    let dot = CGRect(x: cx - 5, y: py - 5, width: 10, height: 10)
+                    ctx.fill(Path(ellipseIn: dot), with: .color(StrandPalette.metricRose))
+                    ctx.stroke(Path(ellipseIn: dot), with: .color(StrandPalette.surfaceBase), lineWidth: 2)
+                }
+            }
+        }
+    }
+
+    private var axis: some View {
+        HStack {
+            Text(clock(nightStart))
+            Spacer()
+            Text(clock(nightStart.addingTimeInterval(span / 2)))
+            Spacer()
+            Text(clock(nightEnd))
+        }
+        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+    }
+
+    // MARK: Stage rows (the other half of the selection)
+
+    private var stageRows: some View {
+        VStack(spacing: 8) {
+            ForEach(Self.order, id: \.self) { stage in
+                stageRow(stage)
+            }
+        }
+    }
+
+    private func stageRow(_ stage: SleepStage) -> some View {
+        let minutes: Double = stageMinutes(stage)
+        let totalMin: Double = span / 60
+        let pct: Int = totalMin > 0 ? Int((minutes / totalMin * 100).rounded()) : 0
+        let isSelected: Bool = selected == stage
+        let isDimmed: Bool = selected != nil && !isSelected
+        let color: Color = StrandPalette.sleepStageColor(stage)
+
+        return Button {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                selected = isSelected ? nil : stage
+            }
+        } label: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Circle().fill(color).frame(width: 8, height: 8)
+                    Text(stage.label).font(StrandFont.body)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    Text("\(pct)%").font(StrandFont.captionNumber)
+                        .foregroundStyle(isDimmed ? StrandPalette.textTertiary : color)
+                    Spacer()
+                    Text(PremiumAnalysis.durText(minutes))
+                        .font(StrandFont.captionNumber)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                if isSelected, let comparison = typicalComparison(stage, minutes: minutes) {
+                    Text(comparison)
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 8).padding(.horizontal, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(isSelected ? color.opacity(0.12) : StrandPalette.textPrimary.opacity(0.04)))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(isSelected ? color.opacity(0.5) : Color.clear, lineWidth: 1))
+            .opacity(isDimmed ? 0.5 : 1)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(stage.label): \(PremiumAnalysis.durText(minutes)), \(pct) percent of the night")
+        .accessibilityHint("Highlights this stage on the overnight chart")
+    }
+
+    /// "1h 22m · typically 1h 05m (+17m)". Omitted for stages with no stored typical (awake), so
+    /// the app never invents a comparison it can't support.
+    private func typicalComparison(_ stage: SleepStage, minutes: Double) -> String? {
+        guard let typical = typicalMinutes[stage], typical > 0 else {
+            return "No 30-day typical stored for this stage yet."
+        }
+        let delta: Double = minutes - typical
+        let sign: String = delta >= 0 ? "+" : "−"
+        return "Typically \(PremiumAnalysis.durText(typical)) · \(sign)\(PremiumAnalysis.durText(abs(delta))) vs typical"
+    }
+
+    private var footnote: some View {
+        Text("Tap a stage to highlight exactly when it happened overnight. Drag the chart to read any moment. Sleep stages are estimated on-device from motion and heart rate — not a clinical measurement.")
+            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: Lookups
+
+    private func stageMinutes(_ stage: SleepStage) -> Double {
+        intervals.filter { $0.stage == stage }
+            .reduce(0.0) { $0 + ($1.end - $1.start) } / 60
+    }
+    private func stage(at fraction: Double) -> SleepStage? {
+        let sec: Double = fraction * span
+        return intervals.first { $0.start <= sec && sec < $0.end }?.stage
+    }
+    private func sample(at fraction: Double) -> (t: Date, bpm: Double)? {
+        guard !hr.isEmpty else { return nil }
+        let target: Double = fraction * span
+        return hr.min { a, b in
+            abs(a.t.timeIntervalSince(nightStart) - target) < abs(b.t.timeIntervalSince(nightStart) - target)
+        }
+    }
+    private func timeText(_ fraction: Double) -> String {
+        clock(nightStart.addingTimeInterval(fraction * span))
+    }
+    private func clock(_ d: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"
+        return f.string(from: d)
+    }
+}
+
+// MARK: - Timing map
+
+/// One row per night, each a bar spanning bedtime→wake on a shared clock axis. A regular schedule
+/// visibly lines up into a column; a drifting one staggers. Far more legible than three separate
+/// lines of bed/wake/midpoint numbers.
+private struct SleepTimingMap: View {
+    let nights: [PremiumSleepIntel.Night]
+
+    var body: some View {
+        let beds: [Double] = nights.map(\.bedMinutes)
+        let wakes: [Double] = nights.map { $0.wakeMinutes + 1440 }
+        let winStart: Double = (beds.min() ?? 0) - 20
+        let winEnd: Double = (wakes.max() ?? 1440) + 20
+        let span: Double = max(1, winEnd - winStart)
+        let rowH: CGFloat = 11
+        let gap: CGFloat = 3
+
+        return VStack(alignment: .leading, spacing: 6) {
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(nights.enumerated()), id: \.offset) { i, night in
+                        let x0: CGFloat = geo.size.width * CGFloat((night.bedMinutes - winStart) / span)
+                        let x1: CGFloat = geo.size.width * CGFloat((night.wakeMinutes + 1440 - winStart) / span)
+                        let opacity: Double = 0.45 + 0.55 * Double(i) / Double(max(1, nights.count - 1))
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(StrandPalette.sleepDeep.opacity(opacity))
+                            .frame(width: max(2, x1 - x0), height: rowH)
+                            .offset(x: x0, y: CGFloat(i) * (rowH + gap))
+                    }
+                }
+            }
+            .frame(height: CGFloat(nights.count) * (rowH + gap))
+            HStack {
+                Text(PremiumSleepIntel.clockText(winStart))
+                Spacer()
+                Text(PremiumSleepIntel.clockText((winStart + winEnd) / 2))
+                Spacer()
+                Text(PremiumSleepIntel.clockText(winEnd))
+            }
+            .font(.system(size: 9, weight: .medium))
+            .foregroundStyle(StrandPalette.textTertiary)
+        }
     }
 }
 #endif

@@ -4,17 +4,19 @@ import StrandDesign
 import WhoopStore
 import StrandAnalytics
 
-/// Phase 2 · Heart — the prototype's Heart screen, native SwiftUI on real data:
-/// a live BPM hero with a pulsing heart (from `LiveState.heartRate`, the same source
-/// the live strap feeds), the real day heart-rate curve loaded from `repo.hrBuckets`
-/// with a real, age-personalized zone-shaded ribbon behind it, resting / average / max,
-/// real time-in-zone (Tanaka-formula `HRZones`, the same engine `workoutZoneMinutes`
-/// uses), and a resting-HR trend from `repo.days`.
+/// Phase 3 · Heart — a full cardiovascular dashboard on the user's real recorded data.
 ///
-/// Note: WHOOP straps report heart rate, not an ECG waveform, so the hero is an honest
-/// live-pulse visualization — not a fabricated medical trace. The prototype's "ECG"
-/// canvas is a synthetic animation with no real cardiac-electrical data behind it (WHOOP
-/// straps use PPG, not ECG electrodes), so it's intentionally not reproduced here.
+/// Rather than one line chart repeated at different time scales, each section answers a distinct
+/// question: what is my heart doing *now*, how wide did today range, where does my resting heart
+/// rate and HRV sit against my own baselines, how did today distribute across real personalised
+/// zones, what does my week look like by weekday, how did my heart behave overnight, and do these
+/// signals actually relate to my recovery?
+///
+/// Two honesty constraints shape it. WHOOP straps report PPG-derived heart rate, not an ECG, so the
+/// hero is a live-pulse readout rather than a fabricated cardiac trace. And the "physiological
+/// load" view is derived only where the data genuinely supports it — it is computed from real time
+/// spent above the user's own resting baseline, labelled as an estimate, and hidden entirely when
+/// the day has too few samples to characterise.
 struct PremiumHeartView: View {
     @EnvironmentObject var repo: Repository
     @EnvironmentObject var live: LiveState
@@ -22,34 +24,57 @@ struct PremiumHeartView: View {
 
     @State private var dayHR: [HRBucket] = []
     @State private var beat = false
-    /// Real, age-personalized zones (Tanaka HRmax formula) — same engine `Repository.workoutZoneMinutes`
-    /// uses — replacing any fixed/guessed bpm thresholds.
     @State private var zoneSet: HRZoneSet?
     @State private var timeInZone: TimeInZone?
+    /// Per-day min / max / mean from the last 14 days of stored heart rate, for the range chart.
+    @State private var dailyRanges: [DailyHRRange] = []
+    @State private var overnight: [(t: Date, bpm: Double)] = []
+    @State private var findings: [PremiumFinding] = []
+
+    struct DailyHRRange: Identifiable {
+        let id: Int
+        let dayKey: String
+        let lo: Double
+        let hi: Double
+        let mean: Double
+        let label: String
+    }
+
+    // MARK: Derived values
 
     private func latest<T>(_ key: (DailyMetric) -> T?) -> T? {
         for d in repo.days.reversed() { if let v = key(d) { return v } }
         return repo.today.flatMap(key)
     }
+    private var bpmValues: [Double] { dayHR.map(\.bpm).filter { $0 > 0 } }
     private var restingHR: Int? { latest { $0.restingHr } }
-    private var bpmValues: [Double] { dayHR.map { $0.bpm }.filter { $0 > 0 } }
     private var liveBPM: Int? {
         if let h = live.heartRate, h > 0 { return h }
         if let last = bpmValues.last { return Int(last.rounded()) }
         return restingHR
     }
-    private var avgHR: Int? { bpmValues.isEmpty ? nil : Int((bpmValues.reduce(0,+) / Double(bpmValues.count)).rounded()) }
+    private var avgHR: Int? { PremiumAnalysis.mean(bpmValues).map { Int($0.rounded()) } }
     private var maxHR: Int? { bpmValues.max().map { Int($0.rounded()) } }
+    private var minHR: Int? { bpmValues.min().map { Int($0.rounded()) } }
+
+    private var rhrAnalysis: PremiumMetricAnalysis { PremiumMetricCatalog.analysis(.restingHr, repo: repo) }
+    private var hrvAnalysis: PremiumMetricAnalysis { PremiumMetricCatalog.analysis(.hrv, repo: repo) }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 22) {
                 header
                 liveHero
-                statsRow
+                todayRangeCard
+                findingsSection
+                baselinesSection
                 dayChartCard
                 zonesCard
-                rhrTrendCard
+                loadSection
+                overnightSection
+                weekdaySection
+                distributionSection
+                relationshipSection
                 Color.clear.frame(height: 8)
             }
             .padding(.horizontal, 20)
@@ -57,19 +82,73 @@ struct PremiumHeartView: View {
             .padding(.bottom, 96)
         }
         .background(ambient.ignoresSafeArea())
-        .task(id: repo.refreshSeq) {
-            let start = Calendar.current.startOfDay(for: Date())
-            let from = Int(start.timeIntervalSince1970), to = Int(Date().timeIntervalSince1970)
-            dayHR = await repo.hrBuckets(from: from, to: to, bucketSeconds: 300)
-            let samples = await repo.hrSamples(from: from, to: to)
-            let set = HRZones.zones(age: profile.age > 0 ? Double(profile.age) : 30)
-            zoneSet = set
-            timeInZone = samples.isEmpty ? nil : HRZones.timeInZone(samples, zoneSet: set)
-        }
+        .task(id: repo.refreshSeq) { await load() }
         .onAppear {
             withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) { beat = true }
         }
     }
+
+    // MARK: Loading
+
+    private func load() async {
+        let cal = Calendar.current
+        let startToday = cal.startOfDay(for: Date())
+        let from = Int(startToday.timeIntervalSince1970)
+        let to = Int(Date().timeIntervalSince1970)
+
+        dayHR = await repo.hrBuckets(from: from, to: to, bucketSeconds: 300)
+        let samples = await repo.hrSamples(from: from, to: to)
+        let set = HRZones.zones(age: profile.age > 0 ? Double(profile.age) : 30)
+        zoneSet = set
+        timeInZone = samples.isEmpty ? nil : HRZones.timeInZone(samples, zoneSet: set)
+
+        // Daily ranges across the last 14 days — one bucketed read per day, coarse buckets so a
+        // fortnight of history stays cheap.
+        var ranges: [DailyHRRange] = []
+        let fmt = DateFormatter(); fmt.dateFormat = "EEE"
+        for back in stride(from: 13, through: 0, by: -1) {
+            guard let dayStart = cal.date(byAdding: .day, value: -back, to: startToday) else { continue }
+            let dayEnd = min(Date(), cal.date(byAdding: .day, value: 1, to: dayStart) ?? Date())
+            guard dayEnd > dayStart else { continue }
+            let buckets = await repo.hrBuckets(from: Int(dayStart.timeIntervalSince1970),
+                                               to: Int(dayEnd.timeIntervalSince1970),
+                                               bucketSeconds: 900)
+            let vals = buckets.map(\.bpm).filter { $0 > 0 && $0 < 250 }
+            guard let lo = vals.min(), let hi = vals.max(), let m = PremiumAnalysis.mean(vals) else { continue }
+            ranges.append(DailyHRRange(id: ranges.count,
+                                       dayKey: Repository.localDayKey(dayStart),
+                                       lo: lo, hi: hi, mean: m,
+                                       label: String(fmt.string(from: dayStart).prefix(1))))
+        }
+        dailyRanges = ranges
+
+        // Overnight curve — reuse the shared sleep intelligence so Heart and Sleep agree.
+        let intel = await PremiumSleepIntel.load(repo: repo, window: 3)
+        overnight = intel.overnightHR
+
+        // Findings for the cardiovascular signals.
+        var out: [PremiumFinding] = []
+        for id in [PremiumMetricID.hrv, .restingHr] {
+            let a = PremiumMetricCatalog.analysis(id, repo: repo)
+            let d = PremiumMetricCatalog.def(id)
+            if let f = PremiumAnalysis.baselineFinding(a, name: d.shortName, unit: d.unit, tint: d.tint) {
+                out.append(f)
+            }
+        }
+        let hrvSeries = PremiumMetricCatalog.series(.hrv, repo: repo)
+        let recSeries = PremiumMetricCatalog.series(.recovery, repo: repo)
+        if let best = PremiumAnalysis.bestRelationship(hrvSeries, recSeries),
+           let f = PremiumAnalysis.relationshipFinding(id: "heart.rel.hrv.recovery",
+                                                       aName: "HRV", bName: "Recovery",
+                                                       correlation: best.correlation,
+                                                       lagDays: best.lagDays,
+                                                       tint: StrandPalette.metricCyan) {
+            out.append(f)
+        }
+        findings = out.sorted { $0.confidence > $1.confidence }
+    }
+
+    // MARK: Chrome
 
     private var ambient: some View {
         ZStack {
@@ -84,7 +163,8 @@ struct PremiumHeartView: View {
             BrandMark(size: 30)
             VStack(alignment: .leading, spacing: 2) {
                 Text(restingHR.map { "LIVE · RESTING \($0) BPM" } ?? "LIVE")
-                    .font(StrandFont.overline).tracking(1.4).foregroundStyle(StrandPalette.textTertiary)
+                    .font(StrandFont.overline).tracking(1.4)
+                    .foregroundStyle(StrandPalette.textTertiary)
                 Text("Heart").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
             }
             Spacer(minLength: 0)
@@ -95,57 +175,162 @@ struct PremiumHeartView: View {
     // MARK: Live hero
 
     private var liveHero: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 8) {
             ZStack {
                 Circle().stroke(StrandPalette.metricRose.opacity(0.5), lineWidth: 2)
                     .frame(width: 92, height: 92)
                     .scaleEffect(beat ? 1.35 : 0.9).opacity(beat ? 0 : 0.6)
                 Image(systemName: "heart.fill")
-                    .font(.system(size: 54))
+                    .font(.system(size: 52))
                     .foregroundStyle(StrandPalette.metricRose)
                     .scaleEffect(beat ? 1.12 : 1.0)
                     .shadow(color: StrandPalette.metricRose.opacity(0.6), radius: 16)
             }
-            .frame(height: 110)
+            .frame(height: 104)
             Text(liveBPM.map(String.init) ?? "—")
-                .font(.system(size: 62, weight: .heavy)).monospacedDigit()
+                .font(.system(size: 58, weight: .heavy)).monospacedDigit()
                 .foregroundStyle(StrandPalette.metricRose)
-            Text("BPM · LIVE").font(StrandFont.overline).tracking(1.4)
-                .foregroundStyle(StrandPalette.textTertiary)
+            HStack(spacing: 6) {
+                Text("BPM").font(StrandFont.overline).tracking(1.4)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                ProvenanceChip(provenance: .measured)
+            }
         }
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: Stats
+    // MARK: Today's range
 
-    private var statsRow: some View {
-        HStack(spacing: 12) {
-            stat("Resting", restingHR, "bpm", StrandPalette.metricCyan)
-            stat("Average", avgHR, "bpm", StrandPalette.gold)
-            stat("Max", maxHR, "bpm", StrandPalette.metricRose)
-        }
-    }
-    private func stat(_ label: String, _ value: Int?, _ unit: String, _ tint: Color) -> some View {
+    private var todayRangeCard: some View {
         StrandCard {
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(alignment: .firstTextBaseline, spacing: 2) {
-                    CountUpText(value: value.map(Double.init) ?? 0,
-                                format: { value == nil ? "—" : "\(Int($0.rounded()))" },
-                                font: .system(size: 24, weight: .heavy),
-                                color: StrandPalette.textPrimary)
-                        .monospacedDigit()
-                    Text(unit).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+            VStack(alignment: .leading, spacing: 14) {
+                Text("Today's range").font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                if let lo = minHR, let hi = maxHR, let avg = avgHR {
+                    HStack(spacing: 14) {
+                        rangeStat("LOW", lo, StrandPalette.metricCyan)
+                        rangeStat("AVERAGE", avg, StrandPalette.gold)
+                        rangeStat("HIGH", hi, StrandPalette.metricRose)
+                    }
+                    rangeBar(lo: Double(lo), hi: Double(hi), avg: Double(avg))
+                } else {
+                    MetricUnavailable(name: "Today's heart rate",
+                                      reason: "No readings recorded yet today.")
                 }
-                Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
-    // MARK: Day HR chart (zone-shaded ribbon)
+    private func rangeStat(_ label: String, _ value: Int, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(value)").font(.system(size: 22, weight: .heavy)).monospacedDigit()
+                .foregroundStyle(tint)
+            Text(label).font(StrandFont.overline).tracking(1.0)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
-    /// The chart's vertical bpm range: wide enough to cover both today's actual readings and the
-    /// full real zone spread, so the zone-shaded bands and the line always share one scale.
+    /// A single horizontal span from the day's low to its high, with the average marked — the
+    /// day's cardiovascular envelope in one glance.
+    private func rangeBar(lo: Double, hi: Double, avg: Double) -> some View {
+        GeometryReader { geo in
+            let span: Double = max(1, hi - lo)
+            let markerX: CGFloat = geo.size.width * CGFloat((avg - lo) / span)
+            ZStack(alignment: .leading) {
+                Capsule().fill(LinearGradient(
+                    colors: [StrandPalette.metricCyan, StrandPalette.gold, StrandPalette.metricRose],
+                    startPoint: .leading, endPoint: .trailing))
+                    .frame(height: 10)
+                Circle().fill(StrandPalette.textPrimary)
+                    .frame(width: 10, height: 10)
+                    .overlay(Circle().strokeBorder(StrandPalette.surfaceBase, lineWidth: 2))
+                    .offset(x: max(0, min(geo.size.width - 10, markerX - 5)))
+            }
+        }
+        .frame(height: 14)
+    }
+
+    // MARK: Findings
+
+    @ViewBuilder private var findingsSection: some View {
+        if !findings.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "What your heart shows")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(findings) { f in PremiumFindingRow(finding: f) }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Baselines (RHR + HRV vs personal normal)
+
+    private var baselinesSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            PremiumSectionHeader(title: "Against your baseline")
+            baselineCard(.restingHr, analysis: rhrAnalysis)
+            baselineCard(.hrv, analysis: hrvAnalysis)
+        }
+    }
+
+    private func baselineCard(_ id: PremiumMetricID, analysis a: PremiumMetricAnalysis) -> some View {
+        let d: PremiumMetricDef = PremiumMetricCatalog.def(id)
+        let values: [Double] = Array(a.series.suffix(30).map(\.value))
+        return NavigationLink(value: PremiumRoute.catalogMetric(id)) {
+            StrandCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        PremiumIconTile(system: d.icon, tint: d.tint, size: 30)
+                        Text(d.name).font(StrandFont.headline)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    }
+                    if values.count >= 2 {
+                        MetricValueHeader(
+                            value: a.latest.map { d.format($0, withUnit: false) } ?? "—",
+                            unit: d.unit,
+                            deltaText: baselineDelta(a),
+                            deltaGood: baselineGood(a, def: d),
+                            caption: baselineCaption(a, def: d),
+                            tint: d.tint)
+                        BaselineBandChart(values: values, baseline: a.baseline, spread: a.spread,
+                                          tint: d.tint, height: 96,
+                                          valueFormat: { d.format($0, withUnit: false) })
+                    } else {
+                        MetricUnavailable(name: d.shortName,
+                                          reason: "Not enough readings recorded yet.")
+                    }
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func baselineDelta(_ a: PremiumMetricAnalysis) -> String? {
+        guard a.hasBaseline, let pct = a.deviationPct else { return nil }
+        return PremiumAnalysis.signedPct(pct)
+    }
+    private func baselineGood(_ a: PremiumMetricAnalysis, def d: PremiumMetricDef) -> Bool? {
+        guard let hb = d.higherBetter, let pct = a.deviationPct, a.hasBaseline else { return nil }
+        return hb ? pct >= 0 : pct <= 0
+    }
+    private func baselineCaption(_ a: PremiumMetricAnalysis, def d: PremiumMetricDef) -> String? {
+        guard let b = a.baseline else {
+            return "Not enough history for a baseline yet — \(a.series.count) readings so far."
+        }
+        var s = "Your \(a.baselineN)-day baseline is \(d.format(b))"
+        if a.runLength >= 3 { s += " · \(a.runLength) days \(a.runBelow ? "below" : "above")" }
+        return s + "."
+    }
+
+    // MARK: Today's curve (zone-shaded)
+
     private var chartRange: ClosedRange<Double>? {
         guard let set = zoneSet else { return nil }
         let dataLo = bpmValues.min() ?? set.zones[0].lower
@@ -157,9 +342,9 @@ struct PremiumHeartView: View {
 
     private var dayChartCard: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Today").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+            PremiumSectionHeader(title: "Through today")
             StrandCard {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 10) {
                     if bpmValues.count >= 2, let range = chartRange, let set = zoneSet {
                         ZStack {
                             zoneRibbon(zoneRows(set: set, tiz: timeInZone), range: range)
@@ -178,31 +363,21 @@ struct PremiumHeartView: View {
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                         Text("Shaded by your real zones · Tanaka max-HR, age \(profile.age)")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                    } else if bpmValues.count >= 2 {
-                        Sparkline(values: bpmValues,
-                                  gradient: Gradient(colors: [StrandPalette.metricRose,
-                                                              StrandPalette.metricRose.opacity(0.55)]),
-                                  lineWidth: 2, showsArea: true, showsHead: true, showsHover: true,
-                                  valueFormat: { "\(Int($0.rounded())) bpm" })
-                            .frame(height: 150)
                     } else {
-                        Text("No heart-rate recorded yet today")
-                            .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
-                            .frame(maxWidth: .infinity, minHeight: 150)
+                        MetricUnavailable(name: "Today's curve",
+                                          reason: "No heart rate recorded yet today.")
                     }
                 }
             }
         }
     }
 
-    /// Horizontal zone bands drawn behind the HR line, in the SAME value range as the Sparkline
-    /// above it, so the line visibly crosses real zone boundaries as it moves through the day.
     private func zoneRibbon(_ rows: [ZoneRow], range: ClosedRange<Double>) -> some View {
         GeometryReader { geo in
             ZStack(alignment: .top) {
                 ForEach(rows) { row in
-                    let yTop = yFor(row.hi, range: range, height: geo.size.height)
-                    let yBot = yFor(row.lo, range: range, height: geo.size.height)
+                    let yTop: CGFloat = yFor(row.hi, range: range, height: geo.size.height)
+                    let yBot: CGFloat = yFor(row.lo, range: range, height: geo.size.height)
                     Rectangle()
                         .fill(row.tint.opacity(0.14))
                         .frame(height: max(0, yBot - yTop))
@@ -218,16 +393,13 @@ struct PremiumHeartView: View {
         return height * CGFloat(1 - frac)
     }
 
-    // MARK: Zones (real: Tanaka age-predicted max HR + HRZones.timeInZone)
+    // MARK: Zones
 
-    private struct ZoneRow: Identifiable {
+    struct ZoneRow: Identifiable {
         let name: String; let lo: Double; let hi: Double; let tint: Color; let minutes: Double
         var id: String { name }
     }
 
-    /// The 5 real zone rows built from a personalized `HRZoneSet` (Tanaka HRmax from age) and real
-    /// time-in-zone. "Resting" merges Zone 1 with below-Zone-1 time, matching the 5-row layout the
-    /// prototype's fixed thresholds used — only the BOUNDS and MINUTES are now real, not guessed.
     private func zoneRows(set: HRZoneSet, tiz: TimeInZone?) -> [ZoneRow] {
         func mins(_ zoneNumbers: [Int], includeBelow: Bool = false) -> Double {
             guard let tiz else { return 0 }
@@ -247,68 +419,257 @@ struct PremiumHeartView: View {
 
     @ViewBuilder private var zonesCard: some View {
         if let set = zoneSet {
-            let rows = zoneRows(set: set, tiz: timeInZone)
-            let maxMin = max(1, rows.map(\.minutes).max() ?? 1)
+            let rows: [ZoneRow] = zoneRows(set: set, tiz: timeInZone)
+            let total: Double = max(1, rows.reduce(0.0) { $0 + $1.minutes })
             VStack(alignment: .leading, spacing: 14) {
-                Text("Zones today").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                PremiumSectionHeader(title: "Time in zone", trailing: "today")
                 StrandCard {
-                    VStack(spacing: 12) {
-                        ForEach(rows) { z in
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(z.name).font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
-                                    Text(z.hi >= 999 ? "\(Int(z.lo.rounded()))+" : "\(Int(z.lo.rounded()))–\(Int(z.hi.rounded()))")
-                                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                                }
-                                .frame(width: 76, alignment: .leading)
-                                GeometryReader { geo in
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(StrandPalette.surfaceInset)
-                                        Capsule().fill(z.tint)
-                                            .frame(width: max(3, geo.size.width * CGFloat(z.minutes / maxMin)))
-                                    }
-                                }
-                                .frame(height: 10)
-                                Text(durText(z.minutes)).font(StrandFont.captionNumber)
-                                    .foregroundStyle(StrandPalette.textSecondary)
-                                    .frame(width: 46, alignment: .trailing)
-                            }
+                    VStack(alignment: .leading, spacing: 14) {
+                        zoneStackBar(rows: rows, total: total)
+                        VStack(spacing: 10) {
+                            ForEach(rows) { z in zoneRowView(z, total: total) }
                         }
-                        Text("Zones from your Tanaka max-HR (208 − 0.7 × age, age \(profile.age)) · on-device")
+                        Text("Zones from your Tanaka max-HR (208 − 0.7 × age, age \(profile.age)) — personal, not generic thresholds.")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
         }
     }
 
-    // MARK: Resting-HR trend
+    /// A single stacked bar showing how the whole day divided across zones — the proportional view
+    /// that per-zone bars alone can't give.
+    private func zoneStackBar(rows: [ZoneRow], total: Double) -> some View {
+        GeometryReader { geo in
+            HStack(spacing: 2) {
+                ForEach(rows.reversed()) { z in
+                    let frac: Double = z.minutes / total
+                    if frac > 0.001 {
+                        RoundedRectangle(cornerRadius: 3, style: .continuous)
+                            .fill(z.tint)
+                            .frame(width: max(2, geo.size.width * CGFloat(frac)))
+                    }
+                }
+            }
+        }
+        .frame(height: 14)
+    }
 
-    private var rhrTrendCard: some View {
-        let series = Array(repo.days.suffix(90).compactMap { $0.restingHr.map(Double.init) }.suffix(14))
-        return VStack(alignment: .leading, spacing: 14) {
-            Text("Resting HR · last 14 days").font(StrandFont.title2)
-                .foregroundStyle(StrandPalette.textPrimary)
-            StrandCard {
-                if series.count >= 2 {
-                    Sparkline(values: series,
-                              gradient: Gradient(colors: [StrandPalette.metricCyan,
-                                                          StrandPalette.metricCyan.opacity(0.55)]),
-                              lineWidth: 2.5, showsArea: true, showsHead: true, showsHover: true,
-                              valueFormat: { "\(Int($0.rounded())) bpm" })
-                        .frame(height: 110)
-                } else {
-                    Text("Not enough days yet").font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .frame(maxWidth: .infinity, minHeight: 110)
+    private func zoneRowView(_ z: ZoneRow, total: Double) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(z.name).font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
+                Text(z.hi >= 999 ? "\(Int(z.lo.rounded()))+" : "\(Int(z.lo.rounded()))–\(Int(z.hi.rounded()))")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            }
+            .frame(width: 76, alignment: .leading)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(StrandPalette.surfaceInset)
+                    Capsule().fill(z.tint)
+                        .frame(width: max(3, geo.size.width * CGFloat(z.minutes / total)))
+                }
+            }
+            .frame(height: 10)
+            Text(PremiumAnalysis.durText(z.minutes))
+                .font(StrandFont.captionNumber)
+                .foregroundStyle(StrandPalette.textSecondary)
+                .frame(width: 52, alignment: .trailing)
+        }
+    }
+
+    // MARK: Physiological load (derived only where the data supports it)
+
+    /// An estimate of daytime cardiovascular load: the share of today's recorded time spent
+    /// meaningfully above the user's own resting baseline, plus how far above.
+    ///
+    /// This is deliberately conservative. It is computed ONLY from real recorded samples against a
+    /// real personal resting baseline, it is labelled an estimate, and it is hidden entirely when
+    /// the day has too few readings or no baseline — rather than presenting a number that would
+    /// look authoritative without support. It is not a stress diagnosis.
+    @ViewBuilder private var loadSection: some View {
+        let rhrBase: Double? = rhrAnalysis.baseline
+        if let base = rhrBase, bpmValues.count >= 24 {
+            let elevated: [Double] = bpmValues.filter { $0 > base * 1.15 }
+            let elevatedPct: Double = Double(elevated.count) / Double(bpmValues.count) * 100
+            let restfulPct: Double = 100 - elevatedPct
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    PremiumSectionHeader(title: "Physiological load")
+                    Spacer()
+                    ProvenanceChip(provenance: .calculated)
+                }
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 14) {
+                            loadStat("Restful", restfulPct, StrandPalette.recoveryColor(85))
+                            loadStat("Elevated", elevatedPct, StrandPalette.metricRose)
+                        }
+                        GeometryReader { geo in
+                            HStack(spacing: 2) {
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(StrandPalette.recoveryColor(85))
+                                    .frame(width: max(2, geo.size.width * CGFloat(restfulPct / 100)))
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(StrandPalette.metricRose)
+                            }
+                        }
+                        .frame(height: 12)
+                        Text("The share of today's recorded readings sitting more than 15% above your \(Int(base.rounded())) bpm resting baseline. An estimate of cardiovascular load from real samples — not a stress score or a medical assessment.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
         }
     }
 
-    private func durText(_ minutes: Double) -> String {
-        let m = Int(minutes.rounded()); let h = m / 60, mm = m % 60
-        return h > 0 ? "\(h)h \(mm)m" : "\(mm)m"
+    private func loadStat(_ label: String, _ pct: Double, _ tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(Int(pct.rounded()))%")
+                .font(.system(size: 22, weight: .heavy)).monospacedDigit()
+                .foregroundStyle(tint)
+            Text(label.uppercased()).font(StrandFont.overline).tracking(1.0)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Overnight
+
+    @ViewBuilder private var overnightSection: some View {
+        if overnight.count >= 4 {
+            let values: [Double] = overnight.map(\.bpm)
+            let fmt = DateFormatter()
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Overnight", trailing: "last night")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        ScrubbableChart(
+                            values: values,
+                            tint: StrandPalette.sleepDeep,
+                            height: 130,
+                            reference: restingHR.map(Double.init),
+                            referenceTint: StrandPalette.metricCyan,
+                            readout: { idx, v in
+                                let t = self.overnight[min(idx, self.overnight.count - 1)].t
+                                fmt.dateFormat = "HH:mm"
+                                return "\(fmt.string(from: t)) · \(Int(v.rounded())) bpm"
+                            },
+                            idleLabel: "Drag to read any moment overnight")
+                        if let lo = values.min(), let m = PremiumAnalysis.mean(values) {
+                            Text("Dipped to \(Int(lo.rounded())) bpm, averaging \(Int(m.rounded())) bpm. The dashed line is your resting heart rate.")
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Weekly pattern
+
+    @ViewBuilder private var weekdaySection: some View {
+        if !dailyRanges.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Daily range", trailing: "14 days")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        RangeColumnChart(
+                            columns: dailyRanges.map { r in
+                                RangeColumnChart.Column(id: r.id, lo: r.lo, hi: r.hi,
+                                                        marker: r.mean, label: r.label)
+                            },
+                            tint: StrandPalette.metricRose,
+                            markerTint: StrandPalette.textPrimary,
+                            height: 140)
+                        Text("Each column spans that day's lowest to highest recorded heart rate; the dot marks the day's average.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Distribution
+
+    @ViewBuilder private var distributionSection: some View {
+        let a: PremiumMetricAnalysis = rhrAnalysis
+        if a.series.count >= 10 {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Resting HR distribution")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        DistributionHistogram(values: a.series.map(\.value), buckets: 12,
+                                              tint: StrandPalette.metricCyan,
+                                              highlight: a.latest, height: 110)
+                        if a.byWeekday.count >= 3 {
+                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                            Text("BY DAY OF WEEK").font(StrandFont.overline).tracking(1.2)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                            WeekdayPatternChart(byWeekday: a.byWeekday,
+                                                tint: StrandPalette.metricCyan,
+                                                format: { "\(Int($0.rounded())) bpm" })
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Relationship to recovery
+
+    @ViewBuilder private var relationshipSection: some View {
+        let hrvSeries: [PremiumSample] = PremiumMetricCatalog.series(.hrv, repo: repo)
+        let recSeries: [PremiumSample] = PremiumMetricCatalog.series(.recovery, repo: repo)
+        if let best = PremiumAnalysis.bestRelationship(hrvSeries, recSeries) {
+            let pairs = CorrelationEngine.alignByDay(hrvSeries.map { (day: $0.day, value: $0.value) },
+                                                     recSeries.map { (day: $0.day, value: $0.value) })
+            let points: [CGPoint] = Self.normalise(pairs)
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "HRV and recovery")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        CorrelationScatter(points: points, tint: StrandPalette.metricCyan, height: 150)
+                        HStack {
+                            Text("HRV →").font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                            Spacer()
+                            Text("r = \(String(format: "%.2f", best.correlation.r)) · \(best.correlation.n) days")
+                                .font(StrandFont.captionNumber)
+                                .foregroundStyle(StrandPalette.textSecondary)
+                        }
+                        Text("Each dot is one day: your HRV against that day's recovery. This is an association measured in your own data, not a cause.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Normalises aligned pairs into the unit square the scatter plots in. Pulled out of the view
+    /// body deliberately — inlining this arithmetic inside a `@ViewBuilder` is what previously
+    /// exhausted the type-checker's budget.
+    private static func normalise(_ pairs: [(Double, Double)]) -> [CGPoint] {
+        guard !pairs.isEmpty else { return [] }
+        let xs: [Double] = pairs.map(\.0)
+        let ys: [Double] = pairs.map(\.1)
+        let xlo: Double = xs.min() ?? 0, xhi: Double = xs.max() ?? 1
+        let ylo: Double = ys.min() ?? 0, yhi: Double = ys.max() ?? 1
+        let xspan: Double = max(xhi - xlo, 0.0001)
+        let yspan: Double = max(yhi - ylo, 0.0001)
+        var out: [CGPoint] = []
+        out.reserveCapacity(pairs.count)
+        for i in 0..<pairs.count {
+            let nx: Double = (xs[i] - xlo) / xspan
+            let ny: Double = (ys[i] - ylo) / yspan
+            out.append(CGPoint(x: CGFloat(nx), y: CGFloat(ny)))
+        }
+        return out
     }
 }
 #endif

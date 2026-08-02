@@ -35,6 +35,17 @@ struct PremiumTrendsView: View {
 
     @State private var metricIndex = 0
     @State private var rangeIndex = 1
+    /// User-chosen comparison metric for the relationship card. nil = the sensible default partner.
+    @State private var partnerIndex: Int?
+    /// A tapped calendar day, shown in a detail sheet with that day's full context. Wrapped because
+    /// `DailyMetric` is a plain value type without an identity for `.sheet(item:)`.
+    private struct DaySelection: Identifiable {
+        let metric: DailyMetric
+        var id: String { metric.day }
+    }
+    @State private var selectedDay: DaySelection?
+    /// Deterministic findings: meaningful changes and journal relationships.
+    @State private var findings: [PremiumFinding] = []
 
     private var metric: Metric { metrics[metricIndex] }
     private var series: [Double] { Array(repo.days.suffix(ranges[rangeIndex].1).compactMap(metric.key)) }
@@ -49,6 +60,7 @@ struct PremiumTrendsView: View {
                     metricPicker
                     weekStrip
                     heroCard
+                    findingsCard
                     heatmapCard
                     comparisonCard
                     digestGrid
@@ -64,6 +76,8 @@ struct PremiumTrendsView: View {
             .onChange(of: scrollToTopSignal) { _, _ in
                 withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
             }
+            .sheet(item: $selectedDay) { sel in dayDetailSheet(sel.metric) }
+            .task(id: repo.refreshSeq) { await loadFindings() }
         }
     }
 
@@ -159,14 +173,21 @@ struct PremiumTrendsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                 rangeControl
                 if series.count >= 2 {
-                    Sparkline(values: series,
-                              gradient: Gradient(colors: [metric.tint, metric.tint.opacity(0.55)]),
-                              lineWidth: 2.5, showsArea: true, showsHead: true, showsHover: true,
-                              valueFormat: { metric.fmt($0) + (metric.unit.isEmpty ? "" : " " + metric.unit) })
-                        .frame(height: 170)
+                    // Plotted against the user's OWN typical range rather than as a bare line, so
+                    // "is this normal for me?" is answerable without leaving the chart.
+                    BaselineBandChart(values: series,
+                                      baseline: PremiumAnalysis.mean(series),
+                                      spread: PremiumAnalysis.stdev(series),
+                                      tint: metric.tint, height: 170,
+                                      valueFormat: { metric.fmt($0) })
+                    HStack {
+                        Text("Shaded band = your typical range for this period")
+                        Spacer()
+                        Text("\(series.count) days")
+                    }
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 } else {
-                    Text("Not enough history yet").font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textTertiary).frame(maxWidth: .infinity, minHeight: 170)
+                    MetricUnavailable(name: metric.name, reason: "Not enough history in this range yet.")
                 }
             }
         }
@@ -192,17 +213,93 @@ struct PremiumTrendsView: View {
                         Text("\(ranges[rangeIndex].0) · \(days.count) days").font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
-                            ForEach(Array(values.enumerated()), id: \.offset) { _, v in
-                                RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                    .fill(v == nil ? StrandPalette.surfaceInset
-                                          : metric.tint.opacity(0.22 + 0.68 * CGFloat((v! - lo) / span)))
-                                    .aspectRatio(1, contentMode: .fit)
+                            ForEach(Array(days.enumerated()), id: \.offset) { idx, day in
+                                heatCell(day: day, value: values[idx], lo: lo, span: span)
                             }
                         }
+                        Text("Tap any day for its full context.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     }
                 }
             }
         }
+    }
+
+    /// One calendar cell. Tapping opens that day's real recorded values — which is what makes the
+    /// grid actionable rather than decorative.
+    private func heatCell(day: DailyMetric, value: Double?, lo: Double, span: Double) -> some View {
+        let filled: Bool = value != nil
+        let intensity: CGFloat = filled ? CGFloat((value! - lo) / span) : 0
+        return Button {
+            selectedDay = DaySelection(metric: day)
+        } label: {
+            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                .fill(filled ? metric.tint.opacity(0.22 + 0.68 * intensity) : StrandPalette.surfaceInset)
+                .aspectRatio(1, contentMode: .fit)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(dayAccessibility(day, value: value))
+    }
+
+    private func dayAccessibility(_ day: DailyMetric, value: Double?) -> String {
+        guard let v = value else { return "\(day.day): no data" }
+        return "\(day.day): \(metric.fmt(v)) \(metric.unit)"
+    }
+
+    /// The tapped-day detail: every real signal recorded that day, so a dark or bright cell can be
+    /// explained rather than just noticed.
+    private func dayDetailSheet(_ day: DailyMetric) -> some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    StrandCard {
+                        VStack(spacing: 0) {
+                            dayRow("Recovery", day.recovery.map { "\(Int($0.rounded()))%" })
+                            dayRow("Strain", day.strain.map { String(format: "%.1f", $0) })
+                            dayRow("HRV", day.avgHrv.map { "\(Int($0.rounded())) ms" })
+                            dayRow("Resting HR", day.restingHr.map { "\($0) bpm" })
+                            dayRow("Sleep", day.totalSleepMin.map { PremiumAnalysis.durText($0) })
+                            dayRow("Efficiency", day.efficiency.map {
+                                "\(Int(($0 <= 1 ? $0 * 100 : $0).rounded()))%" })
+                            dayRow("Respiratory", day.respRateBpm.map { String(format: "%.1f rpm", $0) })
+                            dayRow("Steps", day.steps.map { "\($0)" })
+                        }
+                    }
+                    Text("Only signals actually recorded that day are shown.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+                .padding(20)
+            }
+            .background(StrandPalette.surfaceBase.ignoresSafeArea())
+            .navigationTitle(prettyDay(day.day))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { selectedDay = nil }
+                        .foregroundStyle(StrandPalette.accent)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func dayRow(_ label: String, _ value: String?) -> some View {
+        if let v = value {
+            VStack(spacing: 0) {
+                HStack {
+                    Text(label).font(StrandFont.body).foregroundStyle(StrandPalette.textSecondary)
+                    Spacer()
+                    Text(v).font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textPrimary)
+                }
+                .padding(.vertical, 11)
+                Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+            }
+        }
+    }
+
+    private func prettyDay(_ key: String) -> String {
+        guard let d = PremiumAnalysis.dayParser.date(from: key) else { return key }
+        let f = DateFormatter(); f.dateFormat = "EEEE, MMM d"
+        return f.string(from: d)
     }
 
     private var rangeControl: some View {
@@ -413,7 +510,13 @@ struct PremiumTrendsView: View {
 
     /// The metric paired against Recovery (or, when Recovery itself is selected, against Sleep — so
     /// there's always a distinct second variable), same-day pairs only, over the current range.
-    private var correlationPartner: Metric { metrics[metricIndex == 0 ? 3 : 0] }
+    /// The metric the primary one is compared against. User-selectable (defaults to a sensible
+    /// partner) so Trends is an exploration tool — "do THESE two move together?" — rather than a
+    /// fixed pairing the user can't question.
+    private var correlationPartner: Metric {
+        if let idx = partnerIndex, idx != metricIndex, idx < metrics.count { return metrics[idx] }
+        return metrics[metricIndex == 0 ? 3 : 0]
+    }
     private var pairedSeries: (x: [Double], y: [Double]) {
         let partner = correlationPartner
         let days = Array(repo.days.suffix(ranges[rangeIndex].1))
@@ -454,6 +557,86 @@ struct PremiumTrendsView: View {
         return pts
     }
 
+    /// Choose which metric the primary one is compared against. Excludes the primary itself, so the
+    /// card can never plot a metric against a copy of itself.
+    private var partnerPicker: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Array(metrics.enumerated()), id: \.offset) { idx, m in
+                    if idx != metricIndex {
+                        let isOn: Bool = correlationPartner.name == m.name
+                        Button {
+                            withAnimation(.easeOut(duration: 0.2)) { partnerIndex = idx }
+                        } label: {
+                            Text(m.name)
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(isOn ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
+                                .padding(.horizontal, 12).padding(.vertical, 7)
+                                .background(Capsule().fill(isOn ? m.tint : StrandPalette.surfaceInset))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 2)
+        }
+    }
+
+    /// Deterministic findings across the user's whole history: sustained baseline deviations and
+    /// journal behaviour associations. These are the "meaningful changes" the request asks for —
+    /// computed, thresholded and confidence-labelled, never a model's impression.
+    @ViewBuilder private var findingsCard: some View {
+        if !findings.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                Text("What changed").font(StrandFont.title2)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(findings) { f in PremiumFindingRow(finding: f) }
+                        Text("Computed on-device from your own history. Associations, not causes.")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Loads findings, including journal-behaviour associations against HRV / recovery / sleep.
+    private func loadFindings() async {
+        var out: [PremiumFinding] = []
+        for id in [PremiumMetricID.hrv, .restingHr, .recovery, .sleepDuration] {
+            let a = PremiumMetricCatalog.analysis(id, repo: repo)
+            let d = PremiumMetricCatalog.def(id)
+            if let f = PremiumAnalysis.baselineFinding(a, name: d.shortName, unit: d.unit, tint: d.tint) {
+                out.append(f)
+            }
+        }
+        // Journal relationships — the request's "Journal relationships once Journal is available".
+        let entries = await repo.journalEntries()
+        var behaviorDays: [String: Set<String>] = [:]
+        for e in entries where e.answeredYes { behaviorDays[e.question, default: []].insert(e.day) }
+        let outcomes: [(PremiumMetricID, Color)] = [
+            (.hrv, StrandPalette.metricCyan),
+            (.recovery, StrandPalette.recoveryColor(85)),
+            (.sleepDuration, StrandPalette.sleepDeep),
+        ]
+        for (behavior, days) in behaviorDays {
+            for (id, tint) in outcomes {
+                let series = PremiumMetricCatalog.series(id, repo: repo)
+                let name = PremiumMetricCatalog.def(id).shortName
+                guard let assoc = PremiumAnalysis.behaviorAssociation(
+                    behaviorDays: days, behaviorName: behavior,
+                    outcome: series, outcomeName: name) else { continue }
+                if let f = PremiumAnalysis.behaviorFinding(effect: assoc.effect,
+                                                           lagDays: assoc.lagDays, tint: tint) {
+                    out.append(f)
+                }
+            }
+        }
+        out.sort { $0.confidence > $1.confidence }
+        findings = Array(out.prefix(6))
+    }
+
     @ViewBuilder private var correlationCard: some View {
         let partner = correlationPartner
         let pair = pairedSeries
@@ -465,6 +648,7 @@ struct PremiumTrendsView: View {
             VStack(alignment: .leading, spacing: 14) {
                 Text("\(metric.name) vs \(partner.name)").font(StrandFont.title2)
                     .foregroundStyle(StrandPalette.textPrimary)
+                partnerPicker
                 StrandCard {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .top) {
