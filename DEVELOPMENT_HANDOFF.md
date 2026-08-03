@@ -8,12 +8,16 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after milestone `i18n-4a` (Heart + Sleep view copy)
-**Current commit:** `a700c62`
-**Current milestone:** Localization — Heart and Sleep done; Trends/Journal/Home views remain
+**Last updated:** after milestone `i18n-4b` (Home + Trends + Journal view copy)
+**Current commit:** `4759283`
+**Current milestone:** Localization — main screens done; secondary screens remain
 **Build status:** last VERIFIED green commit is `5a461ac`. Everything since is localization only
-(mechanical `String(localized:)` wrapping + catalog additions); `a700c62` compile check in flight.
-If you pick this up and that run has not reported, re-dispatch `app-build.yml` before trusting it.
+(mechanical `String(localized:)` wrapping + String Catalog additions, no logic changes);
+`4759283` compile check in flight.
+**If that run has not reported when you pick this up, dispatch `app-build.yml` on this branch and
+confirm green BEFORE building an IPA.** CI cancels in-progress runs on each new push
+(`concurrency: cancel-in-progress`), so several intermediate commits show "cancelled" — that is
+supersession, not failure.
 
 ### COMPLETED
 - Premium analysis engine, chart library, metric catalog, customizable Home, Sleep/Heart/Trends/
@@ -27,15 +31,16 @@ If you pick this up and that run has not reported, re-dispatch `app-build.yml` b
 - Catalog now **3315 keys, 0 missing de/es/fr**.
 
 ### IN PROGRESS
-- **`i18n-4` (PARTIAL)** — static view copy.
-  - DONE: `PremiumSleepView` (clean), `PremiumHeartView` (only numeric axis/zone formats left,
-    which are deliberately not translated).
-  - REMAINING (~95 literals): `PremiumTrendsView` (16), `PremiumJournalView` (13),
-    `PremiumHomeView` (9), `PremiumCoachView` (9), `PremiumStrainView` (7),
+- **`i18n-4` (PARTIAL)** — static view copy. **75 literals remain** (down from 129).
+  - DONE: `PremiumSleepView`, `PremiumHeartView`, `PremiumHomeView`, `PremiumTrendsView`,
+    `PremiumJournalView` — i.e. all five primary screens.
+  - REMAINING: the secondary screens — `PremiumCoachView` (9), `PremiumStrainView` (7),
     `PremiumSettingsView` (7), `PremiumEditHomeView` (7), `PremiumCatalogDetailView` (6),
     `PremiumEnergyView` (5), `PremiumBloodOxygenView` (5), `PremiumWhatsNewView` (4),
     `PremiumReadinessView` (3), `PremiumMetricDetailView` (3), `PremiumInsightsView` (2),
-    `PremiumCharts` (1). These render in English regardless of language.
+    `PremiumCharts` (1), plus ~20 numeric/format literals that are deliberately NOT translated
+    (axis ticks like `12a`/`6p`, bpm ranges like `120–140`). These render in English regardless of
+    the selected language.
 
 ### NEXT TASK
 Finish `i18n-4` for the remaining view files listed above. The exact recipe, already used for
@@ -90,6 +95,8 @@ Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not lang
 | `fe09ac9` | `i18n-3` — metric catalog names/explanations localized |
 | `0ddfccc` | handoff checkpoint |
 | `a700c62` | `i18n-4a` — Heart + Sleep view copy localized |
+| `42b3bc9` | handoff checkpoint |
+| `4759283` | `i18n-4b` — Home + Trends + Journal view copy localized |
 
 ---
 
