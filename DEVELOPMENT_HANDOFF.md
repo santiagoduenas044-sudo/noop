@@ -8,41 +8,55 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after milestone `i18n-1` (language picker)
-**Current commit:** `ee5bd36`
-**Current milestone:** Localization — picker done; localizing the new Premium UI strings next
-**Build status:** green at `5a461ac` (all Premium screen work). `ee5bd36` compile check in flight.
+**Last updated:** after milestone `i18n-3` (metric catalog localization)
+**Current commit:** `fe09ac9`
+**Current milestone:** Localization — dynamic content done; static view labels remain
+**Build status:** green at `5a461ac`. `fe09ac9` compile check in flight (localization is the only
+change since green, and it is mechanical, but treat it as unverified until that run reports).
 
 ### COMPLETED
 - Premium analysis engine, chart library, metric catalog, customizable Home, Sleep/Heart/Trends/
   Journal rebuilds, Coach context layer (see "What has been implemented" below).
-- **`i18n-1`** — System/English/Español language picker (`Strand/System/AppLanguage.swift`,
-  Settings → Language). Catalog at 3248 keys, 0 missing de/es/fr.
+- **`i18n-1`** (`ee5bd36`) — System/English/Español language picker
+  (`Strand/System/AppLanguage.swift`, Settings → Language).
+- **`i18n-2`** (`5b33e61`) — the analysis engine's **generated insight sentences**: baseline,
+  relationship, behaviour and timing findings, provenance/confidence/trend labels, data-quality
+  summary. Localized as whole sentences with positional args (`%1$@`, `%2$d`).
+- **`i18n-3`** (`fe09ac9`) — metric catalog names, short names, explanations and group labels.
+- Catalog now **3315 keys, 0 missing de/es/fr**.
 
 ### IN PROGRESS
-- **`i18n-2` (PARTIAL, not started in code)** — the ~129 hardcoded English literals introduced by
-  the new `Premium*.swift` files are **not yet localized**. They are pre-existing-style debt caught
-  by `Tools/i18n_audit.py`; the audit's *translation* gaps are 0, but these literals never reach a
-  catalog at all, so they will always render in English.
+- **`i18n-4` (PARTIAL — NOT DONE)** — ~129 static English literals remain in the `Premium*.swift`
+  **view** files (section headers, captions, footnotes). These render in English regardless of
+  language. They are the *last* localization gap; everything dynamic is done.
 
 ### NEXT TASK
-Localize the new Premium UI strings: wrap user-facing `Text("…")` in the `Premium*.swift` files with
-`String(localized:)`, then add the keys + de/es/fr with
+Finish `i18n-4`. Run `python3 Tools/i18n_audit.py --platform ios --full` and work the
+`StrandiOS/App/Premium*.swift` entries file-by-file, largest first
+(`PremiumHeartView` 18, `PremiumTrendsView` 16, `PremiumSleepView` 14, `PremiumJournalView` 13).
+For each: wrap the literal in `String(localized:)`, then add the key with de/es/fr via
 `python3 Tools/add_catalog_strings.py Strand/Resources/Localizable.xcstrings entries.json`.
-Work file-by-file and commit per file — `python3 Tools/i18n_audit.py --platform ios --full` lists
-exactly which literals remain.
+Commit per file or per small group; re-run the audit after each.
 
 ### IMPORTANT IMPLEMENTATION NOTES
-- `Tools/add_catalog_strings.py` preserves the catalog's exact on-disk formatting. Do NOT re-sort or
-  re-serialise the catalog another way — it produces a 7700-line diff.
+- `Tools/add_catalog_strings.py` preserves the catalog's exact on-disk formatting and never
+  overwrites an existing translation. Do NOT re-serialise the catalog another way — a plain
+  `json.dump` with `sort_keys` produces a 7700-line diff.
 - The language override writes Apple's `AppleLanguages` key; bundle lookup resolves at launch, hence
   the "relaunch to finish" note in Settings. Don't try to make it instant by reloading bundles.
-- `String(localized:)` with interpolation is not extracted cleanly by the audit — use
-  `String(format: String(localized: "… %@"), value)` for interpolated strings.
+- Interpolated `String(localized: "… \(x)")` is not extracted cleanly — use
+  `String(format: String(localized: "… %1$@"), x)` with **positional** specifiers, so translators
+  can reorder arguments.
+- `PremiumMetricCatalog.all` is a `static let`, so its `String(localized:)` calls resolve once per
+  process. That is deliberate and matches the relaunch-to-apply behaviour — don't "fix" it into a
+  per-render lookup.
+- `PremiumMetricGroup.rawValue` is a stable identifier (used in stored prefs); `.label` is the
+  display string. Never render `rawValue`.
 
 ### KNOWN ISSUES
-- ~129 un-localized literals in `Premium*.swift` (see IN PROGRESS).
+- ~129 un-localized static literals in the Premium **views** (see IN PROGRESS).
 - macOS `SettingsView` has no language picker — the override is iOS-only so far.
+- Coach still shows demo content; `PremiumCoachContext` is built but unused by the UI.
 
 ---
 
@@ -62,6 +76,8 @@ exactly which literals remain.
 | `5a461ac` | Heart formatter hoist — **last commit verified green** |
 | `3f693d0` | `DEVELOPMENT_HANDOFF.md` added |
 | `ee5bd36` | `i18n-1` — language picker |
+| `5b33e61` | `i18n-2` — generated insight sentences localized |
+| `fe09ac9` | `i18n-3` — metric catalog names/explanations localized |
 
 ---
 
