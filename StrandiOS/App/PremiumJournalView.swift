@@ -108,7 +108,7 @@ struct PremiumJournalView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text("LOG").font(StrandFont.overline).tracking(1.4)
+            Text("LOG", comment: "Journal screen eyebrow").font(StrandFont.overline).tracking(1.4)
                 .foregroundStyle(StrandPalette.textTertiary)
             Text("Journal").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
         }
@@ -200,7 +200,7 @@ struct PremiumJournalView: View {
         if moodHistory.count >= 2 {
             StrandCard {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("MOOD · LAST \(moodHistory.count) DAYS").font(StrandFont.overline).tracking(1.3)
+                    Text(String(format: String(localized: "MOOD · LAST %d DAYS"), moodHistory.count)).font(StrandFont.overline).tracking(1.3)
                         .foregroundStyle(StrandPalette.textTertiary)
                     HStack(alignment: .bottom, spacing: 6) {
                         ForEach(moodHistory) { p in
@@ -237,7 +237,7 @@ struct PremiumJournalView: View {
                                 quickChip(item)
                             }
                         }
-                        Text("Your most-logged behaviours. Tap to log, tap again to clear.")
+                        Text("Your most-logged behaviours. Tap to log, tap again to clear.", comment: "Journal quick-log caption")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     }
                 }
@@ -304,7 +304,7 @@ struct PremiumJournalView: View {
                 StrandCard {
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(associations) { f in PremiumFindingRow(finding: f) }
-                        Text("These are associations from your own logged history — not proven causes. More logging sharpens them.")
+                        Text("These are associations from your own logged history — not proven causes. More logging sharpens them.", comment: "Journal associations disclaimer")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -490,7 +490,7 @@ struct PremiumJournalView: View {
                         .foregroundStyle(StrandPalette.textTertiary)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear \(item.display)")
+                .accessibilityLabel(String(format: String(localized: "Clear %@"), item.display))
             }
         }
     }
@@ -542,7 +542,7 @@ struct PremiumJournalView: View {
                         .font(StrandFont.body)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
-                .accessibilityLabel("Edit \(item.display)")
+                .accessibilityLabel(String(format: String(localized: "Edit %@"), item.display))
 
                 Button { catalog.remove(item.canonical) } label: {
                     Image(systemName: "minus.circle.fill")

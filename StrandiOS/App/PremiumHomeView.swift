@@ -120,7 +120,7 @@ struct PremiumHomeView: View {
             .sheet(isPresented: $showEditHome) {
                 NavigationStack {
                     PremiumEditHomeView(layout: layout)
-                        .navigationTitle("Edit Home")
+                        .navigationTitle(Text("Edit Home", comment: "Home customisation sheet title"))
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
                             ToolbarItem(placement: .topBarTrailing) {
@@ -294,7 +294,7 @@ struct PremiumHomeView: View {
                 HStack(spacing: 10) {
                     Circle().fill(AngularGradient(gradient: StrandPalette.goldGradient, center: .center))
                         .frame(width: 26, height: 26)
-                    Text("TODAY'S STORY").font(StrandFont.overline).tracking(1.4)
+                    Text("TODAY'S STORY", comment: "Home narrative card label").font(StrandFont.overline).tracking(1.4)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
                 Text(storyText).font(StrandFont.headline)
@@ -330,7 +330,7 @@ struct PremiumHomeView: View {
                     iconTile(journalLoggedToday ? "checkmark.seal.fill" : "square.and.pencil",
                              tint: journalLoggedToday ? StrandPalette.recoveryColor(85) : StrandPalette.gold)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(journalLoggedToday ? "Logged today" : "Log today's check-in")
+                        Text(journalLoggedToday ? String(localized: "Logged today") : String(localized: "Log today's check-in"))
                             .font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
                         Text(journalSubtitle)
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
@@ -343,7 +343,7 @@ struct PremiumHomeView: View {
             }
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(journalLoggedToday ? "Journal, logged today" : "Log today's journal check-in")
+        .accessibilityLabel(journalLoggedToday ? String(localized: "Journal, logged today") : String(localized: "Log today's journal check-in"))
     }
 
     private var journalSubtitle: String {
@@ -366,7 +366,7 @@ struct PremiumHomeView: View {
                         ForEach(Array(findings.prefix(3))) { f in
                             PremiumFindingRow(finding: f)
                         }
-                        Text("Computed on-device from your own history. Associations, not causes.")
+                        Text("Computed on-device from your own history. Associations, not causes.", comment: "Findings disclaimer")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     }
                 }
@@ -459,7 +459,7 @@ struct PremiumHomeView: View {
                     .foregroundStyle(StrandPalette.accent)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Edit Home metrics")
+                .accessibilityLabel(Text("Edit Home metrics", comment: "Accessibility label for the Edit Home button"))
             }
             if ids.isEmpty {
                 StrandCard {
@@ -614,7 +614,7 @@ struct PremiumHomeView: View {
                             font: .system(size: 26, weight: .heavy),
                             color: StrandPalette.textPrimary)
                     .monospacedDigit()
-                Text("SCORE").font(.system(size: 8, weight: .bold)).tracking(0.6)
+                Text("SCORE", comment: "Sleep ring label on Home").font(.system(size: 8, weight: .bold)).tracking(0.6)
                     .foregroundStyle(StrandPalette.textTertiary)
             }
         }
@@ -711,7 +711,7 @@ struct PremiumHomeView: View {
                     Button {
                         router.requestQuickActions()
                     } label: {
-                        Text("Start activity")
+                        Text("Start activity", comment: "Home recommendation button")
                             .font(StrandFont.headline)
                             .foregroundStyle(StrandPalette.goldDeepText)
                             .frame(maxWidth: .infinity)

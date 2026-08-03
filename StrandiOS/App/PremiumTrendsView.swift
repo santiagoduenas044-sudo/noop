@@ -47,6 +47,16 @@ struct PremiumTrendsView: View {
     /// Deterministic findings: meaningful changes and journal relationships.
     @State private var findings: [PremiumFinding] = []
 
+    /// The selected range's display name, localized. `ranges` keeps English raw labels because they
+    /// double as identifiers; this is what the UI renders.
+    private var rangeLabel: String {
+        switch rangeIndex {
+        case 0:  return String(localized: "Week")
+        case 2:  return String(localized: "Quarter")
+        default: return String(localized: "Month")
+        }
+    }
+
     private var metric: Metric { metrics[metricIndex] }
     private var series: [Double] { Array(repo.days.suffix(ranges[rangeIndex].1).compactMap(metric.key)) }
     private var average: Double? { series.isEmpty ? nil : series.reduce(0,+) / Double(series.count) }
@@ -85,7 +95,7 @@ struct PremiumTrendsView: View {
         HStack(alignment: .center, spacing: 12) {
             BrandMark(size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text("YOUR LONG GAME").font(StrandFont.overline).tracking(1.4)
+                Text("YOUR LONG GAME", comment: "Trends screen eyebrow").font(StrandFont.overline).tracking(1.4)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("Trends").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
             }
@@ -169,7 +179,7 @@ struct PremiumTrendsView: View {
                     Spacer()
                     trendDelta
                 }
-                Text("\(ranges[rangeIndex].0) average").font(StrandFont.subhead)
+                Text(String(format: String(localized: "%@ average"), rangeLabel)).font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textTertiary)
                 rangeControl
                 if series.count >= 2 {
@@ -181,7 +191,7 @@ struct PremiumTrendsView: View {
                                       tint: metric.tint, height: 170,
                                       valueFormat: { metric.fmt($0) })
                     HStack {
-                        Text("Shaded band = your typical range for this period")
+                        Text("Shaded band = your typical range for this period", comment: "Trends hero chart caption")
                         Spacer()
                         Text("\(series.count) days")
                     }
@@ -210,14 +220,14 @@ struct PremiumTrendsView: View {
                 Text("Calendar").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
                 StrandCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        Text("\(ranges[rangeIndex].0) · \(days.count) days").font(StrandFont.footnote)
+                        Text(String(format: String(localized: "%1$@ · %2$d days"), rangeLabel, days.count)).font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 4) {
                             ForEach(Array(days.enumerated()), id: \.offset) { idx, day in
                                 heatCell(day: day, value: values[idx], lo: lo, span: span)
                             }
                         }
-                        Text("Tap any day for its full context.")
+                        Text("Tap any day for its full context.", comment: "Trends calendar hint")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     }
                 }
@@ -265,7 +275,7 @@ struct PremiumTrendsView: View {
                             dayRow("Steps", day.steps.map { "\($0)" })
                         }
                     }
-                    Text("Only signals actually recorded that day are shown.")
+                    Text("Only signals actually recorded that day are shown.", comment: "Trends day-detail footnote")
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 }
                 .padding(20)
@@ -307,7 +317,7 @@ struct PremiumTrendsView: View {
             ForEach(Array(ranges.enumerated()), id: \.offset) { i, r in
                 let on = i == rangeIndex
                 Button { withAnimation(.easeOut(duration: 0.25)) { rangeIndex = i } } label: {
-                    Text(r.0).font(StrandFont.subhead)
+                    Text(localizedRangeName(r.0)).font(StrandFont.subhead)
                         .foregroundStyle(on ? StrandPalette.textPrimary : StrandPalette.textTertiary)
                         .padding(.horizontal, 14).padding(.vertical, 7)
                         .background(Capsule().fill(on ? StrandPalette.surfaceRaised : Color.clear))
@@ -318,6 +328,15 @@ struct PremiumTrendsView: View {
         .padding(3)
         .background(Capsule().fill(StrandPalette.surfaceInset))
         .overlay(Capsule().strokeBorder(StrandPalette.hairline, lineWidth: 1))
+    }
+
+    /// Maps a raw range identifier to its localized display name.
+    private func localizedRangeName(_ raw: String) -> String {
+        switch raw {
+        case "Week":    return String(localized: "Week")
+        case "Quarter": return String(localized: "Quarter")
+        default:        return String(localized: "Month")
+        }
     }
 
     private var trendDelta: some View {
@@ -331,7 +350,7 @@ struct PremiumTrendsView: View {
         return HStack(spacing: 4) {
             if let r = rising {
                 Image(systemName: r ? "arrow.up.right" : "arrow.down.right").font(.system(size: 11, weight: .bold))
-                Text(r ? "Rising" : "Easing").font(StrandFont.captionNumber)
+                Text(r ? String(localized: "Rising") : String(localized: "Easing")).font(StrandFont.captionNumber)
             } else { Text("—").font(StrandFont.captionNumber) }
         }
         .foregroundStyle(better == nil ? StrandPalette.textTertiary
@@ -347,7 +366,7 @@ struct PremiumTrendsView: View {
         let curAvg = cur.isEmpty ? nil : cur.reduce(0,+)/Double(cur.count)
         let prevAvg = prev.isEmpty ? nil : prev.reduce(0,+)/Double(prev.count)
         return VStack(alignment: .leading, spacing: 14) {
-            Text("This \(ranges[rangeIndex].0.lowercased()) vs last").font(StrandFont.title2)
+            Text(String(format: String(localized: "This %@ vs last"), rangeLabel.lowercased())).font(StrandFont.title2)
                 .foregroundStyle(StrandPalette.textPrimary)
             StrandCard {
                 HStack(spacing: 16) {
@@ -372,7 +391,7 @@ struct PremiumTrendsView: View {
         let worst = metric.higherBetter ? series.min() : series.max()
         let sd = Self.stdDev(series)
         return VStack(alignment: .leading, spacing: 14) {
-            Text("Digest").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+            Text("Digest", comment: "Trends section title").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
                 digestTile(metric.higherBetter ? "Best" : "Lowest", best.map(metric.fmt) ?? "—", metric.unit, metric.tint)
                 digestTile("Average", average.map(metric.fmt) ?? "—", metric.unit, StrandPalette.gold)
@@ -380,7 +399,7 @@ struct PremiumTrendsView: View {
                            StrandPalette.textTertiary)
                 digestTile("Consistency", sd.map { metric.fmt($0) } ?? "—", metric.unit, StrandPalette.metricCyan)
             }
-            Text("Consistency is the standard deviation across the period — lower means steadier day to day.")
+            Text("Consistency is the standard deviation across the period — lower means steadier day to day.", comment: "Trends digest footnote")
                 .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
         }
     }
@@ -416,7 +435,7 @@ struct PremiumTrendsView: View {
             let buckets = Self.histogramCounts(series, bucketCount: 10)
             let maxCount = max(1, buckets.max() ?? 1)
             VStack(alignment: .leading, spacing: 14) {
-                Text("Distribution").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                Text("Distribution", comment: "Trends section title").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
                 StrandCard {
                     GeometryReader { geo in
                         let barW = geo.size.width / CGFloat(buckets.count)
@@ -462,7 +481,7 @@ struct PremiumTrendsView: View {
             let lo = present.min() ?? 0, hi = present.max() ?? 1
             let span = max(hi - lo, 0.0001)
             VStack(alignment: .leading, spacing: 14) {
-                Text("By day of week").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
+                Text("By day of week", comment: "Trends section title").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
                 StrandCard {
                     HStack(alignment: .bottom, spacing: 10) {
                         ForEach(Array(byWeekday.enumerated()), id: \.offset) { _, entry in
@@ -593,7 +612,7 @@ struct PremiumTrendsView: View {
                 StrandCard {
                     VStack(alignment: .leading, spacing: 14) {
                         ForEach(findings) { f in PremiumFindingRow(finding: f) }
-                        Text("Computed on-device from your own history. Associations, not causes.")
+                        Text("Computed on-device from your own history. Associations, not causes.", comment: "Findings disclaimer")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     }
                 }
@@ -646,7 +665,7 @@ struct PremiumTrendsView: View {
             let xspan = max(xhi - xlo, 0.0001), yspan = max(yhi - ylo, 0.0001)
             let points = Self.normalizedPoints(xs: pair.x, ys: pair.y, xlo: xlo, xspan: xspan, ylo: ylo, yspan: yspan)
             VStack(alignment: .leading, spacing: 14) {
-                Text("\(metric.name) vs \(partner.name)").font(StrandFont.title2)
+                Text(String(format: String(localized: "%1$@ vs %2$@"), metric.name, partner.name)).font(StrandFont.title2)
                     .foregroundStyle(StrandPalette.textPrimary)
                 partnerPicker
                 StrandCard {
