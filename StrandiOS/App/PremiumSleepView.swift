@@ -165,7 +165,7 @@ struct PremiumSleepView: View {
                                 font: .system(size: 58, weight: .heavy),
                                 color: StrandPalette.textPrimary)
                         .monospacedDigit()
-                    Text("EFFICIENCY").font(StrandFont.overline).tracking(1.4)
+                    Text("EFFICIENCY", comment: "Sleep hero ring label").font(StrandFont.overline).tracking(1.4)
                         .foregroundStyle(StrandPalette.textTertiary)
                 }
             }
@@ -274,7 +274,7 @@ struct PremiumSleepView: View {
                             Rectangle().fill(StrandPalette.hairline).frame(height: 1)
                             efficiencyRow(e, typical: effTypical)
                         }
-                        Text("Time awake after first falling asleep, from your real decoded stage timeline. Sleep-onset latency is excluded — it isn't an awakening.")
+                        Text("Time awake after first falling asleep, from your real decoded stage timeline. Sleep-onset latency is excluded — it isn't an awakening.", comment: "Sleep continuity footnote")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -291,7 +291,7 @@ struct PremiumSleepView: View {
                 Text("\(Int(value.rounded()))%")
                     .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.sleepDeep)
                 if let t = typical {
-                    Text("typ \(Int(t.rounded()))%")
+                    Text(String(format: String(localized: "typ %d%%"), Int(t.rounded())))
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 }
             }
@@ -340,7 +340,7 @@ struct PremiumSleepView: View {
                             statBlock("Midpoint ±", variabilityText(intel.midpointVariability()),
                                       StrandPalette.metricCyan)
                         }
-                        Text("Each bar is one night, positioned by clock time. The tighter they line up, the steadier your body clock.")
+                        Text("Each bar is one night, positioned by clock time. The tighter they line up, the steadier your body clock.", comment: "Sleep timing map caption")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -378,7 +378,10 @@ struct PremiumSleepView: View {
                         timingChart("Midpoint", midSeries, StrandPalette.metricCyan)
                         if let shift = intel.weekendShiftMinutes(), abs(shift) >= 10 {
                             Rectangle().fill(StrandPalette.hairline).frame(height: 1)
-                            Text("Weekend bedtime runs \(PremiumAnalysis.durText(abs(shift))) \(shift > 0 ? "later" : "earlier") than your weekdays.")
+                            Text(String(format: shift > 0
+                                        ? String(localized: "Weekend bedtime runs %@ later than your weekdays.")
+                                        : String(localized: "Weekend bedtime runs %@ earlier than your weekdays."),
+                                      PremiumAnalysis.durText(abs(shift))))
                                 .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -399,7 +402,7 @@ struct PremiumSleepView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                 Spacer()
                 if let b = base {
-                    Text("typ \(PremiumSleepIntel.clockText(b))")
+                    Text(String(format: String(localized: "typ %@"), PremiumSleepIntel.clockText(b)))
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 }
             }
@@ -443,7 +446,7 @@ struct PremiumSleepView: View {
                             statBlock("Above", "\(above)", StrandPalette.recoveryColor(85))
                             statBlock("Below", "\(last7.count - above)", StrandPalette.metricRose)
                         }
-                        Text("Your sleep need is the greater of 7h 30m and your own 30-day average — the same rule the rest of NOOP uses.")
+                        Text("Your sleep need is the greater of 7h 30m and your own 30-day average — the same rule the rest of NOOP uses.", comment: "Sleep balance footnote")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -470,7 +473,7 @@ struct PremiumSleepView: View {
                     vitalRow(.respiratory)
                     vitalRow(.spo2)
                     vitalRow(.skinTemp)
-                    Text("Heart rate is measured continuously overnight — see the chart above. These are stored as one value per night, so they're shown as nightly figures rather than invented minute-by-minute curves.")
+                    Text("Heart rate is measured continuously overnight — see the chart above. These are stored as one value per night, so they're shown as nightly figures rather than invented minute-by-minute curves.", comment: "Overnight vitals footnote")
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 12)
@@ -493,10 +496,10 @@ struct PremiumSleepView: View {
                             Text(d.shortName).font(StrandFont.body)
                                 .foregroundStyle(StrandPalette.textPrimary)
                             if let b = a.baseline {
-                                Text("baseline \(d.format(b))")
+                                Text(String(format: String(localized: "baseline %@"), d.format(b)))
                                     .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             } else {
-                                Text("no baseline yet")
+                                Text("no baseline yet", comment: "Shown when a metric lacks enough history")
                                     .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             }
                         }
@@ -611,7 +614,9 @@ private struct SleepNightPanel: View {
     private var readout: some View {
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(scrubFraction == nil ? "OVERNIGHT AVERAGE" : "AT \(timeText(scrubFraction ?? 0))")
+                Text(scrubFraction == nil
+                     ? String(localized: "OVERNIGHT AVERAGE")
+                     : String(format: String(localized: "AT %@"), timeText(scrubFraction ?? 0)))
                     .font(StrandFont.overline).tracking(1.2)
                     .foregroundStyle(StrandPalette.textTertiary)
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -681,7 +686,9 @@ private struct SleepNightPanel: View {
                         : StrandPalette.surfaceInset))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(stage.label) stage, \(isOn ? "selected" : "not selected")")
+                .accessibilityLabel(String(format: isOn
+                                    ? String(localized: "%@ stage, selected")
+                                    : String(localized: "%@ stage, not selected"), stage.label))
             }
             Spacer(minLength: 0)
         }
@@ -857,7 +864,7 @@ private struct SleepNightPanel: View {
     }
 
     private var footnote: some View {
-        Text("Tap a stage to highlight exactly when it happened overnight. Drag the chart to read any moment. Sleep stages are estimated on-device from motion and heart rate — not a clinical measurement.")
+        Text("Tap a stage to highlight exactly when it happened overnight. Drag the chart to read any moment. Sleep stages are estimated on-device from motion and heart rate — not a clinical measurement.", comment: "Sleep night panel footnote")
             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
             .fixedSize(horizontal: false, vertical: true)
     }

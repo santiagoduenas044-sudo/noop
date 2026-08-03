@@ -162,7 +162,8 @@ struct PremiumHeartView: View {
         HStack(alignment: .center, spacing: 12) {
             BrandMark(size: 30)
             VStack(alignment: .leading, spacing: 2) {
-                Text(restingHR.map { "LIVE · RESTING \($0) BPM" } ?? "LIVE")
+                Text(restingHR.map { String(format: String(localized: "LIVE · RESTING %d BPM"), $0) }
+                    ?? String(localized: "LIVE"))
                     .font(StrandFont.overline).tracking(1.4)
                     .foregroundStyle(StrandPalette.textTertiary)
                 Text("Heart").font(StrandFont.title1).foregroundStyle(StrandPalette.textPrimary)
@@ -204,7 +205,7 @@ struct PremiumHeartView: View {
     private var todayRangeCard: some View {
         StrandCard {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Today's range").font(StrandFont.headline)
+                Text("Today's range", comment: "Heart screen section title").font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
                 if let lo = minHR, let hi = maxHR, let avg = avgHR {
                     HStack(spacing: 14) {
@@ -361,7 +362,7 @@ struct PremiumHeartView: View {
                             Spacer(); Text("6p"); Spacer(); Text("now")
                         }
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                        Text("Shaded by your real zones · Tanaka max-HR, age \(profile.age)")
+                        Text(String(format: String(localized: "Shaded by your real zones · Tanaka max-HR, age %d"), profile.age))
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                     } else {
                         MetricUnavailable(name: "Today's curve",
@@ -429,7 +430,7 @@ struct PremiumHeartView: View {
                         VStack(spacing: 10) {
                             ForEach(rows) { z in zoneRowView(z, total: total) }
                         }
-                        Text("Zones from your Tanaka max-HR (208 − 0.7 × age, age \(profile.age)) — personal, not generic thresholds.")
+                        Text(String(format: String(localized: "Zones from your Tanaka max-HR (208 − 0.7 × age, age %d) — personal, not generic thresholds."), profile.age))
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -516,7 +517,7 @@ struct PremiumHeartView: View {
                             }
                         }
                         .frame(height: 12)
-                        Text("The share of today's recorded readings sitting more than 15% above your \(Int(base.rounded())) bpm resting baseline. An estimate of cardiovascular load from real samples — not a stress score or a medical assessment.")
+                        Text(String(format: String(localized: "The share of today's recorded readings sitting more than 15%% above your %d bpm resting baseline. An estimate of cardiovascular load from real samples — not a stress score or a medical assessment."), Int(base.rounded())))
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -563,7 +564,7 @@ struct PremiumHeartView: View {
                             },
                             idleLabel: "Drag to read any moment overnight")
                         if let lo = values.min(), let m = PremiumAnalysis.mean(values) {
-                            Text("Dipped to \(Int(lo.rounded())) bpm, averaging \(Int(m.rounded())) bpm. The dashed line is your resting heart rate.")
+                            Text(String(format: String(localized: "Dipped to %1$d bpm, averaging %2$d bpm. The dashed line is your resting heart rate."), Int(lo.rounded()), Int(m.rounded())))
                                 .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -589,7 +590,7 @@ struct PremiumHeartView: View {
                             tint: StrandPalette.metricRose,
                             markerTint: StrandPalette.textPrimary,
                             height: 140)
-                        Text("Each column spans that day's lowest to highest recorded heart rate; the dot marks the day's average.")
+                        Text("Each column spans that day's lowest to highest recorded heart rate; the dot marks the day's average.", comment: "Heart daily-range chart caption")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -612,7 +613,7 @@ struct PremiumHeartView: View {
                                               highlight: a.latest, height: 110)
                         if a.byWeekday.count >= 3 {
                             Rectangle().fill(StrandPalette.hairline).frame(height: 1)
-                            Text("BY DAY OF WEEK").font(StrandFont.overline).tracking(1.2)
+                            Text("BY DAY OF WEEK", comment: "Section label above a weekday pattern chart").font(StrandFont.overline).tracking(1.2)
                                 .foregroundStyle(StrandPalette.textTertiary)
                             WeekdayPatternChart(byWeekday: a.byWeekday,
                                                 tint: StrandPalette.metricCyan,
@@ -639,14 +640,14 @@ struct PremiumHeartView: View {
                     VStack(alignment: .leading, spacing: 12) {
                         CorrelationScatter(points: points, tint: StrandPalette.metricCyan, height: 150)
                         HStack {
-                            Text("HRV →").font(StrandFont.footnote)
+                            Text(String(localized: "HRV →")).font(StrandFont.footnote)
                                 .foregroundStyle(StrandPalette.textTertiary)
                             Spacer()
-                            Text("r = \(String(format: "%.2f", best.correlation.r)) · \(best.correlation.n) days")
+                            Text(String(format: String(localized: "r = %1$@ · %2$d days"), String(format: "%.2f", best.correlation.r), best.correlation.n))
                                 .font(StrandFont.captionNumber)
                                 .foregroundStyle(StrandPalette.textSecondary)
                         }
-                        Text("Each dot is one day: your HRV against that day's recovery. This is an association measured in your own data, not a cause.")
+                        Text("Each dot is one day: your HRV against that day's recovery. This is an association measured in your own data, not a cause.", comment: "HRV/recovery scatter caption")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
