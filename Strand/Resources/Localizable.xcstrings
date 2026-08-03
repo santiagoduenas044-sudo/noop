@@ -168902,6 +168902,798 @@
           }
         }
       }
+    },
+    "Heart": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Corazón"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cœur"
+          }
+        }
+      }
+    },
+    "Recovery & load": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erholung & Belastung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recuperación y carga"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Récupération et charge"
+          }
+        }
+      }
+    },
+    "Physiological Load": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Physiologische Last"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carga fisiológica"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge physiologique"
+          }
+        }
+      }
+    },
+    "Load": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carga"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge"
+          }
+        }
+      }
+    },
+    "Sleep Duration": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlafdauer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duración del sueño"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durée de sommeil"
+          }
+        }
+      }
+    },
+    "Sleep Regularity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlafregelmäßigkeit"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regularidad del sueño"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Régularité du sommeil"
+          }
+        }
+      }
+    },
+    "Regularity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regelmäßigkeit"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regularidad"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Régularité"
+          }
+        }
+      }
+    },
+    "Sleep Balance": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlafbilanz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balance de sueño"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilan de sommeil"
+          }
+        }
+      }
+    },
+    "Wake Time": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufwachzeit"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hora de despertar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heure de réveil"
+          }
+        }
+      }
+    },
+    "Resting Energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruheenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía en reposo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie au repos"
+          }
+        }
+      }
+    },
+    "Resting energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruheenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía en reposo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie au repos"
+          }
+        }
+      }
+    },
+    "Total Energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesamtenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía total"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie totale"
+          }
+        }
+      }
+    },
+    "Total energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesamtenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía total"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie totale"
+          }
+        }
+      }
+    },
+    "Your heart rate right now, straight from the strap's optical sensor.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Herzfrequenz genau jetzt, direkt vom optischen Sensor des Straps."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu frecuencia cardíaca en este momento, directamente del sensor óptico de la banda."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre fréquence cardiaque en ce moment, directement issue du capteur optique du bracelet."
+          }
+        }
+      }
+    },
+    "Your lowest heart rate during sleep. Lower usually reflects good cardiovascular fitness and recovery; a rise above your baseline often accompanies stress, dehydration or the onset of illness.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine niedrigste Herzfrequenz im Schlaf. Niedriger steht meist für gute Ausdauerfitness und Erholung; ein Anstieg über deinen Basiswert begleitet oft Stress, Dehydrierung oder einen beginnenden Infekt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu frecuencia cardíaca más baja durante el sueño. Una cifra más baja suele reflejar buena forma cardiovascular y recuperación; una subida por encima de tu línea base suele acompañar al estrés, la deshidratación o el inicio de una enfermedad."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre fréquence cardiaque la plus basse pendant le sommeil. Plus basse, elle traduit généralement une bonne condition cardiovasculaire et une bonne récupération ; une hausse au-dessus de votre référence accompagne souvent le stress, la déshydratation ou le début d’une maladie."
+          }
+        }
+      }
+    },
+    "The beat-to-beat variation in your heart rhythm, measured overnight. Higher HRV generally reflects a well-recovered, adaptable nervous system.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Schlag-zu-Schlag-Schwankung deines Herzrhythmus, über Nacht gemessen. Eine höhere HRV steht meist für ein gut erholtes, anpassungsfähiges Nervensystem."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La variación latido a latido de tu ritmo cardíaco, medida durante la noche. Una VFC más alta suele reflejar un sistema nervioso bien recuperado y adaptable."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La variation d’un battement à l’autre de votre rythme cardiaque, mesurée la nuit. Une VFC plus élevée traduit généralement un système nerveux bien récupéré et adaptable."
+          }
+        }
+      }
+    },
+    "Breaths per minute while you sleep. Remarkably stable night to night, so a sustained shift from your own baseline matters more than any single ideal number.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atemzüge pro Minute im Schlaf. Sie ist von Nacht zu Nacht bemerkenswert stabil, daher zählt eine anhaltende Abweichung von deinem eigenen Basiswert mehr als ein Idealwert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respiraciones por minuto mientras duermes. Es notablemente estable de una noche a otra, así que un cambio sostenido respecto a tu propia línea base importa más que cualquier cifra ideal."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respirations par minute pendant votre sommeil. Remarquablement stable d’une nuit à l’autre : un écart durable par rapport à votre propre référence compte donc plus qu’une valeur idéale."
+          }
+        }
+      }
+    },
+    "The share of oxygen carried in your blood, sampled overnight. Healthy readings typically sit between 95 and 100%.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Sauerstoffanteil in deinem Blut, über Nacht gemessen. Gesunde Werte liegen typischerweise zwischen 95 und 100 %."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La proporción de oxígeno que transporta tu sangre, medida durante la noche. Los valores saludables suelen situarse entre el 95 y el 100 %."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La part d’oxygène transportée par votre sang, mesurée la nuit. Les valeurs saines se situent généralement entre 95 et 100 %."
+          }
+        }
+      }
+    },
+    "How far your overnight skin temperature sat from your own baseline. Shown as a deviation, not an absolute body temperature.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie weit deine nächtliche Hauttemperatur von deinem eigenen Basiswert abwich. Als Abweichung dargestellt, nicht als absolute Körpertemperatur."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuánto se alejó tu temperatura cutánea nocturna de tu propia línea base. Se muestra como desviación, no como temperatura corporal absoluta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’écart entre votre température cutanée nocturne et votre propre référence. Affiché comme un écart, pas comme une température corporelle absolue."
+          }
+        }
+      }
+    },
+    "A daily readiness score blended from your overnight HRV, resting heart rate, sleep and respiratory rate.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein täglicher Bereitschafts-Score aus deiner nächtlichen HRV, Ruheherzfrequenz, dem Schlaf und der Atemfrequenz."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una puntuación diaria de preparación que combina tu VFC nocturna, la frecuencia cardíaca en reposo, el sueño y la frecuencia respiratoria."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un score de disponibilité quotidien combinant votre VFC nocturne, votre fréquence cardiaque au repos, votre sommeil et votre fréquence respiratoire."
+          }
+        }
+      }
+    },
+    "Cardiovascular load accumulated across the day on a 0–21 scale, weighted by time spent in each heart-rate zone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über den Tag angesammelte kardiovaskuläre Belastung auf einer Skala von 0 bis 21, gewichtet nach der Zeit in jeder Herzfrequenzzone."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carga cardiovascular acumulada a lo largo del día en una escala de 0 a 21, ponderada por el tiempo en cada zona de frecuencia cardíaca."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge cardiovasculaire accumulée sur la journée, sur une échelle de 0 à 21, pondérée par le temps passé dans chaque zone de fréquence cardiaque."
+          }
+        }
+      }
+    },
+    "An estimate of daytime physiological load from your heart-rate pattern relative to your resting baseline. An estimated signal, not a medical stress measurement.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Schätzung der Tagesbelastung anhand deines Herzfrequenzmusters im Verhältnis zu deinem Ruhe-Basiswert. Ein geschätztes Signal, keine medizinische Stressmessung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una estimación de la carga fisiológica diurna a partir de tu patrón de frecuencia cardíaca respecto a tu línea base en reposo. Es una señal estimada, no una medición médica del estrés."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une estimation de la charge physiologique diurne d’après votre profil de fréquence cardiaque par rapport à votre référence au repos. Un signal estimé, pas une mesure médicale du stress."
+          }
+        }
+      }
+    },
+    "How much of your time in bed was actually spent asleep.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie viel deiner Zeit im Bett du tatsächlich geschlafen hast."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué parte de tu tiempo en la cama pasaste realmente dormido."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La part de votre temps au lit réellement passée à dormir."
+          }
+        }
+      }
+    },
+    "Total time asleep last night, excluding time awake in bed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesamte Schlafzeit letzte Nacht, ohne wache Zeit im Bett."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiempo total dormido anoche, excluyendo el tiempo despierto en la cama."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temps total de sommeil la nuit dernière, hors temps éveillé au lit."
+          }
+        }
+      }
+    },
+    "The share of your time in bed spent asleep. Above 85% is generally considered strong.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Anteil deiner Zeit im Bett, den du schläfst. Über 85 % gilt allgemein als gut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La proporción de tu tiempo en la cama que pasas dormido. Por encima del 85 % se considera bueno."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La part de votre temps au lit passée à dormir. Au-dessus de 85 %, c’est généralement considéré comme bon."
+          }
+        }
+      }
+    },
+    "Deep and REM sleep combined — the stages most associated with physical repair and memory consolidation.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tief- und REM-Schlaf zusammen – die Phasen, die am stärksten mit körperlicher Regeneration und Gedächtnisbildung verbunden sind."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sueño profundo y REM combinados: las fases más asociadas con la reparación física y la consolidación de la memoria."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sommeil profond et paradoxal réunis — les phases les plus associées à la réparation physique et à la consolidation de la mémoire."
+          }
+        }
+      }
+    },
+    "How consistent your bed and wake times have been. Computed from your real per-night sleep windows.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie gleichmäßig deine Zubettgeh- und Aufwachzeiten waren. Aus deinen echten Schlaffenstern berechnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué tan constantes han sido tus horas de acostarte y despertar. Se calcula a partir de tus ventanas de sueño reales."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La régularité de vos heures de coucher et de lever. Calculée à partir de vos fenêtres de sommeil réelles."
+          }
+        }
+      }
+    },
+    "Your running sleep surplus or deficit against your personal sleep need.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein laufender Schlafüberschuss oder ‑defizit gegenüber deinem persönlichen Schlafbedarf."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu superávit o déficit de sueño acumulado frente a tu necesidad personal de sueño."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre excédent ou déficit de sommeil cumulé par rapport à votre besoin personnel."
+          }
+        }
+      }
+    },
+    "When you fell asleep, from your real recorded sleep window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wann du eingeschlafen bist, laut deinem aufgezeichneten Schlaffenster."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo te dormiste, según tu ventana de sueño registrada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’heure à laquelle vous vous êtes endormi, d’après votre fenêtre de sommeil enregistrée."
+          }
+        }
+      }
+    },
+    "When you woke, from your real recorded sleep window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wann du aufgewacht bist, laut deinem aufgezeichneten Schlaffenster."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo te despertaste, según tu ventana de sueño registrada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’heure à laquelle vous vous êtes réveillé, d’après votre fenêtre de sommeil enregistrée."
+          }
+        }
+      }
+    },
+    "Your daily step count, estimated on-device from the strap's motion counter. A trend gauge rather than a precise pedometer.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine täglichen Schritte, auf dem Gerät aus dem Bewegungszähler des Straps geschätzt. Eher ein Trendmaß als ein präziser Schrittzähler."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu recuento diario de pasos, estimado en el dispositivo a partir del contador de movimiento de la banda. Es un indicador de tendencia más que un podómetro preciso."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre nombre de pas quotidien, estimé sur l’appareil à partir du compteur de mouvement du bracelet. Un indicateur de tendance plutôt qu’un podomètre précis."
+          }
+        }
+      }
+    },
+    "How many workouts were recorded or detected today.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie viele Workouts heute erfasst oder erkannt wurden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuántos entrenamientos se registraron o detectaron hoy."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le nombre de séances enregistrées ou détectées aujourd’hui."
+          }
+        }
+      }
+    },
+    "Calories burned through movement, estimated on-device from your heart rate.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durch Bewegung verbrannte Kalorien, auf dem Gerät aus deiner Herzfrequenz geschätzt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calorías quemadas con el movimiento, estimadas en el dispositivo a partir de tu frecuencia cardíaca."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calories brûlées par le mouvement, estimées sur l’appareil d’après votre fréquence cardiaque."
+          }
+        }
+      }
+    },
+    "The energy your body uses at rest, estimated from your profile.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Energie, die dein Körper in Ruhe verbraucht, aus deinem Profil geschätzt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La energía que tu cuerpo usa en reposo, estimada a partir de tu perfil."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’énergie que votre corps consomme au repos, estimée d’après votre profil."
+          }
+        }
+      }
+    },
+    "Active plus resting energy for the day.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktive plus Ruheenergie für den Tag."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía activa más energía en reposo del día."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie active plus énergie au repos pour la journée."
+          }
+        }
+      }
+    },
+    "Whether you've logged today, and your current logging streak.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ob du heute etwas erfasst hast und deine aktuelle Erfassungsserie."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si has registrado hoy y tu racha actual de registros."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si vous avez fait votre suivi aujourd’hui, et votre série en cours."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

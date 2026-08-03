@@ -74,7 +74,7 @@ struct PremiumCatalogDetailView: View {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(def.name).font(StrandFont.headline)
                             .foregroundStyle(StrandPalette.textPrimary)
-                        Text(def.group.rawValue).font(StrandFont.footnote)
+                        Text(def.group.label).font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                     }
                     Spacer(minLength: 0)

@@ -46,6 +46,18 @@ enum PremiumMetricGroup: String, CaseIterable, Hashable {
     case recovery = "Recovery & load"
     case activity = "Activity"
     case journal = "Journal"
+
+    /// The display name. The raw values stay English because they are stable identifiers; this is
+    /// what the UI shows, so a Spanish user sees "Corazón" rather than the identifier.
+    var label: String {
+        switch self {
+        case .heart:    return String(localized: "Heart")
+        case .sleep:    return String(localized: "Sleep")
+        case .recovery: return String(localized: "Recovery & load")
+        case .activity: return String(localized: "Activity")
+        case .journal:  return String(localized: "Journal")
+        }
+    }
 }
 
 // MARK: - Metric definition
@@ -113,155 +125,155 @@ extension PremiumMetricCatalog {
     static let all: [PremiumMetricDef] = [
         // ---- Heart -------------------------------------------------------------------
         PremiumMetricDef(
-            id: .liveHeartRate, name: "Heart Rate", shortName: "Heart rate", unit: "bpm",
+            id: .liveHeartRate, name: String(localized: "Heart Rate"), shortName: String(localized: "Heart rate"), unit: "bpm",
             icon: "heart.fill", tint: StrandPalette.metricRose, group: .heart,
             provenance: .measured, decimals: 0, higherBetter: nil,
-            explanation: "Your heart rate right now, straight from the strap's optical sensor.",
+            explanation: String(localized: "Your heart rate right now, straight from the strap's optical sensor."),
             read: { _ in nil }, isDerived: true),
         PremiumMetricDef(
-            id: .restingHr, name: "Resting Heart Rate", shortName: "Resting HR", unit: "bpm",
+            id: .restingHr, name: String(localized: "Resting Heart Rate"), shortName: String(localized: "Resting HR"), unit: "bpm",
             icon: "heart.text.square.fill", tint: StrandPalette.metricRose, group: .heart,
             provenance: .estimated, decimals: 0, higherBetter: false,
-            explanation: "Your lowest heart rate during sleep. Lower usually reflects good cardiovascular fitness and recovery; a rise above your baseline often accompanies stress, dehydration or the onset of illness.",
+            explanation: String(localized: "Your lowest heart rate during sleep. Lower usually reflects good cardiovascular fitness and recovery; a rise above your baseline often accompanies stress, dehydration or the onset of illness."),
             read: { $0.restingHr.map(Double.init) }, isDerived: false),
         PremiumMetricDef(
-            id: .hrv, name: "Heart Rate Variability", shortName: "HRV", unit: "ms",
+            id: .hrv, name: String(localized: "Heart Rate Variability"), shortName: String(localized: "HRV"), unit: "ms",
             icon: "waveform.path.ecg", tint: StrandPalette.metricCyan, group: .heart,
             provenance: .estimated, decimals: 0, higherBetter: true,
-            explanation: "The beat-to-beat variation in your heart rhythm, measured overnight. Higher HRV generally reflects a well-recovered, adaptable nervous system.",
+            explanation: String(localized: "The beat-to-beat variation in your heart rhythm, measured overnight. Higher HRV generally reflects a well-recovered, adaptable nervous system."),
             read: { $0.avgHrv }, isDerived: false),
 
         // ---- Respiratory / blood ------------------------------------------------------
         PremiumMetricDef(
-            id: .respiratory, name: "Respiratory Rate", shortName: "Respiratory", unit: "rpm",
+            id: .respiratory, name: String(localized: "Respiratory Rate"), shortName: String(localized: "Respiratory"), unit: "rpm",
             icon: "lungs.fill", tint: StrandPalette.recoveryColor(80), group: .heart,
             provenance: .estimated, decimals: 1, higherBetter: nil,
-            explanation: "Breaths per minute while you sleep. Remarkably stable night to night, so a sustained shift from your own baseline matters more than any single ideal number.",
+            explanation: String(localized: "Breaths per minute while you sleep. Remarkably stable night to night, so a sustained shift from your own baseline matters more than any single ideal number."),
             read: { $0.respRateBpm }, isDerived: false),
         PremiumMetricDef(
-            id: .spo2, name: "Blood Oxygen", shortName: "Blood oxygen", unit: "%",
+            id: .spo2, name: String(localized: "Blood Oxygen"), shortName: String(localized: "Blood oxygen"), unit: "%",
             icon: "drop.fill", tint: StrandPalette.metricPurple, group: .heart,
             provenance: .estimated, decimals: 0, higherBetter: true,
-            explanation: "The share of oxygen carried in your blood, sampled overnight. Healthy readings typically sit between 95 and 100%.",
+            explanation: String(localized: "The share of oxygen carried in your blood, sampled overnight. Healthy readings typically sit between 95 and 100%."),
             read: { $0.spo2Pct }, isDerived: false),
         PremiumMetricDef(
-            id: .skinTemp, name: "Skin Temperature", shortName: "Skin temp", unit: "°C",
+            id: .skinTemp, name: String(localized: "Skin Temperature"), shortName: String(localized: "Skin temp"), unit: "°C",
             icon: "thermometer.medium", tint: StrandPalette.metricAmber, group: .heart,
             provenance: .estimated, decimals: 1, higherBetter: nil,
-            explanation: "How far your overnight skin temperature sat from your own baseline. Shown as a deviation, not an absolute body temperature.",
+            explanation: String(localized: "How far your overnight skin temperature sat from your own baseline. Shown as a deviation, not an absolute body temperature."),
             read: { $0.skinTempDevC }, isDerived: false),
 
         // ---- Recovery / load ----------------------------------------------------------
         PremiumMetricDef(
-            id: .recovery, name: "Recovery", shortName: "Recovery", unit: "%",
+            id: .recovery, name: String(localized: "Recovery"), shortName: String(localized: "Recovery"), unit: "%",
             icon: "bolt.heart.fill", tint: StrandPalette.recoveryColor(80), group: .recovery,
             provenance: .calculated, decimals: 0, higherBetter: true,
-            explanation: "A daily readiness score blended from your overnight HRV, resting heart rate, sleep and respiratory rate.",
+            explanation: String(localized: "A daily readiness score blended from your overnight HRV, resting heart rate, sleep and respiratory rate."),
             read: { $0.recovery }, isDerived: false),
         PremiumMetricDef(
-            id: .strain, name: "Day Strain", shortName: "Strain", unit: "",
+            id: .strain, name: String(localized: "Day Strain"), shortName: String(localized: "Strain"), unit: "",
             icon: "flame.fill", tint: StrandPalette.effortColor, group: .recovery,
             provenance: .calculated, decimals: 1, higherBetter: nil,
-            explanation: "Cardiovascular load accumulated across the day on a 0–21 scale, weighted by time spent in each heart-rate zone.",
+            explanation: String(localized: "Cardiovascular load accumulated across the day on a 0–21 scale, weighted by time spent in each heart-rate zone."),
             read: { $0.strain }, isDerived: false),
         PremiumMetricDef(
-            id: .stressLoad, name: "Physiological Load", shortName: "Load", unit: "",
+            id: .stressLoad, name: String(localized: "Physiological Load"), shortName: String(localized: "Load"), unit: "",
             icon: "waveform.path", tint: StrandPalette.metricAmber, group: .recovery,
             provenance: .calculated, decimals: 1, higherBetter: nil,
-            explanation: "An estimate of daytime physiological load from your heart-rate pattern relative to your resting baseline. An estimated signal, not a medical stress measurement.",
+            explanation: String(localized: "An estimate of daytime physiological load from your heart-rate pattern relative to your resting baseline. An estimated signal, not a medical stress measurement."),
             read: { _ in nil }, isDerived: true),
 
         // ---- Sleep --------------------------------------------------------------------
         PremiumMetricDef(
-            id: .sleepScore, name: "Sleep Performance", shortName: "Sleep score", unit: "%",
+            id: .sleepScore, name: String(localized: "Sleep Performance"), shortName: String(localized: "Sleep score"), unit: "%",
             icon: "bed.double.fill", tint: StrandPalette.sleepDeep, group: .sleep,
             provenance: .calculated, decimals: 0, higherBetter: true,
-            explanation: "How much of your time in bed was actually spent asleep.",
+            explanation: String(localized: "How much of your time in bed was actually spent asleep."),
             read: { efficiencyPct($0) }, isDerived: false),
         PremiumMetricDef(
-            id: .sleepDuration, name: "Sleep Duration", shortName: "Time asleep", unit: "",
+            id: .sleepDuration, name: String(localized: "Sleep Duration"), shortName: String(localized: "Time asleep"), unit: "",
             icon: "moon.zzz.fill", tint: StrandPalette.sleepREM, group: .sleep,
             provenance: .estimated, decimals: 0, higherBetter: true,
-            explanation: "Total time asleep last night, excluding time awake in bed.",
+            explanation: String(localized: "Total time asleep last night, excluding time awake in bed."),
             read: { $0.totalSleepMin }, isDerived: false),
         PremiumMetricDef(
-            id: .sleepEfficiency, name: "Sleep Efficiency", shortName: "Efficiency", unit: "%",
+            id: .sleepEfficiency, name: String(localized: "Sleep Efficiency"), shortName: String(localized: "Efficiency"), unit: "%",
             icon: "checkmark.seal.fill", tint: StrandPalette.sleepLight, group: .sleep,
             provenance: .calculated, decimals: 0, higherBetter: true,
-            explanation: "The share of your time in bed spent asleep. Above 85% is generally considered strong.",
+            explanation: String(localized: "The share of your time in bed spent asleep. Above 85% is generally considered strong."),
             read: { efficiencyPct($0) }, isDerived: false),
         PremiumMetricDef(
-            id: .restorativeSleep, name: "Restorative Sleep", shortName: "Restorative", unit: "",
+            id: .restorativeSleep, name: String(localized: "Restorative Sleep"), shortName: String(localized: "Restorative"), unit: "",
             icon: "sparkles", tint: StrandPalette.sleepDeep, group: .sleep,
             provenance: .estimated, decimals: 0, higherBetter: true,
-            explanation: "Deep and REM sleep combined — the stages most associated with physical repair and memory consolidation.",
+            explanation: String(localized: "Deep and REM sleep combined — the stages most associated with physical repair and memory consolidation."),
             read: { d in
                 guard let deep = d.deepMin, let rem = d.remMin else { return nil }
                 return deep + rem
             }, isDerived: false),
         PremiumMetricDef(
-            id: .sleepRegularity, name: "Sleep Regularity", shortName: "Regularity", unit: "",
+            id: .sleepRegularity, name: String(localized: "Sleep Regularity"), shortName: String(localized: "Regularity"), unit: "",
             icon: "calendar.badge.clock", tint: StrandPalette.metricCyan, group: .sleep,
             provenance: .calculated, decimals: 0, higherBetter: true,
-            explanation: "How consistent your bed and wake times have been. Computed from your real per-night sleep windows.",
+            explanation: String(localized: "How consistent your bed and wake times have been. Computed from your real per-night sleep windows."),
             read: { _ in nil }, isDerived: true),
         PremiumMetricDef(
-            id: .sleepBalance, name: "Sleep Balance", shortName: "Balance", unit: "",
+            id: .sleepBalance, name: String(localized: "Sleep Balance"), shortName: String(localized: "Balance"), unit: "",
             icon: "scalemass.fill", tint: StrandPalette.sleepREM, group: .sleep,
             provenance: .calculated, decimals: 0, higherBetter: true,
-            explanation: "Your running sleep surplus or deficit against your personal sleep need.",
+            explanation: String(localized: "Your running sleep surplus or deficit against your personal sleep need."),
             read: { _ in nil }, isDerived: true),
         PremiumMetricDef(
-            id: .bedtime, name: "Bedtime", shortName: "Bedtime", unit: "",
+            id: .bedtime, name: String(localized: "Bedtime"), shortName: String(localized: "Bedtime"), unit: "",
             icon: "moon.stars.fill", tint: StrandPalette.sleepDeep, group: .sleep,
             provenance: .estimated, decimals: 0, higherBetter: nil,
-            explanation: "When you fell asleep, from your real recorded sleep window.",
+            explanation: String(localized: "When you fell asleep, from your real recorded sleep window."),
             read: { _ in nil }, isDerived: true),
         PremiumMetricDef(
-            id: .wakeTime, name: "Wake Time", shortName: "Wake time", unit: "",
+            id: .wakeTime, name: String(localized: "Wake Time"), shortName: String(localized: "Wake time"), unit: "",
             icon: "sunrise.fill", tint: StrandPalette.metricAmber, group: .sleep,
             provenance: .estimated, decimals: 0, higherBetter: nil,
-            explanation: "When you woke, from your real recorded sleep window.",
+            explanation: String(localized: "When you woke, from your real recorded sleep window."),
             read: { _ in nil }, isDerived: true),
 
         // ---- Activity -----------------------------------------------------------------
         PremiumMetricDef(
-            id: .steps, name: "Steps", shortName: "Steps", unit: "",
+            id: .steps, name: String(localized: "Steps"), shortName: String(localized: "Steps"), unit: "",
             icon: "figure.walk", tint: StrandPalette.recoveryColor(80), group: .activity,
             provenance: .estimated, decimals: 0, higherBetter: nil,
-            explanation: "Your daily step count, estimated on-device from the strap's motion counter. A trend gauge rather than a precise pedometer.",
+            explanation: String(localized: "Your daily step count, estimated on-device from the strap's motion counter. A trend gauge rather than a precise pedometer."),
             read: { $0.steps.map(Double.init) }, isDerived: false),
         PremiumMetricDef(
-            id: .workouts, name: "Workouts", shortName: "Workouts", unit: "",
+            id: .workouts, name: String(localized: "Workouts"), shortName: String(localized: "Workouts"), unit: "",
             icon: "figure.run", tint: StrandPalette.effortColor, group: .activity,
             provenance: .calculated, decimals: 0, higherBetter: nil,
-            explanation: "How many workouts were recorded or detected today.",
+            explanation: String(localized: "How many workouts were recorded or detected today."),
             read: { $0.exerciseCount.map(Double.init) }, isDerived: false),
         PremiumMetricDef(
-            id: .activeEnergy, name: "Active Energy", shortName: "Active energy", unit: "kcal",
+            id: .activeEnergy, name: String(localized: "Active Energy"), shortName: String(localized: "Active energy"), unit: "kcal",
             icon: "flame.fill", tint: StrandPalette.metricAmber, group: .activity,
             provenance: .estimated, decimals: 0, higherBetter: nil,
-            explanation: "Calories burned through movement, estimated on-device from your heart rate.",
+            explanation: String(localized: "Calories burned through movement, estimated on-device from your heart rate."),
             read: { $0.activeKcalEst }, isDerived: false),
         PremiumMetricDef(
-            id: .restingEnergy, name: "Resting Energy", shortName: "Resting energy", unit: "kcal",
+            id: .restingEnergy, name: String(localized: "Resting Energy"), shortName: String(localized: "Resting energy"), unit: "kcal",
             icon: "bed.double.circle.fill", tint: StrandPalette.gold, group: .activity,
             provenance: .calculated, decimals: 0, higherBetter: nil,
-            explanation: "The energy your body uses at rest, estimated from your profile.",
+            explanation: String(localized: "The energy your body uses at rest, estimated from your profile."),
             read: { _ in nil }, isDerived: true),
         PremiumMetricDef(
-            id: .totalEnergy, name: "Total Energy", shortName: "Total energy", unit: "kcal",
+            id: .totalEnergy, name: String(localized: "Total Energy"), shortName: String(localized: "Total energy"), unit: "kcal",
             icon: "bolt.fill", tint: StrandPalette.metricAmber, group: .activity,
             provenance: .calculated, decimals: 0, higherBetter: nil,
-            explanation: "Active plus resting energy for the day.",
+            explanation: String(localized: "Active plus resting energy for the day."),
             read: { _ in nil }, isDerived: true),
 
         // ---- Journal ------------------------------------------------------------------
         PremiumMetricDef(
-            id: .journalStatus, name: "Journal", shortName: "Journal", unit: "",
+            id: .journalStatus, name: String(localized: "Journal"), shortName: String(localized: "Journal"), unit: "",
             icon: "square.and.pencil", tint: StrandPalette.gold, group: .journal,
             provenance: .calculated, decimals: 0, higherBetter: nil,
-            explanation: "Whether you've logged today, and your current logging streak.",
+            explanation: String(localized: "Whether you've logged today, and your current logging streak."),
             read: { _ in nil }, isDerived: true),
     ]
 

@@ -73,7 +73,7 @@ struct PremiumEditHomeView: View {
                     metricRow(def)
                 }
             } header: {
-                Text(group.rawValue)
+                Text(group.label)
             }
             .listRowBackground(StrandPalette.surfaceRaised)
         }
