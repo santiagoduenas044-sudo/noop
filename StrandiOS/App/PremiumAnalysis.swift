@@ -40,19 +40,19 @@ enum PremiumProvenance: String, Hashable {
 
     var label: String {
         switch self {
-        case .measured:  return "Measured"
-        case .estimated: return "Estimated"
-        case .calculated: return "Calculated"
+        case .measured:  return String(localized: "Measured")
+        case .estimated: return String(localized: "Estimated")
+        case .calculated: return String(localized: "Calculated")
         }
     }
     var explanation: String {
         switch self {
         case .measured:
-            return "A direct sensor reading from your strap."
+            return String(localized: "A direct sensor reading from your strap.")
         case .estimated:
-            return "Computed on-device from sensor patterns. Not a clinical measurement."
+            return String(localized: "Computed on-device from sensor patterns. Not a clinical measurement.")
         case .calculated:
-            return "Derived arithmetically from other values NOOP already stores."
+            return String(localized: "Derived arithmetically from other values NOOP already stores.")
         }
     }
     var tint: Color {
@@ -75,9 +75,9 @@ enum PremiumConfidence: Int, Comparable, Hashable {
 
     var label: String {
         switch self {
-        case .early:      return "Early signal"
-        case .emerging:   return "Emerging pattern"
-        case .consistent: return "Consistent pattern"
+        case .early:      return String(localized: "Early signal")
+        case .emerging:   return String(localized: "Emerging pattern")
+        case .consistent: return String(localized: "Consistent pattern")
         }
     }
     var tint: Color {
@@ -113,9 +113,9 @@ enum PremiumTrendDirection: Hashable {
     }
     var word: String {
         switch self {
-        case .rising:  return "rising"
-        case .falling: return "falling"
-        case .stable:  return "steady"
+        case .rising:  return String(localized: "rising")
+        case .falling: return String(localized: "falling")
+        case .stable:  return String(localized: "steady")
         }
     }
 }
@@ -265,14 +265,16 @@ struct PremiumDataQuality {
     var hasEnoughForCorrelations: Bool { totalDays >= PremiumAnalysis.minCorrelationSamples }
 
     var summary: String {
-        if totalDays == 0 { return "No history recorded yet." }
+        if totalDays == 0 { return String(localized: "No history recorded yet.") }
         if !hasEnoughForBaselines {
-            return "\(totalDays) day\(totalDays == 1 ? "" : "s") recorded — baselines need at least \(PremiumAnalysis.minBaselineSamples)."
+            return String(format: String(localized: "%1$d days recorded — baselines need at least %2$d."),
+                          totalDays, PremiumAnalysis.minBaselineSamples)
         }
         if !hasEnoughForCorrelations {
-            return "\(totalDays) days recorded — enough for baselines; relationships need about \(PremiumAnalysis.minCorrelationSamples)."
+            return String(format: String(localized: "%1$d days recorded — enough for baselines; relationships need about %2$d."),
+                          totalDays, PremiumAnalysis.minCorrelationSamples)
         }
-        return "\(totalDays) days recorded."
+        return String(format: String(localized: "%d days recorded."), totalDays)
     }
 }
 
@@ -535,16 +537,22 @@ extension PremiumAnalysis {
               let pct = a.deviationPct, let base = a.baseline else { return nil }
         guard a.runLength >= 2 else { return nil }
 
-        let dirWord = pct < 0 ? "below" : "above"
+        // Localized as whole sentences with positional arguments rather than assembled from
+        // fragments: word order and pluralisation differ per language, so a translator needs the
+        // complete sentence to work with.
         let magnitude = String(Int(abs(pct).rounded()))
         let days = a.runLength
-        let text = "Your \(name) has been \(magnitude)% \(dirWord) your \(a.baselineN)-day baseline "
-                 + "for \(days) day\(days == 1 ? "" : "s")."
+        let template = pct < 0
+            ? String(localized: "Your %1$@ has been %2$@%% below your %3$d-day baseline for %4$d days.")
+            : String(localized: "Your %1$@ has been %2$@%% above your %3$d-day baseline for %4$d days.")
+        let text = String(format: template, name, magnitude, a.baselineN, days)
         let baseTxt = unit.isEmpty ? String(Int(base.rounded())) : "\(Int(base.rounded())) \(unit)"
         let conf = PremiumConfidence.from(n: a.baselineN, strength: abs((a.deviationZ ?? 0) / 3.0))
 
         return PremiumFinding(id: "baseline.\(a.key)", category: .baseline, text: text,
-                              confidence: conf, detail: "Baseline \(baseTxt) · \(a.baselineN) days",
+                              confidence: conf,
+                              detail: String(format: String(localized: "Baseline %1$@ · %2$d days"),
+                                             baseTxt, a.baselineN),
                               tint: tint)
     }
 
@@ -556,11 +564,20 @@ extension PremiumAnalysis {
         // Below this the relationship is too weak to be worth a sentence at all.
         guard abs(correlation.r) >= 0.30 else { return nil }
 
-        let together = correlation.r > 0 ? "moving together" : "moving in opposite directions"
-        let lagPhrase = lagDays == 1 ? " the following day" : ""
-        let text = "\(aName) and \(bName) have been \(together)\(lagPhrase) across your recent history."
+        let template: String
+        if correlation.r > 0 {
+            template = lagDays == 1
+                ? String(localized: "%1$@ and %2$@ have been moving together the following day, across your recent history.")
+                : String(localized: "%1$@ and %2$@ have been moving together across your recent history.")
+        } else {
+            template = lagDays == 1
+                ? String(localized: "%1$@ and %2$@ have been moving in opposite directions the following day, across your recent history.")
+                : String(localized: "%1$@ and %2$@ have been moving in opposite directions across your recent history.")
+        }
+        let text = String(format: template, aName, bName)
         let conf = PremiumConfidence.from(n: correlation.n, strength: correlation.r)
-        let detail = "r = \(String(format: "%.2f", correlation.r)) · \(correlation.n) matched days · association, not cause"
+        let detail = String(format: String(localized: "r = %1$@ · %2$d matched days · association, not cause"),
+                            String(format: "%.2f", correlation.r), correlation.n)
 
         return PremiumFinding(id: id, category: .relationship, text: text,
                               confidence: conf, detail: detail, tint: tint)
@@ -571,13 +588,24 @@ extension PremiumAnalysis {
     /// co-occurrence, not causation, and the copy must not overstate it.
     static func behaviorFinding(effect: BehaviorEffect, lagDays: Int, tint: Color) -> PremiumFinding? {
         guard let pct = effect.pctChange, abs(pct) >= 3 else { return nil }
-        let dir = effect.delta < 0 ? "lower" : "higher"
-        let when = lagDays == 1 ? "the following morning" : "the same day"
-        let text = "\(effect.behavior) has coincided with \(Int(abs(pct).rounded()))% \(dir) "
-                 + "\(effect.outcome) \(when), across \(effect.nWith) logged occasion\(effect.nWith == 1 ? "" : "s")."
+        // "Coincided with" is deliberate and must survive translation: the engine measures
+        // co-occurrence, and the copy must not imply cause in any language.
+        let template: String
+        if effect.delta < 0 {
+            template = lagDays == 1
+                ? String(localized: "%1$@ has coincided with %2$d%% lower %3$@ the following morning, across %4$d logged occasions.")
+                : String(localized: "%1$@ has coincided with %2$d%% lower %3$@ the same day, across %4$d logged occasions.")
+        } else {
+            template = lagDays == 1
+                ? String(localized: "%1$@ has coincided with %2$d%% higher %3$@ the following morning, across %4$d logged occasions.")
+                : String(localized: "%1$@ has coincided with %2$d%% higher %3$@ the same day, across %4$d logged occasions.")
+        }
+        let text = String(format: template, effect.behavior, Int(abs(pct).rounded()),
+                          effect.outcome, effect.nWith)
         let conf = PremiumConfidence.from(n: min(effect.nWith, effect.nWithout),
                                           strength: abs(effect.cohensD) / 2.0)
-        let detail = "\(effect.nWith) days with · \(effect.nWithout) without · association, not cause"
+        let detail = String(format: String(localized: "%1$d days with · %2$d without · association, not cause"),
+                            effect.nWith, effect.nWithout)
 
         return PremiumFinding(id: "behavior.\(effect.behavior).\(effect.outcome).\(lagDays)",
                               category: .behavior, text: text, confidence: conf,
@@ -593,13 +621,16 @@ extension PremiumAnalysis {
         let deltaMin = a - b
         guard abs(deltaMin) >= 20 else { return nil }   // under 20 min is schedule noise
 
-        let dir = deltaMin > 0 ? "later" : "earlier"
-        let text = "Your \(label) shifted \(durText(abs(deltaMin))) \(dir) this week."
+        let template = deltaMin > 0
+            ? String(localized: "Your %1$@ shifted %2$@ later this week.")
+            : String(localized: "Your %1$@ shifted %2$@ earlier this week.")
+        let text = String(format: template, label, durText(abs(deltaMin)))
         let conf = PremiumConfidence.from(n: recent.count + prior.count,
                                           strength: min(1.0, abs(deltaMin) / 60.0))
+        let detail = String(format: String(localized: "%1$d recent nights vs %2$d before"),
+                            recent.count, prior.count)
         return PremiumFinding(id: id, category: .timing, text: text, confidence: conf,
-                              detail: "\(recent.count) recent nights vs \(prior.count) before",
-                              tint: tint)
+                              detail: detail, tint: tint)
     }
 }
 #endif

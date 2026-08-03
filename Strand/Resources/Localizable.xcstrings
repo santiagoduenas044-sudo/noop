@@ -168220,6 +168220,688 @@
           }
         }
       }
+    },
+    "Measured": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemessen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesuré"
+          }
+        }
+      }
+    },
+    "Estimated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geschätzt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimé"
+          }
+        }
+      }
+    },
+    "Calculated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechnet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculé"
+          }
+        }
+      }
+    },
+    "A direct sensor reading from your strap.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein direkter Sensorwert deines Straps."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una lectura directa del sensor de tu banda."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une lecture directe du capteur de votre bracelet."
+          }
+        }
+      }
+    },
+    "Computed on-device from sensor patterns. Not a clinical measurement.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf dem Gerät aus Sensormustern berechnet. Keine klinische Messung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculado en el dispositivo a partir de patrones del sensor. No es una medición clínica."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculé sur l’appareil à partir des signaux du capteur. Ce n’est pas une mesure clinique."
+          }
+        }
+      }
+    },
+    "Derived arithmetically from other values NOOP already stores.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechnerisch aus anderen Werten abgeleitet, die NOOP bereits speichert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Derivado aritméticamente de otros valores que NOOP ya almacena."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dérivé arithmétiquement d’autres valeurs déjà stockées par NOOP."
+          }
+        }
+      }
+    },
+    "Early signal": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frühes Signal"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Señal temprana"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal précoce"
+          }
+        }
+      }
+    },
+    "Emerging pattern": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufkommendes Muster"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patrón emergente"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tendance émergente"
+          }
+        }
+      }
+    },
+    "Consistent pattern": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konsistentes Muster"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patrón constante"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tendance constante"
+          }
+        }
+      }
+    },
+    "rising": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "steigend"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en aumento"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en hausse"
+          }
+        }
+      }
+    },
+    "falling": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fallend"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en descenso"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en baisse"
+          }
+        }
+      }
+    },
+    "Your %1$@ has been %2$@%% below your %3$d-day baseline for %4$d days.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Wert %1$@ liegt seit %4$d Tagen %2$@ %% unter deinem %3$d-Tage-Basiswert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ lleva %4$d días un %2$@ %% por debajo de tu línea base de %3$d días."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ est %2$@ %% en dessous de votre référence sur %3$d jours depuis %4$d jours."
+          }
+        }
+      }
+    },
+    "Your %1$@ has been %2$@%% above your %3$d-day baseline for %4$d days.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Wert %1$@ liegt seit %4$d Tagen %2$@ %% über deinem %3$d-Tage-Basiswert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ lleva %4$d días un %2$@ %% por encima de tu línea base de %3$d días."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ est %2$@ %% au-dessus de votre référence sur %3$d jours depuis %4$d jours."
+          }
+        }
+      }
+    },
+    "Baseline %1$@ · %2$d days": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basiswert %1$@ · %2$d Tage"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Línea base %1$@ · %2$d días"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Référence %1$@ · %2$d jours"
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving together across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich in deiner jüngeren Historie gemeinsam."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido juntos en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent ensemble dans votre historique récent."
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving together the following day, across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich am Folgetag gemeinsam, über deine jüngere Historie hinweg."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido juntos al día siguiente, en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent ensemble le lendemain, dans votre historique récent."
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving in opposite directions across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich in deiner jüngeren Historie gegenläufig."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido en direcciones opuestas en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent en sens inverse dans votre historique récent."
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving in opposite directions the following day, across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich am Folgetag gegenläufig, über deine jüngere Historie hinweg."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido en direcciones opuestas al día siguiente, en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent en sens inverse le lendemain, dans votre historique récent."
+          }
+        }
+      }
+    },
+    "r = %1$@ · %2$d matched days · association, not cause": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d übereinstimmende Tage · Zusammenhang, keine Ursache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d días coincidentes · asociación, no causa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d jours appariés · association, pas une cause"
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% lower %3$@ the same day, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am selben Tag mit %2$d %% niedrigerem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% menos de %3$@ el mismo día, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ inférieur de %2$d %% le jour même, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% lower %3$@ the following morning, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am Morgen danach mit %2$d %% niedrigerem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% menos de %3$@ a la mañana siguiente, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ inférieur de %2$d %% le lendemain matin, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% higher %3$@ the same day, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am selben Tag mit %2$d %% höherem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% más de %3$@ el mismo día, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ supérieur de %2$d %% le jour même, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% higher %3$@ the following morning, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am Morgen danach mit %2$d %% höherem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% más de %3$@ a la mañana siguiente, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ supérieur de %2$d %% le lendemain matin, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$d days with · %2$d without · association, not cause": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d Tage mit · %2$d ohne · Zusammenhang, keine Ursache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d días con · %2$d sin · asociación, no causa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d jours avec · %2$d sans · association, pas une cause"
+          }
+        }
+      }
+    },
+    "Your %1$@ shifted %2$@ later this week.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine %1$@ hat sich diese Woche um %2$@ nach hinten verschoben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ se ha desplazado %2$@ más tarde esta semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ s’est décalé de %2$@ plus tard cette semaine."
+          }
+        }
+      }
+    },
+    "Your %1$@ shifted %2$@ earlier this week.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine %1$@ hat sich diese Woche um %2$@ nach vorn verschoben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ se ha desplazado %2$@ más temprano esta semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ s’est décalé de %2$@ plus tôt cette semaine."
+          }
+        }
+      }
+    },
+    "%1$d recent nights vs %2$d before": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d aktuelle Nächte vs. %2$d davor"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d noches recientes frente a %2$d anteriores"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d nuits récentes contre %2$d avant"
+          }
+        }
+      }
+    },
+    "No history recorded yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Historie erfasst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay historial registrado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun historique enregistré pour le moment."
+          }
+        }
+      }
+    },
+    "%1$d days recorded — baselines need at least %2$d.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d Tage erfasst – Basiswerte brauchen mindestens %2$d."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d días registrados: las líneas base necesitan al menos %2$d."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d jours enregistrés — les références nécessitent au moins %2$d."
+          }
+        }
+      }
+    },
+    "%1$d days recorded — enough for baselines; relationships need about %2$d.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d Tage erfasst – genug für Basiswerte; Zusammenhänge brauchen etwa %2$d."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d días registrados: suficiente para líneas base; las relaciones necesitan unos %2$d."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d jours enregistrés — suffisant pour les références ; les relations en nécessitent environ %2$d."
+          }
+        }
+      }
+    },
+    "%d days recorded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d Tage erfasst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d días registrados."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d jours enregistrés."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
