@@ -28,6 +28,7 @@ struct PremiumSettingsView: View {
     @EnvironmentObject var profile: ProfileStore
     @EnvironmentObject var live: LiveState
     @EnvironmentObject var router: NavRouter
+    @EnvironmentObject var language: AppLanguageStore
     @Environment(\.scrollToTopSignal) private var scrollToTopSignal
 
     @AppStorage(AppearanceMode.storageKey) private var appearanceRaw = AppearanceMode.system.rawValue
@@ -53,6 +54,7 @@ struct PremiumSettingsView: View {
                     Color.clear.frame(height: 1).id("top")
                     header
                     profileCard
+                    languageSection
                     appearanceSection
                     notificationsSection
                     healthSourcesSection
@@ -141,6 +143,50 @@ struct PremiumSettingsView: View {
     }
 
     // MARK: - Appearance (real: AppearanceMode + ChartStyle)
+
+    // MARK: - Language (real: AppLanguageStore → AppleLanguages)
+
+    /// Manual language override. NOOP ships English, German, Spanish and French catalogs and follows
+    /// the device language by default; this is for users whose phone language isn't the language
+    /// they want the app in. Bundle string lookup is resolved at launch, so a change is flagged as
+    /// needing a relaunch rather than silently half-applying.
+    private var languageSection: some View {
+        settingsGroup("Language") {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("App language").font(StrandFont.body)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    Text(language.language == .system
+                         ? String(format: String(localized: "Following your device — %@"),
+                                  language.effectiveLanguage.label)
+                         : String(localized: "Overriding your device language"))
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+                Spacer()
+                Picker("App language", selection: languageBinding) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Text(lang.label).tag(lang)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(StrandPalette.gold)
+            }
+            if language.needsRelaunch {
+                groupDivider
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .foregroundStyle(StrandPalette.gold)
+                    Text("Relaunch NOOP to finish switching language.")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var languageBinding: Binding<AppLanguage> {
+        Binding(get: { language.language }, set: { language.language = $0 })
+    }
 
     private var appearanceSection: some View {
         settingsGroup("Appearance") {

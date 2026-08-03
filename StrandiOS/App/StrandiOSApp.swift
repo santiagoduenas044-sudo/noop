@@ -22,6 +22,9 @@ struct StrandiOSApp: App {
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The iOS shell (`RootTabView`)
     /// observes it and presents the Devices manager.
     @StateObject private var router = NavRouter()
+    /// Manual language override (System / English / Español). Defaults to `.system`, which follows
+    /// the device language — so this changes nothing until the user explicitly picks one.
+    @StateObject private var language = AppLanguageStore()
     @State private var liveActivity = LiveActivityController()
     @Environment(\.scenePhase) private var scenePhase
     /// Appearance preference (System/Light/Dark). Default follows the OS; the Settings picker writes it.
@@ -73,9 +76,15 @@ struct StrandiOSApp: App {
                 .environmentObject(health)
                 .environmentObject(router)
                 .environmentObject(UpdateStore.shared)
+                .environmentObject(language)
                 // v5 L3: the shared stress check-in nudge surface, so the Breathe screen's passive
                 // card observes the SAME instance the central detector (AppModel.evaluateStress) posts to.
                 .environment(\.stressNudgeCenter, model.stressNudgeCenter)
+                // Manual language override (Settings → Language). `.system` resolves to the device
+                // locale, so this is a no-op unless the user has explicitly picked a language.
+                // Bundle-level string lookup follows `AppleLanguages` and needs a relaunch; pushing
+                // the locale here makes date/number formatting follow the choice immediately.
+                .environment(\.locale, language.locale)
                 .preferredColorScheme(AppearanceMode.resolve(appearanceRaw).colorScheme)
                 .chartStyle(chartStyleRaw)
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the
