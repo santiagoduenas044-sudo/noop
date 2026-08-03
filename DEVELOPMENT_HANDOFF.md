@@ -6,14 +6,62 @@ parity, design-system-only UI).
 
 ---
 
+## CURRENT IMPLEMENTATION STATUS
+
+**Last updated:** after milestone `i18n-1` (language picker)
+**Current commit:** `ee5bd36`
+**Current milestone:** Localization — picker done; localizing the new Premium UI strings next
+**Build status:** green at `5a461ac` (all Premium screen work). `ee5bd36` compile check in flight.
+
+### COMPLETED
+- Premium analysis engine, chart library, metric catalog, customizable Home, Sleep/Heart/Trends/
+  Journal rebuilds, Coach context layer (see "What has been implemented" below).
+- **`i18n-1`** — System/English/Español language picker (`Strand/System/AppLanguage.swift`,
+  Settings → Language). Catalog at 3248 keys, 0 missing de/es/fr.
+
+### IN PROGRESS
+- **`i18n-2` (PARTIAL, not started in code)** — the ~129 hardcoded English literals introduced by
+  the new `Premium*.swift` files are **not yet localized**. They are pre-existing-style debt caught
+  by `Tools/i18n_audit.py`; the audit's *translation* gaps are 0, but these literals never reach a
+  catalog at all, so they will always render in English.
+
+### NEXT TASK
+Localize the new Premium UI strings: wrap user-facing `Text("…")` in the `Premium*.swift` files with
+`String(localized:)`, then add the keys + de/es/fr with
+`python3 Tools/add_catalog_strings.py Strand/Resources/Localizable.xcstrings entries.json`.
+Work file-by-file and commit per file — `python3 Tools/i18n_audit.py --platform ios --full` lists
+exactly which literals remain.
+
+### IMPORTANT IMPLEMENTATION NOTES
+- `Tools/add_catalog_strings.py` preserves the catalog's exact on-disk formatting. Do NOT re-sort or
+  re-serialise the catalog another way — it produces a 7700-line diff.
+- The language override writes Apple's `AppleLanguages` key; bundle lookup resolves at launch, hence
+  the "relaunch to finish" note in Settings. Don't try to make it instant by reloading bundles.
+- `String(localized:)` with interpolation is not extracted cleanly by the audit — use
+  `String(format: String(localized: "… %@"), value)` for interpolated strings.
+
+### KNOWN ISSUES
+- ~129 un-localized literals in `Premium*.swift` (see IN PROGRESS).
+- macOS `SettingsView` has no language picker — the override is iOS-only so far.
+
+---
+
 ## Status
 
 | | |
 |---|---|
 | **Branch** | `claude/noop-premium-ui-jhlhvg` |
-| **Latest commit** | `5a461ac` (see "CI" below for the last commit verified green) |
 | **App version** | `MARKETING_VERSION 9.1.3`, `CURRENT_PROJECT_VERSION 213` (`project.yml`) |
-| **Scope of recent work** | iOS Premium UI only (`StrandiOS/App/Premium*.swift`). No BLE, HealthKit, storage-schema or Android changes. |
+| **Scope of recent work** | iOS Premium UI + localization. No BLE, HealthKit, storage-schema or Android changes. |
+
+### Checkpoint commits
+| SHA | Milestone |
+|---|---|
+| `f3d7281` | Premium analysis engine, charts, metric catalog, customizable Home |
+| `d57948e` | Sleep / Heart / Trends / Journal rebuilt on the analysis layer |
+| `5a461ac` | Heart formatter hoist — **last commit verified green** |
+| `3f693d0` | `DEVELOPMENT_HANDOFF.md` added |
+| `ee5bd36` | `i18n-1` — language picker |
 
 ---
 
