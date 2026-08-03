@@ -8,11 +8,12 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after milestone `i18n-3` (metric catalog localization)
-**Current commit:** `fe09ac9`
-**Current milestone:** Localization — dynamic content done; static view labels remain
-**Build status:** green at `5a461ac`. `fe09ac9` compile check in flight (localization is the only
-change since green, and it is mechanical, but treat it as unverified until that run reports).
+**Last updated:** after milestone `i18n-4a` (Heart + Sleep view copy)
+**Current commit:** `a700c62`
+**Current milestone:** Localization — Heart and Sleep done; Trends/Journal/Home views remain
+**Build status:** last VERIFIED green commit is `5a461ac`. Everything since is localization only
+(mechanical `String(localized:)` wrapping + catalog additions); `a700c62` compile check in flight.
+If you pick this up and that run has not reported, re-dispatch `app-build.yml` before trusting it.
 
 ### COMPLETED
 - Premium analysis engine, chart library, metric catalog, customizable Home, Sleep/Heart/Trends/
@@ -26,17 +27,26 @@ change since green, and it is mechanical, but treat it as unverified until that 
 - Catalog now **3315 keys, 0 missing de/es/fr**.
 
 ### IN PROGRESS
-- **`i18n-4` (PARTIAL — NOT DONE)** — ~129 static English literals remain in the `Premium*.swift`
-  **view** files (section headers, captions, footnotes). These render in English regardless of
-  language. They are the *last* localization gap; everything dynamic is done.
+- **`i18n-4` (PARTIAL)** — static view copy.
+  - DONE: `PremiumSleepView` (clean), `PremiumHeartView` (only numeric axis/zone formats left,
+    which are deliberately not translated).
+  - REMAINING (~95 literals): `PremiumTrendsView` (16), `PremiumJournalView` (13),
+    `PremiumHomeView` (9), `PremiumCoachView` (9), `PremiumStrainView` (7),
+    `PremiumSettingsView` (7), `PremiumEditHomeView` (7), `PremiumCatalogDetailView` (6),
+    `PremiumEnergyView` (5), `PremiumBloodOxygenView` (5), `PremiumWhatsNewView` (4),
+    `PremiumReadinessView` (3), `PremiumMetricDetailView` (3), `PremiumInsightsView` (2),
+    `PremiumCharts` (1). These render in English regardless of language.
 
 ### NEXT TASK
-Finish `i18n-4`. Run `python3 Tools/i18n_audit.py --platform ios --full` and work the
-`StrandiOS/App/Premium*.swift` entries file-by-file, largest first
-(`PremiumHeartView` 18, `PremiumTrendsView` 16, `PremiumSleepView` 14, `PremiumJournalView` 13).
-For each: wrap the literal in `String(localized:)`, then add the key with de/es/fr via
-`python3 Tools/add_catalog_strings.py Strand/Resources/Localizable.xcstrings entries.json`.
-Commit per file or per small group; re-run the audit after each.
+Finish `i18n-4` for the remaining view files listed above. The exact recipe, already used for
+Heart and Sleep:
+1. `python3 Tools/i18n_audit.py --platform ios --full` → lists the exact file:line and literal.
+2. Wrap prose in `String(localized:)`, or `Text("…", comment: "…")` for plain literals; use
+   `String(format: String(localized: "… %1$@"), x)` for anything interpolated.
+3. Add keys + de/es/fr:
+   `python3 Tools/add_catalog_strings.py Strand/Resources/Localizable.xcstrings entries.json`
+4. Re-run the audit, commit that file, push.
+Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not language.
 
 ### IMPORTANT IMPLEMENTATION NOTES
 - `Tools/add_catalog_strings.py` preserves the catalog's exact on-disk formatting and never
@@ -78,6 +88,8 @@ Commit per file or per small group; re-run the audit after each.
 | `ee5bd36` | `i18n-1` — language picker |
 | `5b33e61` | `i18n-2` — generated insight sentences localized |
 | `fe09ac9` | `i18n-3` — metric catalog names/explanations localized |
+| `0ddfccc` | handoff checkpoint |
+| `a700c62` | `i18n-4a` — Heart + Sleep view copy localized |
 
 ---
 
