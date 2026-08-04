@@ -8,52 +8,117 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after milestone `i18n-4b` (Home + Trends + Journal view copy)
-**Current commit:** `4759283`
-**Current milestone:** Localization — main screens done; secondary screens remain
-**Build status:** last VERIFIED green commit is `5a461ac`. Everything since is localization only
-(mechanical `String(localized:)` wrapping + String Catalog additions, no logic changes);
-`4759283` compile check in flight.
-**If that run has not reported when you pick this up, dispatch `app-build.yml` on this branch and
-confirm green BEFORE building an IPA.** CI cancels in-progress runs on each new push
-(`concurrency: cancel-in-progress`), so several intermediate commits show "cancelled" — that is
-supersession, not failure.
+**Last updated:** after the Heart/Trends "visible improvements" milestone (post-i18n pivot)
+**Current commit:** `0f9548c`
+**Current milestone:** Product-direction pivot — the owner explicitly redirected priority AWAY from
+finishing i18n-4 and toward visibly useful analytics depth (richer graphs, baselines, 7/30/90D
+comparisons, relationships). i18n-4 is still genuinely incomplete (see KNOWN ISSUES) but is NOT the
+next task anymore unless the owner asks for it again.
+**Build status: VERIFIED GREEN at `0f9548c`** — `app-build.yml` run
+[30867729650](https://github.com/santiagoduenas044-sudo/noop/actions/runs/30867729650) succeeded
+(macOS + iOS both). Commit `6fe7128` (the Sleep bug-fix commit) FAILED CI first
+(`PremiumMetricDef` — see IMPORTANT IMPLEMENTATION NOTES); `9ed8119` fixed it and `0f9548c` is the
+first green commit after the pivot. Always check `app-build.yml` yourself before trusting a commit —
+CI does not run this by default (see "Known bugs / gotchas" below).
 
-### COMPLETED
-- Premium analysis engine, chart library, metric catalog, customizable Home, Sleep/Heart/Trends/
-  Journal rebuilds, Coach context layer (see "What has been implemented" below).
-- **`i18n-1`** (`ee5bd36`) — System/English/Español language picker
-  (`Strand/System/AppLanguage.swift`, Settings → Language).
-- **`i18n-2`** (`5b33e61`) — the analysis engine's **generated insight sentences**: baseline,
-  relationship, behaviour and timing findings, provenance/confidence/trend labels, data-quality
-  summary. Localized as whole sentences with positional args (`%1$@`, `%2$d`).
-- **`i18n-3`** (`fe09ac9`) — metric catalog names, short names, explanations and group labels.
-- Catalog now **3315 keys, 0 missing de/es/fr**.
+### COMPLETED (this session, on top of everything below)
+- **Sleep bug fixes** (`6fe7128`):
+  - **AM/PM midpoint bug** — `PremiumSleepIntel.Night.midpointMinutes` and `SleepTimingMap`'s local
+    wake-time offset both added a spurious extra `+1440` on top of `minutesSinceNoon`, which already
+    self-wraps a post-midnight wake time onto the same noon-anchored scale as the evening bedtime.
+    The extra offset shifted every DISPLAYED midpoint by exactly 12 hours (verified the exact
+    reported symptom numerically: bed 8:57 PM / wake 8:03 AM produced a 2:30 PM midpoint instead of
+    2:30 AM). Fixed in both places. Variance-based stats (regularity score, bedtime/wake/midpoint
+    variability) were NOT affected — a constant offset doesn't change spread — only the displayed
+    clock values were wrong.
+  - **Absurd temperature percentage changes** — `skinTempDevC` is already a deviation from the
+    wearable's own baseline, so this app's OWN 30-day mean of that value sits near zero; dividing by
+    it for a percent-of-baseline blew up (e.g. "+900%" for a normal 0.4°C night). Added
+    `PremiumMetricDef.usesAbsoluteDeviation` (true only for `.skinTemp`) plus a parallel
+    signed-absolute-delta code path: `PremiumMetricAnalysis.deviationAbs` /
+    `change7Abs`/`change30Abs`/`change90Abs`, `PremiumMetricDef.formatSigned(_:)`, and catalog-level
+    helpers `PremiumMetricCatalog.deviationText/deviationGood/changeText/changeGood` that every
+    display site now goes through instead of reading `.deviationPct` raw. Wired into Sleep's
+    overnight-vitals row, `PremiumCatalogDetailView`'s header delta + change-over-time rows, Heart's
+    baseline cards, and `PremiumCoachContext.MetricState.brief` (so the Coach never gets fed an
+    absurd percentage either). Also added a defensive guard in `PremiumAnalysis.baselineFinding` that
+    skips any metric in `absoluteDeviationMetricKeys` — belt-and-braces against a future call site
+    re-adding skinTemp to a findings loop.
+  - Confirmed (did NOT need to build) that stage-selection fading (tap REM/Deep/Light/Awake → dims
+    other stages in the ribbon AND shades that stage's windows on the HR curve, curve itself never
+    dimmed) was ALREADY correctly implemented in `StageRibbon` (opacity 0.16 vs 1.0) and
+    `SleepNightPanel.hrChart`. Design decision #1 in this doc describes it; nothing to do there.
+- **Heart — HRV given equal prominence to RHR** (`0f9548c`):
+  - `distributionSection` was RHR-only; generalized into `metricDistributionCard(_:analysis:tint:)`
+    and called for both `.restingHr` and `.hrv` — HRV now gets its own distribution histogram +
+    weekday pattern, not just a baseline card.
+  - New `changeOverTimeSection` — a 7D/30D/90D change card for RHR and HRV side by side, using the
+    same `PremiumMetricCatalog.changeText/changeGood` absolute-vs-percent logic as the temp fix.
+  - `relationshipSection` generalized from the single hardcoded HRV↔recovery scatter into
+    `relationshipCard(_:_:tint:)`, called for HRV↔recovery, HRV↔sleep duration, and RHR↔recovery.
+  - New `journalRelationshipsSection` — journal behaviour associations against HRV/RHR, computed the
+    same way `PremiumJournalView.loadAssociations` does (own `@State journalFindings`, loaded in
+    `load()`).
+- **Trends — moved toward "long-term analytics center"** (`0f9548c`):
+  - Added a `Year` (365d) range alongside Week/Month/Quarter.
+  - `comparisonCard` ("this period vs last") now shows an explicit signed absolute + percent delta
+    chip (`periodComparison`), not just two bare numbers with no stated difference.
+  - `correlationCard` used a hand-rolled, duplicate Pearson implementation (`Self.pearson`) —
+    against CLAUDE.md's "reuse the shipping analytics package" rule. Replaced with
+    `CorrelationEngine.alignByDay` + `.pearson` (the same engine `PremiumAnalysis` uses elsewhere);
+    the card now also shows matched-day sample size and a `PremiumConfidence` label.
+  - Added a weekday-vs-weekend average rollup under the existing by-day-of-week bar chart
+    (`Self.weekdayVsWeekend`).
+  - NOT done yet: a rolling-average overlay on the hero chart (`PremiumAnalysis.rollingMean` exists
+    and is unused by Trends) — flagged in NEXT TASK below.
 
-### IN PROGRESS
-- **`i18n-4` (PARTIAL)** — static view copy. **75 literals remain** (down from 129).
-  - DONE: `PremiumSleepView`, `PremiumHeartView`, `PremiumHomeView`, `PremiumTrendsView`,
-    `PremiumJournalView` — i.e. all five primary screens.
-  - REMAINING: the secondary screens — `PremiumCoachView` (9), `PremiumStrainView` (7),
-    `PremiumSettingsView` (7), `PremiumEditHomeView` (7), `PremiumCatalogDetailView` (6),
-    `PremiumEnergyView` (5), `PremiumBloodOxygenView` (5), `PremiumWhatsNewView` (4),
-    `PremiumReadinessView` (3), `PremiumMetricDetailView` (3), `PremiumInsightsView` (2),
-    `PremiumCharts` (1), plus ~20 numeric/format literals that are deliberately NOT translated
-    (axis ticks like `12a`/`6p`, bpm ranges like `120–140`). These render in English regardless of
-    the selected language.
+### IN PROGRESS / STILL OPEN FROM THE ORIGINAL PRIORITY LIST
+- **Heart** — cardiovascular-load section and zones already existed pre-session and are reasonable;
+  not touched. Still no explicit "baseline RANGE" (min/max personal band beyond mean±spread) — low
+  priority, the baseline band chart already shows this visually.
+- **Trends** — rolling averages not yet surfaced (see above). "Automatic findings" and
+  "confidence/sample size" are now present on the correlation card but NOT on the hero/comparison
+  cards.
+- **Sleep** — bugs fixed; the DEPTH asks from the priority list (richer stage/HR relationship
+  exploration beyond what already exists) are still open. Re-read the "Design decisions that should
+  NOT be reverted" section before touching `SleepNightPanel` — the stage/HR merge is intentional and
+  already does most of what was asked.
+- **Metric detail views, Journal factor library, Coach wiring** — NOT started this session. Still
+  exactly as described in "What still needs to be done" / "Partially implemented" below.
 
 ### NEXT TASK
-Finish `i18n-4` for the remaining view files listed above. The exact recipe, already used for
-Heart and Sleep:
-1. `python3 Tools/i18n_audit.py --platform ios --full` → lists the exact file:line and literal.
-2. Wrap prose in `String(localized:)`, or `Text("…", comment: "…")` for plain literals; use
-   `String(format: String(localized: "… %1$@"), x)` for anything interpolated.
-3. Add keys + de/es/fr:
-   `python3 Tools/add_catalog_strings.py Strand/Resources/Localizable.xcstrings entries.json`
-4. Re-run the audit, commit that file, push.
-Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not language.
+Priority order per the owner's explicit redirection (see chat, not this file, for the original
+wording — summarized here for whoever picks this up):
+1. **Sleep depth** — the visual design is locked (do not redesign); add more of the richer-graph /
+   baseline / distribution / relationship treatment already applied to Heart and Trends. Also revisit
+   whether other screens have the same kind of bug class just fixed (search for any other `+ 1440` /
+   `minutesSinceNoon`-adjacent arithmetic, and any other metric whose OWN baseline can sit near zero
+   like skinTemp — respiratory rate and SpO2 do NOT have this problem, their baselines are far from
+   zero).
+2. **Metric detail views** — HRV/RHR/SpO2/temp/respiratory/sleep/recovery should open genuinely
+   useful detail views (history/baseline/range/changes/charts/explanations).
+   `PremiumCatalogDetailView` already does most of this generically for the catalog; check whether
+   all these IDs route through it or still hit the older `PremiumMetricDetailView`/`PremiumMetricKit`
+   duplicate path (see "Partially implemented" below — this consolidation was already flagged before
+   this session and is still outstanding).
+3. **Journal** — bigger configurable factor library, one-tap access from Home.
+4. **Coach** — `PremiumCoachContext` is complete and correct (read it before changing anything);
+   `PremiumCoachView` still shows canned content. Wire the context in; add an API client behind an
+   explicit opt-in (offline-by-default is a hard project rule, not a preference).
+Always dispatch `app-build.yml` and confirm green before considering a milestone done — this branch's
+CI does not build app targets by default.
 
 ### IMPORTANT IMPLEMENTATION NOTES
+- **Swift gotcha hit this session:** a stored property with an inline default value
+  (`let usesAbsoluteDeviation: Bool = false`) inside a struct that otherwise relies on the
+  compiler-synthesized memberwise init does NOT reliably let you override that default by explicit
+  argument at every call site — `PremiumMetricCatalog.swift`'s `.skinTemp` definition hit
+  `error: extra argument 'usesAbsoluteDeviation' in call` in CI (`app-build.yml` run 30867151827).
+  Fixed by giving `PremiumMetricDef` an **explicit** `init(...)` with the default only on that one
+  parameter. If you add another optional/defaulted field to a struct that already has many
+  positional call sites, prefer an explicit init over relying on memberwise synthesis + inline
+  defaults — CI (the ONLY thing that catches this) takes ~7-10 minutes per round trip, so getting
+  this right the first time matters.
 - `Tools/add_catalog_strings.py` preserves the catalog's exact on-disk formatting and never
   overwrites an existing translation. Do NOT re-serialise the catalog another way — a plain
   `json.dump` with `sort_keys` produces a 7700-line diff.
@@ -67,11 +132,52 @@ Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not lang
   per-render lookup.
 - `PremiumMetricGroup.rawValue` is a stable identifier (used in stored prefs); `.label` is the
   display string. Never render `rawValue`.
+- **Deviation/change display:** any NEW code that shows `PremiumMetricAnalysis.deviationPct` or
+  `.change7/30/90` directly (as a raw percentage) is a latent bug for any future metric whose own
+  baseline can sit near zero. Go through `PremiumMetricCatalog.deviationText/deviationGood/
+  changeText/changeGood` instead — they pick absolute-vs-percent per metric automatically.
+- **Repo branch names:** the real work branch is `claude/noop-premium-ui-jhlhvg` (no suffix) — it has
+  an open PR (#1) and all 60+ prior commits. Some session harnesses designate a suffixed branch name
+  (e.g. `claude/noop-premium-ui-jhlhvg-0vo958`); if you're handed a designated branch that's actually
+  just a fresh copy of `main`, check `git log` before assuming it's the right base — reset it to
+  track the real branch instead of starting over. This session pushed to both branch names to satisfy
+  both the owner's explicit instruction and an automated harness check; if you only have one to push
+  to, prefer the un-suffixed `claude/noop-premium-ui-jhlhvg`.
 
 ### KNOWN ISSUES
-- ~129 un-localized static literals in the Premium **views** (see IN PROGRESS).
+- ~129 un-localized static literals in the Premium **views**, unchanged this session (deprioritized,
+  see CURRENT MILESTONE above) — see the OLD next-task recipe below if the owner asks for this again.
 - macOS `SettingsView` has no language picker — the override is iOS-only so far.
 - Coach still shows demo content; `PremiumCoachContext` is built but unused by the UI.
+- `PremiumSectionHeader(title:)` and similar `String`-typed (not `LocalizedStringKey`-typed) view
+  parameters are a systemic i18n blind spot across EVERY Premium screen, old and new — a literal
+  passed through such a parameter never reaches `Text(LocalizedStringKey)`'s automatic string-catalog
+  lookup, so it silently never gets extracted or translated even when "done" by the i18n audit tool.
+  Confirmed by checking `Strand/Resources/Localizable.xcstrings` directly: e.g. "Time in zone" (an
+  existing, pre-session title) and "Change over time" (added this session) are BOTH absent from the
+  catalog. This is pre-existing and not a regression from this session's work, but whoever resumes
+  i18n-4 should know `PremiumSectionHeader`/similar wrapper titles need a structural fix (e.g. change
+  `title: String` to `title: LocalizedStringKey`), not per-call-site wrapping.
+
+<details>
+<summary>Old i18n-4 recipe (deprioritized — expand if the owner asks to resume it)</summary>
+
+Finish `i18n-4` for the remaining view files: secondary screens — `PremiumCoachView` (9),
+`PremiumStrainView` (7), `PremiumSettingsView` (7), `PremiumEditHomeView` (7),
+`PremiumCatalogDetailView` (6), `PremiumEnergyView` (5), `PremiumBloodOxygenView` (5),
+`PremiumWhatsNewView` (4), `PremiumReadinessView` (3), `PremiumMetricDetailView` (3),
+`PremiumInsightsView` (2), `PremiumCharts` (1), plus ~20 numeric/format literals that are
+deliberately NOT translated (axis ticks like `12a`/`6p`, bpm ranges like `120–140`).
+
+1. `python3 Tools/i18n_audit.py --platform ios --full` → lists the exact file:line and literal.
+2. Wrap prose in `String(localized:)`, or `Text("…", comment: "…")` for plain literals; use
+   `String(format: String(localized: "… %1$@"), x)` for anything interpolated.
+3. Add keys + de/es/fr: `python3 Tools/add_catalog_strings.py Strand/Resources/Localizable.xcstrings
+   entries.json`
+4. Re-run the audit, commit that file, push.
+
+Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not language.
+</details>
 
 ---
 
@@ -79,16 +185,16 @@ Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not lang
 
 | | |
 |---|---|
-| **Branch** | `claude/noop-premium-ui-jhlhvg` |
+| **Branch** | `claude/noop-premium-ui-jhlhvg` (real branch, PR #1 open). Some sessions also mirror to a harness-designated `claude/noop-premium-ui-jhlhvg-<suffix>` — same commits, not a fork. |
 | **App version** | `MARKETING_VERSION 9.1.3`, `CURRENT_PROJECT_VERSION 213` (`project.yml`) |
-| **Scope of recent work** | iOS Premium UI + localization. No BLE, HealthKit, storage-schema or Android changes. |
+| **Scope of recent work** | iOS Premium UI, analytics depth (Heart/Trends), Sleep bug fixes. No BLE, HealthKit, storage-schema or Android changes. |
 
 ### Checkpoint commits
 | SHA | Milestone |
 |---|---|
 | `f3d7281` | Premium analysis engine, charts, metric catalog, customizable Home |
 | `d57948e` | Sleep / Heart / Trends / Journal rebuilt on the analysis layer |
-| `5a461ac` | Heart formatter hoist — **last commit verified green** |
+| `5a461ac` | Heart formatter hoist |
 | `3f693d0` | `DEVELOPMENT_HANDOFF.md` added |
 | `ee5bd36` | `i18n-1` — language picker |
 | `5b33e61` | `i18n-2` — generated insight sentences localized |
@@ -97,6 +203,9 @@ Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not lang
 | `a700c62` | `i18n-4a` — Heart + Sleep view copy localized |
 | `42b3bc9` | handoff checkpoint |
 | `4759283` | `i18n-4b` — Home + Trends + Journal view copy localized |
+| `6fe7128` | Sleep AM/PM midpoint bug + absurd temperature percentages fixed — **CI FAILED**, see next row |
+| `9ed8119` | Fix build break from `6fe7128` (`PremiumMetricDef` explicit init) |
+| `0f9548c` | Heart HRV parity (distribution/change/relationships/journal) + Trends analytics depth (Year range, delta chip, shared correlation engine, weekday/weekend) — **last commit verified green** (`app-build.yml` run 30867729650) |
 
 ---
 
