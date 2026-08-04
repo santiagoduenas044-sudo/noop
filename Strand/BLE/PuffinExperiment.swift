@@ -140,4 +140,28 @@ enum PuffinExperiment {
     static let motionAwareWakeKey = "noopMotionAwareWake"
 
     static var motionAwareWakeEnabled: Bool { UserDefaults.standard.bool(forKey: motionAwareWakeKey) }
+
+    /// Opt-in, deliberately SEPARATE switch for the EXPERIMENTAL WHOOP MG raw-ECG/electrode probe.
+    /// Sourced from an unverified community report (not from this repo, no HCI capture, no confirmed
+    /// packet layout) that opcode 63 (`SEND_R10_R11_REALTIME`) plus the `enable_r22_*` flags surfaces an
+    /// ECG channel on a WHOOP MG's type-43 raw stream once a finger is on the strap's electrode. NOOP
+    /// already implements both primitives (`Whoop5Config`, `WhoopCommand.sendR10R11Realtime`) for the
+    /// confirmed, hardware-verified motion/optical stream; this toggle only chooses to arm the same
+    /// already-safe/reversible opcode 63 for a bounded ~30s research window instead of NOOP's default
+    /// OFF, and durably logs every type-43 frame seen during that window RAW, with NO interpretation
+    /// (`PuffinEcgProbeLog`). No new/unconfirmed opcode is ever sent by this toggle alone.
+    ///
+    /// Kept separate from `deepDataKey` (R22 unlock) and `PuffinFrameRecorder.enabledKey` (general
+    /// capture) because it targets a body-contact sensor and rests on much thinner evidence than the R22
+    /// unlock — turning it off must not disable the well-evidenced R22/motion work. Default OFF.
+    /// WHOOP 5/MG only. NOTE: this repo cannot distinguish plain WHOOP 5.0 from 5.0/MG in the device
+    /// registry (`DeviceFamily` has only `.whoop4`/`.whoop5`, and the Add-Device wizard labels every
+    /// 5-class strap "5.0 MG" — see `DeviceFamily.forRegistryModel`), so "MG only" here means "any 5/MG
+    /// family connection"; a plain non-MG 5.0 strap is expected to either ignore the probe or answer
+    /// "unsupported" per the same community report. Driven only by
+    /// `BLEManager.captureExperimentalEcgProbe()`. Never feeds any metric, score, or downstream gate —
+    /// raw capture only. See docs/WHOOP5_DEEP_DATA.md "Experimental: raw ECG / electrode channel probe".
+    static let ecgProbeKey = "noopEcgProbe"
+
+    static var ecgProbeEnabled: Bool { UserDefaults.standard.bool(forKey: ecgProbeKey) }
 }

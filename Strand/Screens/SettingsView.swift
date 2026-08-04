@@ -37,6 +37,10 @@ struct SettingsView: View {
     /// persistent feature flag to the strap. See [PuffinExperiment.deepDataKey]. (#174)
     @AppStorage(PuffinExperiment.deepDataKey) private var deepDataEnabled = false
 
+    /// Opt-in, SEPARATE EXPERIMENTAL MG raw-ECG/electrode probe (off by default) — sourced from an
+    /// unverified community report, not this repo. See [PuffinExperiment.ecgProbeKey].
+    @AppStorage(PuffinExperiment.ecgProbeKey) private var ecgProbeEnabled = false
+
     /// Opt-in "Broadcast heart rate" (off by default) — makes the strap advertise its HR as a standard
     /// BLE sensor for Garmin/Zwift/gym kit. See [PuffinExperiment.broadcastHrKey]. (#181)
     @AppStorage(PuffinExperiment.broadcastHrKey) private var broadcastHrEnabled = false
@@ -1425,6 +1429,42 @@ struct SettingsView: View {
                         Text("Flags accepted, but the enable sequence doesn't start a separate live stream. The deep records arrive as part of the normal history sync (#494).")
                             .font(StrandFont.caption)
                             .foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+
+                Divider().overlay(StrandPalette.hairline)
+
+                // MARK: EXPERIMENTAL MG raw-ECG/electrode probe — unverified community report, not this
+                // repo. Deliberately separate from the R22 toggle above: much thinner evidence, and it
+                // targets a body-contact sensor. Raw capture only — see PuffinEcgProbeLog.
+                Toggle(isOn: $ecgProbeEnabled) {
+                    Text("Experimental MG ECG/electrode probe")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                Text("An unverified community report claims a WHOOP MG's electrode can be read by requesting the same raw stream above (opcode 63) after the R22 unlock. NOOP has not confirmed this. With this on, the button below re-arms that stream for 30 seconds and saves every raw frame it sees to a file on your device \u{2014} nothing is decoded, filtered, or shown as a waveform yet. Requires the R22 unlock above to have been sent first. Touch the strap's electrode with your other hand during the capture to test the contact-channel claim. WHOOP 5/MG only; no effect on WHOOP 4.0.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if ecgProbeEnabled {
+                    NoopButton("Capture 30s of raw ECG-probe frames", systemImage: "waveform.path.ecg", kind: .secondary) {
+                        model.ble.captureExperimentalEcgProbe()
+                    }
+                    .disabled(deepDataButtonDisabled || !deepDataEnabled)
+                    Text(!deepDataEnabled
+                         ? String(localized: "Send the R22 enable sequence above first \u{2014} the deep stream is gated behind those flags.")
+                         : deepDataButtonReason)
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textTertiary)
+
+                    if live.ecgProbeFramesThisSession > 0 {
+                        Label("\(live.ecgProbeFramesThisSession) raw type-43 frame(s) captured to puffin-ecg-probe.jsonl this window",
+                              systemImage: "doc.badge.clock")
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textSecondary)
                     }
                 }
 

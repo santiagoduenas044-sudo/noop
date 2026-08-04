@@ -173,3 +173,69 @@ lands in `parseFrameWhoop5` / `whoop_protocol.json`.
 
 Credit to **judes.club**, **Asherlc/dofek**, and **b-nnett/goose** for the public protocol work this
 builds on.
+
+## Experimental: raw ECG / electrode channel probe (unverified)
+
+**Status:** raw-capture-only instrumentation. No decode, no on-hardware confirmation from this repo.
+
+A community report (not sourced from or verified by this project) describes reading a real ECG waveform
+off a WHOOP MG by: sending the `enable_r22_*` sequence above, then requesting the raw stream via opcode
+**63** (`SEND_R10_R11_REALTIME`) — both of which NOOP already implements for the confirmed, Gen4-verified
+motion/optical stream (§4 above). The report additionally names a "channel 1" that shows a clean waveform
+with a finger on the strap's electrode and rails/floats with no contact, and describes a ~30 s capture.
+
+### What's already true, independent of this report
+
+- Opcode 63 and packet type 43 (`REALTIME_RAW_DATA`) are fully implemented and hardware-verified —
+  `WhoopCommand.sendR10R11Realtime` (`Strand/BLE/Commands.swift`), decoded by the `raw_data` post-hook
+  (`Packages/WhoopProtocol/Sources/WhoopProtocol/PostHooks.swift`). NOOP already knows two payload
+  lengths: 1917 B (`imu`, 6-axis motion) and 1921 B (`optical`, a single AC-coupled PPG channel —
+  explicitly **not** ECG, not red/IR). Both were mapped from **WHOOP 4.0** captures.
+- A separate, unimplemented **ECG/HeartKey command family** is documented as existing on the wire
+  (`docs/PROTOCOL.md` §6, "Additional 5-class command numbers"): `ECG_MAIN_CONTROL`, `ECG_SEND_RAW`,
+  `ECG_SAVE_RAW`, `ECG_SAVE_FILTERED`, `ECG_SELECT_WRIST`. **Exact opcodes are unconfirmed** — no build in
+  this repo's history has ever sent them. The `CommandNumber` schema has two unclaimed opcode gaps that
+  are candidates for probing: **85–95** (right after `GET_BODY_LOCATION_AND_STATUS`=84) and **101–104**
+  (before `TOGGLE_IMU_MODE_HISTORICAL`=105).
+- `DeviceFamily` cannot distinguish plain WHOOP 5.0 from 5.0/MG (only `.whoop4`/`.whoop5` exist), and the
+  Add-Device wizard labels every 5-class strap `"5.0 MG"` regardless of the actual hardware. "MG-only"
+  gating in NOOP therefore means "any 5/MG family connection" — a real non-MG 5.0 is expected to no-op or
+  answer "unsupported" per the community report.
+
+### Working hypothesis (unconfirmed)
+
+With the R22 flags set, opcode 63 may return a **third payload length** on MG hardware — an
+electrode/ECG channel — that NOOP's current variant table doesn't recognize and currently discards into
+an "unknown" region. "Channel 1"/contact-gated rails is consistent with a capacitive or resistive contact
+input, similar in spirit to `skin_contact` in the historical record. It's also possible the electrode
+data only appears after sending the undocumented `ECG_MAIN_CONTROL`-family command — i.e. opcode 63 alone
+may not be sufficient.
+
+### What NOOP does about it today — staged, smallest-first
+
+**Stage 1 (implemented): passive raw capture, no unconfirmed opcode sent.** Settings → Experimental →
+"Experimental MG ECG/electrode probe" (`PuffinExperiment.ecgProbeKey`, default OFF, separate from the R22
+toggle). With the R22 sequence already sent, the "Capture 30s of raw ECG-probe frames" button calls
+`BLEManager.captureExperimentalEcgProbe()`, which re-arms the **already-confirmed, reversible** opcode 63
+for 30 seconds and logs **every** raw type-43 frame seen during that window — unfiltered, undecoded — to
+`<AppSupport>/OpenWhoop/puffin-ecg-probe.jsonl` (`PuffinEcgProbeLog`). Nothing is interpreted, nothing
+feeds a metric or score, and nothing is shown as a waveform. This sends no opcode beyond the one NOOP
+already knows is safe.
+
+**Stage 2 (not yet implemented): the `ECG_MAIN_CONTROL`-family opcode probe.** If stage-1 captures show a
+payload length other than 1917/1921, or show nothing new, the next step is a small, explicit,
+Test-Centre-gated probe — following the same pattern as the existing reboot (#235), extended-battery
+(#592), and body-location (#690) probes — that tries one candidate opcode from the 85–95 / 101–104 gaps,
+logs the raw `COMMAND_RESPONSE`, and does nothing else. Not built yet: the exact byte is a guess, and this
+repo's convention is to gate guessed opcodes behind their own explicit, logged probe rather than folding
+them into an always-on path.
+
+### How to help (MG owners)
+
+1. Update to the latest NOOP, **Settings → Experimental → "Unlock WHOOP 5/MG deep data (R22)"**, send the
+   enable sequence (needs iPhone/Android — a Mac can't bond a 5/MG for writes).
+2. Turn on **"Experimental MG ECG/electrode probe"** and tap **"Capture 30s of raw ECG-probe frames"**.
+   Touch the strap's metal electrode with your other hand for the duration of the capture.
+3. Share `puffin-ecg-probe.jsonl` on the tracking issue. If every logged frame is 1917 or 1921 bytes
+   (`"len"` field), the contact channel isn't riding on opcode 63 at all — stage 2 becomes the next step.
+   If a new length shows up, that's the first real evidence to start mapping a layout from.

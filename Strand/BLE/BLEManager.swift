@@ -679,6 +679,14 @@ public final class BLEManager: NSObject, ObservableObject {
     /// engineering. Gated on the same capture toggle; no-op otherwise.
     private lazy var puffinDeepBufferLog = PuffinDeepBufferLog()
 
+    /// EXPERIMENTAL raw capture of type-43 frames for the MG ECG/electrode probe. Gated on its OWN
+    /// toggle (`PuffinExperiment.ecgProbeKey`) AND only writes inside `captureExperimentalEcgProbe`'s
+    /// bounded window; a no-op otherwise. See `PuffinEcgProbeLog` for the full rationale.
+    private lazy var puffinEcgProbeLog = PuffinEcgProbeLog()
+    /// Re-entrancy guard for `captureExperimentalEcgProbe`: true while a bounded on-demand window is
+    /// running. A second tap is a no-op until the active window's asyncAfter block fires and clears this.
+    private var ecgProbeInFlight = false
+
     /// Force the puffin capture buffer to disk so the Settings export/reveal targets a current file.
     public func flushPuffinCaptures() { puffinRecorder.flush() }
 
@@ -2292,6 +2300,57 @@ public final class BLEManager: NSObject, ObservableObject {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(80 * frames.count + 200)) { [weak self] in
             self?.log("Deep-data: sequence sent. Keep the strap on, let it sync, then share your strap log — we're looking for new deep records (type-0x2F) to start arriving. (#174)")
+        }
+    }
+
+    /// EXPERIMENTAL, MG-only: capture a bounded window of RAW type-43 (`REALTIME_RAW_DATA`) frames while
+    /// actively re-arming opcode 63 (`SEND_R10_R11_REALTIME`) — the exact primitive an unverified
+    /// community report (not sourced from or confirmed by this repo) describes using, alongside the R22
+    /// feature flags, to read an ECG waveform off a WHOOP MG's electrode. Sends NO unconfirmed opcode:
+    /// 63 is NOOP's own hardware-verified, reversible control for this stream
+    /// (docs/BLE_REVERSE_ENGINEERING.md §4) — NOOP just normally leaves it OFF. This function only
+    /// chooses to turn it ON for a short window instead.
+    ///
+    /// Preconditions the caller must already have satisfied (this function does NOT chain them
+    /// automatically — each write stays independently gated and user-initiated, per the BLE safety
+    /// contract): a bonded, worn 5/MG connection, and the R22 enable sequence already sent via
+    /// `enableWhoop5DeepData()`. WHOOP gates its deeper streams behind those flags, so requesting the raw
+    /// stream without them first is not expected to surface anything beyond the already-known
+    /// IMU/optical variants.
+    ///
+    /// Every type-43 frame received during the window is logged **verbatim, unfiltered** by
+    /// `PuffinEcgProbeLog` — raw hex, length, timestamp, nothing decoded or assumed. Purely additive to
+    /// existing HR/HRV/sleep/SpO2 handling: this never touches the Collector, the analytics pipeline, or
+    /// any published metric. "Experimental ECG waveform" is not shown anywhere by this function — that
+    /// label is reserved for a future decode step once (if) a real capture shows MG sends something new.
+    public func captureExperimentalEcgProbe(seconds: TimeInterval = 30) {
+        guard PuffinExperiment.ecgProbeEnabled else {
+            log("Experimental ECG probe: the ECG probe toggle is off — enable it in Settings → Experimental first."); return
+        }
+        guard selectedModel.deviceFamily == .whoop5 else {
+            log("Experimental ECG probe: needs a WHOOP 5.0/MG strap selected — ignored."); return
+        }
+        guard state.connected, state.encryptedBond else {
+            log("Experimental ECG probe: needs the full encrypted bond, not the live-HR-only link — ignored."); return
+        }
+        guard state.worn else {
+            log("Experimental ECG probe: the raw stream is on-wrist gated like R22 — put the strap ON first."); return
+        }
+        guard !ecgProbeInFlight else {
+            log("Experimental ECG probe: already in flight — ignoring"); return
+        }
+        ecgProbeInFlight = true
+        let secs = RawCaptureWindow.clamp(seconds)
+        state.ecgProbeFramesThisSession = 0   // fresh attempt — count this window's frames from zero
+        puffinEcgProbeLog.beginWindow()
+        send(.sendR10R11Realtime, payload: [0x01])
+        log("Experimental ECG probe: armed SEND_R10_R11_REALTIME(63) for \(secs)s, logging every raw type-43 frame seen (unfiltered, no interpretation)")
+        DispatchQueue.main.asyncAfter(deadline: .now() + secs) { [weak self] in
+            guard let self else { return }
+            self.send(.sendR10R11Realtime, payload: [0x00])
+            self.puffinEcgProbeLog.endWindow()
+            self.ecgProbeInFlight = false
+            self.log("Experimental ECG probe: window closed, stream disarmed, \(self.state.ecgProbeFramesThisSession) type-43 frame(s) logged raw")
         }
     }
 
@@ -4206,6 +4265,13 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // reverse-engineering — its own file the bulk-capture eviction never churns.
                     // BEFORE the offload branch so it catches the burst; no-op unless capture is on.
                     puffinDeepBufferLog.appendIfDeepBuffer(frame: frame, char: characteristic.uuid, isOffload: isOffload)
+                    // EXPERIMENTAL MG ECG/electrode probe: raw, unfiltered log of every type-43 frame
+                    // seen while captureExperimentalEcgProbe's bounded window is open. No-op unless both
+                    // the dedicated toggle is on AND a window is currently active. Never decoded, never
+                    // feeds the UI beyond its own counter.
+                    if puffinEcgProbeLog.appendIfCandidate(frame: frame, family: .whoop5, char: characteristic.uuid) {
+                        state.ecgProbeFramesThisSession += 1
+                    }
                     // #423: the queryable twin of that diagnostics line — persist the decoded 100 Hz 6-axis
                     // IMU samples into the rawImuSample table when raw capture is on (same gate, gated inside).
                     collector?.storeRawImu(frame: frame)

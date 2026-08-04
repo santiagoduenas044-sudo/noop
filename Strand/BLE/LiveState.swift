@@ -377,6 +377,11 @@ public final class LiveState: ObservableObject {
     /// diagnostic counter, not a "deep stream unlocked" signal. Reset per session.
     @Published public var deepPacketsThisSession: Int = 0
 
+    /// EXPERIMENTAL MG ECG/electrode probe telemetry: count of raw type-43 frames logged during the
+    /// most recent `captureExperimentalEcgProbe` window (reset to 0 at the start of each window). Purely
+    /// a UI status counter — the frames themselves are never decoded or fed into any metric.
+    @Published public var ecgProbeFramesThisSession: Int = 0
+
     /// Optional hook invoked on every battery update (wired by LiveViewModel to the alert monitor).
     /// Kept as a closure so LiveState stays a plain observable snapshot with no alert dependency.
     public var onBatteryUpdate: ((Double) -> Void)?
