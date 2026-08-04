@@ -30,6 +30,7 @@ struct PremiumHeartView: View {
     @State private var dailyRanges: [DailyHRRange] = []
     @State private var overnight: [(t: Date, bpm: Double)] = []
     @State private var findings: [PremiumFinding] = []
+    @State private var journalFindings: [PremiumFinding] = []
 
     struct DailyHRRange: Identifiable {
         let id: Int
@@ -68,6 +69,7 @@ struct PremiumHeartView: View {
                 todayRangeCard
                 findingsSection
                 baselinesSection
+                changeOverTimeSection
                 dayChartCard
                 zonesCard
                 loadSection
@@ -75,6 +77,7 @@ struct PremiumHeartView: View {
                 weekdaySection
                 distributionSection
                 relationshipSection
+                journalRelationshipsSection
                 Color.clear.frame(height: 8)
             }
             .padding(.horizontal, 20)
@@ -146,6 +149,34 @@ struct PremiumHeartView: View {
             out.append(f)
         }
         findings = out.sorted { $0.confidence > $1.confidence }
+
+        // Journal → HRV / RHR associations, using the same mechanism and thresholds as the Journal
+        // screen's own "what your logs line up with" — the engine, not the presentation, decides
+        // what counts as a real association.
+        let entries = await repo.journalEntries()
+        var behaviorDays: [String: Set<String>] = [:]
+        for e in entries where e.answeredYes {
+            behaviorDays[e.question, default: []].insert(e.day)
+        }
+        var journalOut: [PremiumFinding] = []
+        let heartOutcomes: [(PremiumMetricID, Color)] = [
+            (.hrv, StrandPalette.metricCyan), (.restingHr, StrandPalette.metricRose),
+        ]
+        for (behavior, days) in behaviorDays {
+            for (id, tint) in heartOutcomes {
+                let series = PremiumMetricCatalog.series(id, repo: repo)
+                let name = PremiumMetricCatalog.def(id).shortName
+                guard let assoc = PremiumAnalysis.behaviorAssociation(
+                    behaviorDays: days, behaviorName: behavior,
+                    outcome: series, outcomeName: name) else { continue }
+                if let f = PremiumAnalysis.behaviorFinding(effect: assoc.effect,
+                                                           lagDays: assoc.lagDays, tint: tint) {
+                    journalOut.append(f)
+                }
+            }
+        }
+        journalOut.sort { $0.confidence > $1.confidence }
+        journalFindings = Array(journalOut.prefix(5))
     }
 
     // MARK: Chrome
@@ -326,6 +357,55 @@ struct PremiumHeartView: View {
         var s = "Your \(a.baselineN)-day baseline is \(d.format(b))"
         if a.runLength >= 3 { s += " · \(a.runLength) days \(a.runBelow ? "below" : "above")" }
         return s + "."
+    }
+
+    // MARK: Change over time (7D / 30D / 90D) — RHR and HRV side by side.
+
+    @ViewBuilder private var changeOverTimeSection: some View {
+        if rhrAnalysis.series.count >= 14 || hrvAnalysis.series.count >= 14 {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Change over time")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 16) {
+                        changeMetricBlock(.restingHr, rhrAnalysis)
+                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                        changeMetricBlock(.hrv, hrvAnalysis)
+                    }
+                }
+            }
+        }
+    }
+
+    /// One metric's 7/30/90-day change row, reusing the same absolute-vs-percent display logic as
+    /// the catalog detail screen so a metric flagged `usesAbsoluteDeviation` never shows a
+    /// misleading percentage here either.
+    private func changeMetricBlock(_ id: PremiumMetricID, _ a: PremiumMetricAnalysis) -> some View {
+        let d: PremiumMetricDef = PremiumMetricCatalog.def(id)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(d.shortName.uppercased()).font(StrandFont.overline).tracking(1.2)
+                .foregroundStyle(StrandPalette.textTertiary)
+            HStack(spacing: 14) {
+                changeStat("7D", PremiumMetricCatalog.changeText(id, pct: a.change7, abs: a.change7Abs),
+                          PremiumMetricCatalog.changeGood(id, pct: a.change7, abs: a.change7Abs))
+                changeStat("30D", PremiumMetricCatalog.changeText(id, pct: a.change30, abs: a.change30Abs),
+                          PremiumMetricCatalog.changeGood(id, pct: a.change30, abs: a.change30Abs))
+                changeStat("90D", PremiumMetricCatalog.changeText(id, pct: a.change90, abs: a.change90Abs),
+                          PremiumMetricCatalog.changeGood(id, pct: a.change90, abs: a.change90Abs))
+            }
+        }
+    }
+
+    private func changeStat(_ label: String, _ text: String?, _ good: Bool?) -> some View {
+        let tint: Color = good == nil
+            ? StrandPalette.textSecondary
+            : (good! ? StrandPalette.recoveryColor(85) : StrandPalette.metricRose)
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(text ?? "—").font(.system(size: 17, weight: .heavy)).monospacedDigit()
+                .foregroundStyle(text == nil ? StrandPalette.textTertiary : tint)
+            Text(label).font(StrandFont.overline).tracking(1.0)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // MARK: Today's curve (zone-shaded)
@@ -597,25 +677,35 @@ struct PremiumHeartView: View {
         }
     }
 
-    // MARK: Distribution
+    // MARK: Distribution — RHR and HRV get the SAME treatment, not just RHR.
 
+    /// One reusable distribution + weekday-pattern card, called once for RHR and once for HRV so
+    /// neither signal gets a richer presentation than the other — the "HRV was an afterthought"
+    /// problem the old RHR-only distribution card had.
     @ViewBuilder private var distributionSection: some View {
-        let a: PremiumMetricAnalysis = rhrAnalysis
+        metricDistributionCard(.restingHr, analysis: rhrAnalysis, tint: StrandPalette.metricCyan)
+        metricDistributionCard(.hrv, analysis: hrvAnalysis, tint: StrandPalette.metricCyan)
+    }
+
+    @ViewBuilder
+    private func metricDistributionCard(_ id: PremiumMetricID, analysis a: PremiumMetricAnalysis,
+                                        tint: Color) -> some View {
         if a.series.count >= 10 {
+            let d: PremiumMetricDef = PremiumMetricCatalog.def(id)
             VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: "Resting HR distribution")
+                PremiumSectionHeader(title: String(format: String(localized: "%1$@ distribution"), d.shortName))
                 StrandCard {
                     VStack(alignment: .leading, spacing: 10) {
                         DistributionHistogram(values: a.series.map(\.value), buckets: 12,
-                                              tint: StrandPalette.metricCyan,
+                                              tint: tint,
                                               highlight: a.latest, height: 110)
                         if a.byWeekday.count >= 3 {
                             Rectangle().fill(StrandPalette.hairline).frame(height: 1)
                             Text("BY DAY OF WEEK", comment: "Section label above a weekday pattern chart").font(StrandFont.overline).tracking(1.2)
                                 .foregroundStyle(StrandPalette.textTertiary)
                             WeekdayPatternChart(byWeekday: a.byWeekday,
-                                                tint: StrandPalette.metricCyan,
-                                                format: { "\(Int($0.rounded())) bpm" })
+                                                tint: tint,
+                                                format: { d.format($0, withUnit: false) })
                         }
                     }
                 }
@@ -623,29 +713,60 @@ struct PremiumHeartView: View {
         }
     }
 
-    // MARK: Relationship to recovery
+    // MARK: Relationships — HRV and RHR against recovery and sleep, not just one pairing.
 
     @ViewBuilder private var relationshipSection: some View {
-        let hrvSeries: [PremiumSample] = PremiumMetricCatalog.series(.hrv, repo: repo)
-        let recSeries: [PremiumSample] = PremiumMetricCatalog.series(.recovery, repo: repo)
-        if let best = PremiumAnalysis.bestRelationship(hrvSeries, recSeries) {
-            let pairs = CorrelationEngine.alignByDay(hrvSeries.map { (day: $0.day, value: $0.value) },
-                                                     recSeries.map { (day: $0.day, value: $0.value) })
+        relationshipCard(.hrv, .recovery, tint: StrandPalette.metricCyan)
+        relationshipCard(.hrv, .sleepDuration, tint: StrandPalette.sleepDeep)
+        relationshipCard(.restingHr, .recovery, tint: StrandPalette.metricRose)
+    }
+
+    /// A scatter card for one metric pair, computed from the two REAL series aligned by calendar
+    /// day. Renders nothing below `PremiumAnalysis.minCorrelationSamples` aligned days — the same
+    /// honesty gate every relationship in the app uses.
+    @ViewBuilder
+    private func relationshipCard(_ aId: PremiumMetricID, _ bId: PremiumMetricID, tint: Color) -> some View {
+        let aName: String = PremiumMetricCatalog.def(aId).shortName
+        let bName: String = PremiumMetricCatalog.def(bId).shortName
+        let aSeries: [PremiumSample] = PremiumMetricCatalog.series(aId, repo: repo)
+        let bSeries: [PremiumSample] = PremiumMetricCatalog.series(bId, repo: repo)
+        if let best = PremiumAnalysis.bestRelationship(aSeries, bSeries) {
+            let pairs = CorrelationEngine.alignByDay(aSeries.map { (day: $0.day, value: $0.value) },
+                                                     bSeries.map { (day: $0.day, value: $0.value) })
             let points: [CGPoint] = Self.normalise(pairs)
             VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: "HRV and recovery")
+                PremiumSectionHeader(title: String(format: String(localized: "%1$@ and %2$@"), aName, bName))
                 StrandCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        CorrelationScatter(points: points, tint: StrandPalette.metricCyan, height: 150)
+                        CorrelationScatter(points: points, tint: tint, height: 150)
                         HStack {
-                            Text(String(localized: "HRV →")).font(StrandFont.footnote)
+                            Text(String(format: String(localized: "%1$@ →"), aName))
+                                .font(StrandFont.footnote)
                                 .foregroundStyle(StrandPalette.textTertiary)
                             Spacer()
                             Text(String(format: String(localized: "r = %1$@ · %2$d days"), String(format: "%.2f", best.correlation.r), best.correlation.n))
                                 .font(StrandFont.captionNumber)
                                 .foregroundStyle(StrandPalette.textSecondary)
                         }
-                        Text("Each dot is one day: your HRV against that day's recovery. This is an association measured in your own data, not a cause.", comment: "HRV/recovery scatter caption")
+                        Text(String(format: String(localized: "Each dot is one day: your %1$@ against that day's %2$@. This is an association measured in your own data, not a cause."), aName.lowercased(), bName.lowercased()))
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Journal relationships — do logged behaviours line up with HRV or RHR?
+
+    @ViewBuilder private var journalRelationshipsSection: some View {
+        if !journalFindings.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Journal")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ForEach(journalFindings) { f in PremiumFindingRow(finding: f) }
+                        Text("Associations from your own logged history — not proven causes.", comment: "Heart journal-associations disclaimer")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }

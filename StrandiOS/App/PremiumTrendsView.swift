@@ -2,6 +2,7 @@
 import SwiftUI
 import StrandDesign
 import WhoopStore
+import StrandAnalytics
 
 /// Phase 2 · Trends — the prototype's Trends screen, native SwiftUI on real `repo.days`:
 /// a metric picker that morphs the hero chart, a week/month/quarter range control, the
@@ -31,7 +32,7 @@ struct PremiumTrendsView: View {
          Metric(name: "Rest HR", unit: "bpm", tint: StrandPalette.metricRose, higherBetter: false,
                 key: { $0.restingHr.map(Double.init) }, fmt: { "\(Int($0.rounded()))" })]
     }
-    private let ranges: [(String, Int)] = [("Week", 7), ("Month", 30), ("Quarter", 90)]
+    private let ranges: [(String, Int)] = [("Week", 7), ("Month", 30), ("Quarter", 90), ("Year", 365)]
 
     @State private var metricIndex = 0
     @State private var rangeIndex = 1
@@ -53,6 +54,7 @@ struct PremiumTrendsView: View {
         switch rangeIndex {
         case 0:  return String(localized: "Week")
         case 2:  return String(localized: "Quarter")
+        case 3:  return String(localized: "Year")
         default: return String(localized: "Month")
         }
     }
@@ -335,6 +337,7 @@ struct PremiumTrendsView: View {
         switch raw {
         case "Week":    return String(localized: "Week")
         case "Quarter": return String(localized: "Quarter")
+        case "Year":    return String(localized: "Year")
         default:        return String(localized: "Month")
         }
     }
@@ -359,23 +362,65 @@ struct PremiumTrendsView: View {
         .background(Capsule().fill(StrandPalette.surfaceInset))
     }
 
-    private var comparisonCard: some View {
+    /// This-period-vs-previous absolute and percentage change, computed once so the card and its
+    /// delta chip agree. `nil` unless BOTH windows are fully populated — a half-filled comparison
+    /// window would silently overstate the change, the same rule `PremiumAnalysis.periodChangePct`
+    /// applies everywhere else.
+    private var periodComparison: (cur: Double?, prev: Double?, deltaAbs: Double?, deltaPct: Double?) {
         let n = ranges[rangeIndex].1
         let all = repo.days.suffix(n * 2).compactMap(metric.key)
-        let cur = Array(all.suffix(n)), prev = Array(all.prefix(max(0, all.count - n)))
-        let curAvg = cur.isEmpty ? nil : cur.reduce(0,+)/Double(cur.count)
-        let prevAvg = prev.isEmpty ? nil : prev.reduce(0,+)/Double(prev.count)
+        guard all.count >= n * 2 else {
+            let cur = Array(all.suffix(n))
+            let curAvg = cur.isEmpty ? nil : cur.reduce(0,+)/Double(cur.count)
+            return (curAvg, nil, nil, nil)
+        }
+        let cur = Array(all.suffix(n)), prev = Array(all.prefix(n))
+        let curAvg = cur.reduce(0,+)/Double(cur.count)
+        let prevAvg = prev.reduce(0,+)/Double(prev.count)
+        let deltaAbs = curAvg - prevAvg
+        let deltaPct: Double? = prevAvg != 0 ? deltaAbs / abs(prevAvg) * 100 : nil
+        return (curAvg, prevAvg, deltaAbs, deltaPct)
+    }
+
+    private var comparisonCard: some View {
+        let comp = periodComparison
+        let better: Bool? = comp.deltaAbs.map { metric.higherBetter ? $0 >= 0 : $0 <= 0 }
         return VStack(alignment: .leading, spacing: 14) {
             Text(String(format: String(localized: "This %@ vs last"), rangeLabel.lowercased())).font(StrandFont.title2)
                 .foregroundStyle(StrandPalette.textPrimary)
             StrandCard {
-                HStack(spacing: 16) {
-                    compareStat("This period", curAvg, metric.tint)
-                    Rectangle().fill(StrandPalette.hairline).frame(width: 1, height: 44)
-                    compareStat("Previous", prevAvg, StrandPalette.textTertiary)
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 16) {
+                        compareStat("This period", comp.cur, metric.tint)
+                        Rectangle().fill(StrandPalette.hairline).frame(width: 1, height: 44)
+                        compareStat("Previous", comp.prev, StrandPalette.textTertiary)
+                    }
+                    if let dAbs = comp.deltaAbs {
+                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                        HStack(spacing: 8) {
+                            Text(deltaAbsText(dAbs))
+                                .font(StrandFont.captionNumber)
+                                .foregroundStyle(better == nil ? StrandPalette.textSecondary
+                                                 : (better! ? StrandPalette.recoveryColor(85) : StrandPalette.metricRose))
+                            if let dPct = comp.deltaPct {
+                                Text("(\(PremiumAnalysis.signedPct(dPct)))")
+                                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            }
+                            Spacer()
+                            Text("vs previous period", comment: "Trends comparison delta caption")
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                    }
                 }
             }
         }
+    }
+    /// A signed absolute delta in the metric's own unit — "+3 bpm", "-0.4" — so the change reads in
+    /// the same terms as the metric itself, alongside the percentage.
+    private func deltaAbsText(_ v: Double) -> String {
+        let sign = v >= 0 ? "+" : ""
+        let unit = metric.unit.isEmpty ? "" : " " + metric.unit
+        return sign + metric.fmt(v) + unit
     }
     private func compareStat(_ label: String, _ v: Double?, _ tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
@@ -503,9 +548,28 @@ struct PremiumTrendsView: View {
                             .frame(maxWidth: .infinity)
                         }
                     }
+                    if let split = Self.weekdayVsWeekend(byWeekday) {
+                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                        HStack(spacing: 16) {
+                            compareStat("Weekday avg", split.weekday, StrandPalette.textSecondary)
+                            Rectangle().fill(StrandPalette.hairline).frame(width: 1, height: 36)
+                            compareStat("Weekend avg", split.weekend, metric.tint)
+                        }
+                    }
                 }
             }
         }
+    }
+    /// Weekday (Mon–Fri) vs weekend (Sat–Sun) averages, from the SAME per-weekday means the bar
+    /// chart plots — "does this metric behave differently on weekends?" without a separate query.
+    /// `nil` unless both sides have at least one real weekday's average behind them.
+    private static func weekdayVsWeekend(_ byWeekday: [(String, Double?)]) -> (weekday: Double, weekend: Double)? {
+        guard byWeekday.count == 7 else { return nil }
+        let weekdayVals = byWeekday[0..<5].compactMap(\.1)
+        let weekendVals = byWeekday[5..<7].compactMap(\.1)
+        guard !weekdayVals.isEmpty, !weekendVals.isEmpty else { return nil }
+        return (weekdayVals.reduce(0,+) / Double(weekdayVals.count),
+                weekendVals.reduce(0,+) / Double(weekendVals.count))
     }
     /// Mean value per weekday (Mon-first) across ALL banked days with a real value for this metric.
     private static func weekdayAverages(_ days: [DailyMetric], key: (DailyMetric) -> Double?) -> [(String, Double?)] {
@@ -536,29 +600,17 @@ struct PremiumTrendsView: View {
         if let idx = partnerIndex, idx != metricIndex, idx < metrics.count { return metrics[idx] }
         return metrics[metricIndex == 0 ? 3 : 0]
     }
-    private var pairedSeries: (x: [Double], y: [Double]) {
+    /// Each series independently (own-day, own-nil filtering only) — `CorrelationEngine.alignByDay`
+    /// does the actual inner join, so this doesn't need to pre-filter for co-presence itself.
+    private var pairedDaySeries: (x: [(day: String, value: Double)], y: [(day: String, value: Double)]) {
         let partner = correlationPartner
         let days = Array(repo.days.suffix(ranges[rangeIndex].1))
-        var xs: [Double] = [], ys: [Double] = []
+        var xs: [(day: String, value: Double)] = [], ys: [(day: String, value: Double)] = []
         for d in days {
-            if let xv = metric.key(d), let yv = partner.key(d) { xs.append(xv); ys.append(yv) }
+            if let xv = metric.key(d) { xs.append((day: d.day, value: xv)) }
+            if let yv = partner.key(d) { ys.append((day: d.day, value: yv)) }
         }
         return (xs, ys)
-    }
-    /// Pearson correlation coefficient over paired same-day samples. `nil` below 3 pairs (too few to
-    /// mean anything) or when one series has zero variance (a flat line correlates with nothing).
-    private static func pearson(_ xs: [Double], _ ys: [Double]) -> Double? {
-        guard xs.count == ys.count, xs.count >= 3 else { return nil }
-        let n = Double(xs.count)
-        let mx = xs.reduce(0, +) / n, my = ys.reduce(0, +) / n
-        var num = 0.0, dx2 = 0.0, dy2 = 0.0
-        for i in 0..<xs.count {
-            let dx = xs[i] - mx, dy = ys[i] - my
-            num += dx * dy; dx2 += dx * dx; dy2 += dy * dy
-        }
-        let denom = (dx2 * dy2).squareRoot()
-        guard denom > 0 else { return nil }
-        return num / denom
     }
 
     /// Normalizes paired samples into unit-square plot points. Pulled out of `correlationCard` (a
@@ -656,14 +708,26 @@ struct PremiumTrendsView: View {
         findings = Array(out.prefix(6))
     }
 
+    /// Day-aligned pairs plus the Pearson fit, from the shared `CorrelationEngine` — the same tested
+    /// engine `PremiumAnalysis` uses everywhere else — rather than a second, hand-rolled Pearson
+    /// implementation that could silently drift from it.
+    private var correlationResult: (pairs: [(Double, Double)], correlation: Correlation)? {
+        let day = pairedDaySeries
+        let aligned = CorrelationEngine.alignByDay(day.x, day.y)
+        guard let corr = CorrelationEngine.pearson(aligned) else { return nil }
+        return (aligned, corr)
+    }
+
     @ViewBuilder private var correlationCard: some View {
         let partner = correlationPartner
-        let pair = pairedSeries
-        if let r = Self.pearson(pair.x, pair.y) {
-            let xlo = pair.x.min() ?? 0, xhi = pair.x.max() ?? 1
-            let ylo = pair.y.min() ?? 0, yhi = pair.y.max() ?? 1
+        if let result = correlationResult {
+            let xs = result.pairs.map(\.0), ys = result.pairs.map(\.1)
+            let xlo = xs.min() ?? 0, xhi = xs.max() ?? 1
+            let ylo = ys.min() ?? 0, yhi = ys.max() ?? 1
             let xspan = max(xhi - xlo, 0.0001), yspan = max(yhi - ylo, 0.0001)
-            let points = Self.normalizedPoints(xs: pair.x, ys: pair.y, xlo: xlo, xspan: xspan, ylo: ylo, yspan: yspan)
+            let points = Self.normalizedPoints(xs: xs, ys: ys, xlo: xlo, xspan: xspan, ylo: ylo, yspan: yspan)
+            let r = result.correlation.r
+            let confidence = PremiumConfidence.from(n: result.correlation.n, strength: r)
             VStack(alignment: .leading, spacing: 14) {
                 Text(String(format: String(localized: "%1$@ vs %2$@"), metric.name, partner.name)).font(StrandFont.title2)
                     .foregroundStyle(StrandPalette.textPrimary)
@@ -691,6 +755,14 @@ struct PremiumTrendsView: View {
                             Text(metric.name).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             Spacer()
                             Text(partner.name).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                        HStack {
+                            Text(confidence.label).font(StrandFont.footnote)
+                                .foregroundStyle(confidence.tint)
+                            Spacer()
+                            Text(String(format: String(localized: "%d matched days"), result.correlation.n))
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                         }
                     }
                 }
