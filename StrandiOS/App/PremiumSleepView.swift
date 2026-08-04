@@ -72,6 +72,8 @@ struct PremiumSleepView: View {
                     balanceSection
                     overnightVitalsSection
                     historySection
+                    distributionSection
+                    relationshipsSection
                     Color.clear.frame(height: 8)
                 }
                 .padding(.horizontal, 20)
@@ -566,6 +568,94 @@ struct PremiumSleepView: View {
                 .foregroundStyle(StrandPalette.textTertiary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Distribution — where does a typical night actually land?
+
+    @ViewBuilder private var distributionSection: some View {
+        let a: PremiumMetricAnalysis = PremiumMetricCatalog.analysis(.sleepDuration, repo: repo)
+        if a.series.count >= 10 {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Sleep duration distribution")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        DistributionHistogram(values: a.series.map(\.value), buckets: 12,
+                                              tint: StrandPalette.sleepREM,
+                                              highlight: a.latest, height: 110)
+                        if a.byWeekday.count >= 3 {
+                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                            Text("BY DAY OF WEEK", comment: "Section label above a weekday pattern chart").font(StrandFont.overline).tracking(1.2)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                            WeekdayPatternChart(byWeekday: a.byWeekday,
+                                                tint: StrandPalette.sleepREM,
+                                                format: { PremiumAnalysis.durText($0) })
+                        }
+                        Text("How your recorded nights actually spread out, not just their average.", comment: "Sleep distribution caption")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Relationships — does sleep actually move with recovery and HRV for this person?
+
+    @ViewBuilder private var relationshipsSection: some View {
+        sleepRelationshipCard(.recovery, tint: StrandPalette.recoveryColor(85))
+        sleepRelationshipCard(.hrv, tint: StrandPalette.metricCyan)
+    }
+
+    /// Sleep duration plotted against another metric, same-day aligned pairs via the shared
+    /// `CorrelationEngine` — visual, not just the one-line finding `findingsSection` already shows,
+    /// so "what else changed with it" is answerable by eye, not only by sentence.
+    @ViewBuilder
+    private func sleepRelationshipCard(_ partnerId: PremiumMetricID, tint: Color) -> some View {
+        let partnerName: String = PremiumMetricCatalog.def(partnerId).shortName
+        let durSeries = PremiumMetricCatalog.series(.sleepDuration, repo: repo)
+            .map { (day: $0.day, value: $0.value) }
+        let partnerSeries = PremiumMetricCatalog.series(partnerId, repo: repo)
+            .map { (day: $0.day, value: $0.value) }
+        let aligned = CorrelationEngine.alignByDay(durSeries, partnerSeries)
+        if let corr = CorrelationEngine.pearson(aligned) {
+            let xs = aligned.map(\.0), ys = aligned.map(\.1)
+            let xlo = xs.min() ?? 0, xhi = xs.max() ?? 1
+            let ylo = ys.min() ?? 0, yhi = ys.max() ?? 1
+            let xspan = max(xhi - xlo, 0.0001), yspan = max(yhi - ylo, 0.0001)
+            let points = Self.normalisedScatter(xs: xs, ys: ys, xlo: xlo, xspan: xspan, ylo: ylo, yspan: yspan)
+            let confidence = PremiumConfidence.from(n: corr.n, strength: corr.r)
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: String(format: String(localized: "Sleep and %@"), partnerName))
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        CorrelationScatter(points: points, tint: tint, height: 140)
+                        HStack {
+                            Text(confidence.label).font(StrandFont.footnote).foregroundStyle(confidence.tint)
+                            Spacer()
+                            Text(String(format: String(localized: "r = %1$@ · %2$d nights"), String(format: "%.2f", corr.r), corr.n))
+                                .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
+                        }
+                        Text(String(format: String(localized: "Each dot is one night: your sleep duration against that day's %@. An association in your own data, not a cause."), partnerName.lowercased()))
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Normalises aligned pairs into the unit square. Kept as a static helper (not inline
+    /// arithmetic) per the SwiftUI type-checker guidance elsewhere in this file's siblings.
+    private static func normalisedScatter(xs: [Double], ys: [Double], xlo: Double, xspan: Double,
+                                          ylo: Double, yspan: Double) -> [CGPoint] {
+        var pts: [CGPoint] = []
+        pts.reserveCapacity(xs.count)
+        for i in 0..<xs.count {
+            let nx: Double = (xs[i] - xlo) / xspan
+            let ny: Double = 1 - (ys[i] - ylo) / yspan
+            pts.append(CGPoint(x: CGFloat(nx), y: CGFloat(ny)))
+        }
+        return pts
     }
 }
 
