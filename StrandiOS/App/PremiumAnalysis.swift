@@ -187,11 +187,22 @@ struct PremiumMetricAnalysis {
     // Deviation of `latest` from `baseline`
     let deviationPct: Double?            // signed % vs baseline
     let deviationZ: Double?              // signed z-score vs baseline spread
+    /// Signed absolute delta (`latest - baseline`) in the metric's own unit. Always computable
+    /// from a subtraction (unlike `deviationPct`, which needs `baseline != 0` and blows up when the
+    /// baseline sits near zero — e.g. skin-temperature deviation, which is already a deviation from
+    /// the wearable's own baseline, so its OWN 30-day mean is often within a few tenths of a degree
+    /// of zero). Metrics flagged `usesAbsoluteDeviation` in the catalog display this instead of
+    /// `deviationPct`.
+    let deviationAbs: Double?
 
     // Period-over-period change (mean of window vs mean of the preceding window)
     let change7: Double?                 // signed % change
     let change30: Double?
     let change90: Double?
+    /// Signed absolute equivalents of `change7/30/90`, for the same near-zero-baseline reason.
+    let change7Abs: Double?
+    let change30Abs: Double?
+    let change90Abs: Double?
 
     let trend: PremiumTrendDirection
 
@@ -290,6 +301,13 @@ extension PremiumAnalysis {
     static let minBehaviorOccurrences: Int = 5
     /// The rolling window used as "your baseline" throughout the Premium UI.
     static let baselineWindow: Int = 30
+    /// Metrics whose baseline can sit near zero, so a PERCENT deviation is not meaningful — a
+    /// skin-temperature deviation is already a deviation from the wearable's own baseline, and this
+    /// app's own 30-day mean of that value is typically within a few tenths of a degree of zero.
+    /// Matches `PremiumMetricDef.usesAbsoluteDeviation`; kept here too as a defensive guard so a
+    /// generic sentence-generating helper never fabricates an "X% below baseline" claim for one of
+    /// these even if a future call site starts feeding it one.
+    static let absoluteDeviationMetricKeys: Set<String> = ["skinTemp"]
 
     // MARK: Series helpers
 
@@ -337,6 +355,17 @@ extension PremiumAnalysis {
         let prior = samples.suffix(window * 2).prefix(window).map(\.value)
         guard let a = mean(recent), let b = mean(prior), b != 0 else { return nil }
         return (a - b) / abs(b) * 100.0
+    }
+
+    /// Signed absolute period-over-period change (mean of the last `window` minus the mean of the
+    /// `window` before it), in the metric's own unit. Unlike `periodChangePct` this never needs to
+    /// divide by the prior mean, so it stays sane for metrics whose baseline can sit near zero.
+    static func periodChangeAbs(_ samples: [PremiumSample], window: Int) -> Double? {
+        guard samples.count >= window * 2 else { return nil }
+        let recent = samples.suffix(window).map(\.value)
+        let prior = samples.suffix(window * 2).prefix(window).map(\.value)
+        guard let a = mean(recent), let b = mean(prior) else { return nil }
+        return a - b
     }
 
     /// Consecutive most-recent samples on one side of `baseline`, plus which side.
@@ -393,14 +422,21 @@ extension PremiumAnalysis {
 
         var devPct: Double?
         var devZ: Double?
-        if let b = baseline, let l = latest, b != 0 {
-            devPct = (l - b) / abs(b) * 100.0
-            if let sd = spread, sd > 0 { devZ = (l - b) / sd }
+        var devAbs: Double?
+        if let b = baseline, let l = latest {
+            devAbs = l - b
+            if b != 0 {
+                devPct = (l - b) / abs(b) * 100.0
+                if let sd = spread, sd > 0 { devZ = (l - b) / sd }
+            }
         }
 
         let c7 = periodChangePct(series, window: 7)
         let c30 = periodChangePct(series, window: 30)
         let c90 = periodChangePct(series, window: 90)
+        let c7Abs = periodChangeAbs(series, window: 7)
+        let c30Abs = periodChangeAbs(series, window: 30)
+        let c90Abs = periodChangeAbs(series, window: 90)
 
         // Trend from the shortest fully-populated window, so a new user still gets a direction.
         let trendPct: Double? = c7 ?? c30 ?? c90
@@ -418,8 +454,9 @@ extension PremiumAnalysis {
             key: key, series: series, higherBetter: higherBetter,
             latest: latest, latestDay: latestDay,
             baseline: baseline, spread: spread, baselineN: values.count,
-            deviationPct: devPct, deviationZ: devZ,
+            deviationPct: devPct, deviationZ: devZ, deviationAbs: devAbs,
             change7: c7, change30: c30, change90: c90,
+            change7Abs: c7Abs, change30Abs: c30Abs, change90Abs: c90Abs,
             trend: direction,
             runLength: runInfo.length, runBelow: runInfo.below,
             byWeekday: byWeekday(series))
@@ -533,6 +570,7 @@ extension PremiumAnalysis {
     /// meaningful and has persisted, so a single noisy night stays quiet.
     static func baselineFinding(_ a: PremiumMetricAnalysis, name: String,
                                 unit: String, tint: Color) -> PremiumFinding? {
+        guard !absoluteDeviationMetricKeys.contains(a.key) else { return nil }
         guard a.hasBaseline, a.deviationIsMeaningful,
               let pct = a.deviationPct, let base = a.baseline else { return nil }
         guard a.runLength >= 2 else { return nil }

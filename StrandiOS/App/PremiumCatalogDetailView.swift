@@ -100,14 +100,13 @@ struct PremiumCatalogDetailView: View {
     }
 
     private func deltaText(_ a: PremiumMetricAnalysis) -> String? {
-        guard a.hasBaseline, let pct = a.deviationPct else { return nil }
-        return PremiumAnalysis.signedPct(pct) + " vs baseline"
+        guard let text = PremiumMetricCatalog.deviationText(metric, a) else { return nil }
+        return text + " vs baseline"
     }
     /// Colours the delta only when the metric has a meaningful direction — respiratory rate and
     /// steps have no "good" side, so their delta stays neutral rather than falsely reassuring.
     private func deltaGood(_ a: PremiumMetricAnalysis) -> Bool? {
-        guard let hb = def.higherBetter, let pct = a.deviationPct else { return nil }
-        return hb ? pct >= 0 : pct <= 0
+        PremiumMetricCatalog.deviationGood(metric, a)
     }
     private func baselineCaption(_ a: PremiumMetricAnalysis) -> String? {
         guard let b = a.baseline else {
@@ -185,26 +184,26 @@ struct PremiumCatalogDetailView: View {
             PremiumSectionHeader(title: "Change over time")
             StrandCard {
                 VStack(spacing: 0) {
-                    changeRow("7 days", a.change7)
+                    changeRow("7 days", pct: a.change7, abs: a.change7Abs)
                     Rectangle().fill(StrandPalette.hairline).frame(height: 1)
-                    changeRow("30 days", a.change30)
+                    changeRow("30 days", pct: a.change30, abs: a.change30Abs)
                     Rectangle().fill(StrandPalette.hairline).frame(height: 1)
-                    changeRow("90 days", a.change90)
+                    changeRow("90 days", pct: a.change90, abs: a.change90Abs)
                 }
             }
         }
     }
 
-    @ViewBuilder private func changeRow(_ label: String, _ pct: Double?) -> some View {
+    @ViewBuilder private func changeRow(_ label: String, pct: Double?, abs: Double?) -> some View {
         HStack {
             Text(label).font(StrandFont.body).foregroundStyle(StrandPalette.textSecondary)
             Spacer()
-            if let p = pct {
-                let good: Bool? = def.higherBetter.map { $0 ? p >= 0 : p <= 0 }
+            if let text = PremiumMetricCatalog.changeText(metric, pct: pct, abs: abs) {
+                let good: Bool? = PremiumMetricCatalog.changeGood(metric, pct: pct, abs: abs)
                 let tint: Color = good == nil
                     ? StrandPalette.textSecondary
                     : (good! ? StrandPalette.recoveryColor(85) : StrandPalette.metricRose)
-                Text(PremiumAnalysis.signedPct(p))
+                Text(text)
                     .font(StrandFont.captionNumber).foregroundStyle(tint)
             } else {
                 Text("Not enough history")

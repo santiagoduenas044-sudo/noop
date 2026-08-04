@@ -507,8 +507,8 @@ struct PremiumSleepView: View {
                         VStack(alignment: .trailing, spacing: 2) {
                             Text(d.format(v, withUnit: false))
                                 .font(StrandFont.captionNumber).foregroundStyle(d.tint)
-                            if let dev = a.deviationPct, a.hasBaseline {
-                                Text(PremiumAnalysis.signedPct(dev))
+                            if let devText = PremiumMetricCatalog.deviationText(id, a) {
+                                Text(devText)
                                     .font(StrandFont.footnote)
                                     .foregroundStyle(StrandPalette.textTertiary)
                             }
@@ -904,8 +904,12 @@ private struct SleepTimingMap: View {
     let nights: [PremiumSleepIntel.Night]
 
     var body: some View {
+        // `bedMinutes` and `wakeMinutes` are already on one continuous noon-anchored scale
+        // (`PremiumSleepIntel.minutesSinceNoon` wraps a post-midnight wake time onto it itself) —
+        // adding another 1440 here double-wrapped the wake side and pushed the midpoint label
+        // shown below by 12 hours (the "2:30 PM" instead of "2:30 AM" bug).
         let beds: [Double] = nights.map(\.bedMinutes)
-        let wakes: [Double] = nights.map { $0.wakeMinutes + 1440 }
+        let wakes: [Double] = nights.map(\.wakeMinutes)
         let winStart: Double = (beds.min() ?? 0) - 20
         let winEnd: Double = (wakes.max() ?? 1440) + 20
         let span: Double = max(1, winEnd - winStart)
@@ -917,7 +921,7 @@ private struct SleepTimingMap: View {
                 ZStack(alignment: .topLeading) {
                     ForEach(Array(nights.enumerated()), id: \.offset) { i, night in
                         let x0: CGFloat = geo.size.width * CGFloat((night.bedMinutes - winStart) / span)
-                        let x1: CGFloat = geo.size.width * CGFloat((night.wakeMinutes + 1440 - winStart) / span)
+                        let x1: CGFloat = geo.size.width * CGFloat((night.wakeMinutes - winStart) / span)
                         let opacity: Double = 0.45 + 0.55 * Double(i) / Double(max(1, nights.count - 1))
                         RoundedRectangle(cornerRadius: 3, style: .continuous)
                             .fill(StrandPalette.sleepDeep.opacity(opacity))

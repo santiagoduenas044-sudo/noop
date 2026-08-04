@@ -32,23 +32,33 @@ struct PremiumCoachContext {
         let current: Double?
         let baseline: Double?
         let deviationPct: Double?
+        let deviationAbs: Double?
         let change7: Double?
+        let change7Abs: Double?
         let change30: Double?
         let trend: PremiumTrendDirection
         let sampleCount: Int
 
-        /// A compact single-line rendering for the model prompt.
+        /// A compact single-line rendering for the model prompt. Deviation and change go through
+        /// `PremiumMetricCatalog`'s shared formatting, same as the on-screen UI, so a near-zero
+        /// baseline (skin temperature) never hands the model an absurd percentage to explain.
         var brief: String {
             guard let c = current else { return "\(name): no data" }
             var s = "\(name): \(fmt(c))\(unit.isEmpty ? "" : " " + unit)"
             if let b = baseline {
                 s += " (baseline \(fmt(b))"
-                if let d = deviationPct { s += ", \(PremiumAnalysis.signedPct(d)) vs baseline" }
+                let devText = PremiumMetricCatalog.def(id).usesAbsoluteDeviation
+                    ? deviationAbs.map { PremiumMetricCatalog.def(id).formatSigned($0) }
+                    : deviationPct.map { PremiumAnalysis.signedPct($0) }
+                if let d = devText { s += ", \(d) vs baseline" }
                 s += ")"
             } else {
                 s += " (no baseline yet — \(sampleCount) samples)"
             }
-            if let c7 = change7 { s += ", 7-day change \(PremiumAnalysis.signedPct(c7))" }
+            let changeText = PremiumMetricCatalog.def(id).usesAbsoluteDeviation
+                ? change7Abs.map { PremiumMetricCatalog.def(id).formatSigned($0) }
+                : change7.map { PremiumAnalysis.signedPct($0) }
+            if let c7 = changeText { s += ", 7-day change \(c7)" }
             s += ", trend \(trend.word)"
             s += " [\(provenance.label.lowercased())]"
             return s
@@ -264,7 +274,8 @@ extension PremiumCoachContext {
             states.append(MetricState(
                 id: def.id, name: def.name, unit: def.unit, provenance: def.provenance,
                 current: a.latest, baseline: a.baseline, deviationPct: a.deviationPct,
-                change7: a.change7, change30: a.change30, trend: a.trend,
+                deviationAbs: a.deviationAbs,
+                change7: a.change7, change7Abs: a.change7Abs, change30: a.change30, trend: a.trend,
                 sampleCount: a.series.count))
         }
 

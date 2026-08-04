@@ -296,8 +296,8 @@ struct PremiumHeartView: View {
                         MetricValueHeader(
                             value: a.latest.map { d.format($0, withUnit: false) } ?? "—",
                             unit: d.unit,
-                            deltaText: baselineDelta(a),
-                            deltaGood: baselineGood(a, def: d),
+                            deltaText: baselineDelta(id, a),
+                            deltaGood: baselineGood(id, a),
                             caption: baselineCaption(a, def: d),
                             tint: d.tint)
                         BaselineBandChart(values: values, baseline: a.baseline, spread: a.spread,
@@ -313,13 +313,11 @@ struct PremiumHeartView: View {
         .buttonStyle(.plain)
     }
 
-    private func baselineDelta(_ a: PremiumMetricAnalysis) -> String? {
-        guard a.hasBaseline, let pct = a.deviationPct else { return nil }
-        return PremiumAnalysis.signedPct(pct)
+    private func baselineDelta(_ id: PremiumMetricID, _ a: PremiumMetricAnalysis) -> String? {
+        PremiumMetricCatalog.deviationText(id, a)
     }
-    private func baselineGood(_ a: PremiumMetricAnalysis, def d: PremiumMetricDef) -> Bool? {
-        guard let hb = d.higherBetter, let pct = a.deviationPct, a.hasBaseline else { return nil }
-        return hb ? pct >= 0 : pct <= 0
+    private func baselineGood(_ id: PremiumMetricID, _ a: PremiumMetricAnalysis) -> Bool? {
+        PremiumMetricCatalog.deviationGood(id, a)
     }
     private func baselineCaption(_ a: PremiumMetricAnalysis, def d: PremiumMetricDef) -> String? {
         guard let b = a.baseline else {

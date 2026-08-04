@@ -76,6 +76,13 @@ struct PremiumMetricDef: Identifiable {
     let decimals: Int
     /// nil = no single "good" direction (respiratory rate, steps, bedtime).
     let higherBetter: Bool?
+    /// True when a deviation/change should be shown as a signed absolute delta in this metric's own
+    /// unit ("+0.5 °C vs baseline") rather than a percentage. Set for metrics whose own baseline can
+    /// sit near zero, where percent change is not meaningful — skin-temperature deviation is already
+    /// a deviation from the wearable's own baseline, so this app's 30-day mean of THAT value is
+    /// typically within tenths of a degree of zero, and dividing by it produces absurd percentages
+    /// (e.g. "+900%" for a perfectly normal 0.4 °C night).
+    let usesAbsoluteDeviation: Bool = false
     let explanation: String
     /// Pulls the per-day value out of a `DailyMetric`, already normalised (e.g. efficiency scaled
     /// to 0–100) and bounds-checked by the catalog's `series(...)`.
@@ -98,6 +105,13 @@ struct PremiumMetricDef: Identifiable {
         }
         let unitless = (id == .sleepDuration || id == .sleepBalance || id == .bedtime || id == .wakeTime)
         return withUnit && !unit.isEmpty && !unitless ? "\(num) \(unit)" : num
+    }
+
+    /// A signed rendering of `format(_:)` — "+0.5 °C", "-3 bpm" — for showing a delta in the
+    /// metric's own unit rather than as a percentage. `format` already prints a "-" for negative
+    /// values, so only the "+" for non-negative ones needs adding here.
+    func formatSigned(_ v: Double, withUnit: Bool = true) -> String {
+        (v >= 0 ? "+" : "") + format(v, withUnit: withUnit)
     }
 }
 
@@ -160,6 +174,7 @@ extension PremiumMetricCatalog {
             id: .skinTemp, name: String(localized: "Skin Temperature"), shortName: String(localized: "Skin temp"), unit: "°C",
             icon: "thermometer.medium", tint: StrandPalette.metricAmber, group: .heart,
             provenance: .estimated, decimals: 1, higherBetter: nil,
+            usesAbsoluteDeviation: true,
             explanation: String(localized: "How far your overnight skin temperature sat from your own baseline. Shown as a deviation, not an absolute body temperature."),
             read: { $0.skinTempDevC }, isDerived: false),
 
@@ -339,6 +354,61 @@ extension PremiumMetricCatalog {
         return PremiumAnalysis.analyze(key: id.rawValue,
                                        samples: series(id, repo: repo),
                                        higherBetter: d.higherBetter)
+    }
+
+    // MARK: Deviation / change display
+
+    /// The "how far from baseline" chip text for one metric — a signed percentage normally, or a
+    /// signed absolute delta ("+0.5 °C") for metrics flagged `usesAbsoluteDeviation`. Every screen
+    /// that shows `deviationPct` should go through this rather than reading the raw field, so a
+    /// near-zero baseline (skin temperature) can never surface an absurd percentage.
+    static func deviationText(_ id: PremiumMetricID, _ a: PremiumMetricAnalysis) -> String? {
+        guard a.hasBaseline else { return nil }
+        let d = def(id)
+        if d.usesAbsoluteDeviation {
+            guard let delta = a.deviationAbs else { return nil }
+            return d.formatSigned(delta)
+        }
+        guard let pct = a.deviationPct else { return nil }
+        return PremiumAnalysis.signedPct(pct)
+    }
+
+    /// Whether the current deviation reads as "good" for this metric, honouring the same absolute-
+    /// vs-percent choice as `deviationText`. `nil` when the metric has no single good direction.
+    static func deviationGood(_ id: PremiumMetricID, _ a: PremiumMetricAnalysis) -> Bool? {
+        guard a.hasBaseline else { return nil }
+        let d = def(id)
+        guard let hb = d.higherBetter else { return nil }
+        if d.usesAbsoluteDeviation {
+            guard let delta = a.deviationAbs else { return nil }
+            return hb ? delta >= 0 : delta <= 0
+        }
+        guard let pct = a.deviationPct else { return nil }
+        return hb ? pct >= 0 : pct <= 0
+    }
+
+    /// The "change over N days" text for one metric, picking between the percent and absolute pair
+    /// the same way `deviationText` does.
+    static func changeText(_ id: PremiumMetricID, pct: Double?, abs: Double?) -> String? {
+        if def(id).usesAbsoluteDeviation {
+            guard let v = abs else { return nil }
+            return def(id).formatSigned(v)
+        }
+        guard let p = pct else { return nil }
+        return PremiumAnalysis.signedPct(p)
+    }
+
+    /// Whether a period-over-period change reads as "good", honouring the absolute-vs-percent
+    /// choice. `nil` when the metric has no single good direction.
+    static func changeGood(_ id: PremiumMetricID, pct: Double?, abs: Double?) -> Bool? {
+        let d = def(id)
+        guard let hb = d.higherBetter else { return nil }
+        if d.usesAbsoluteDeviation {
+            guard let v = abs else { return nil }
+            return hb ? v >= 0 : v <= 0
+        }
+        guard let p = pct else { return nil }
+        return hb ? p >= 0 : p <= 0
     }
 }
 

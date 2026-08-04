@@ -33,8 +33,14 @@ struct PremiumSleepIntel {
         /// Bedtime as minutes since the preceding noon — see `PremiumSleepIntel.minutesSinceNoon`.
         var bedMinutes: Double { PremiumSleepIntel.minutesSinceNoon(bed) }
         var wakeMinutes: Double { PremiumSleepIntel.minutesSinceNoon(wake) }
-        /// Sleep midpoint on the same continuous scale (wake is always "the next day" from bed).
-        var midpointMinutes: Double { (bedMinutes + wakeMinutes + 1440) / 2 }
+        /// Sleep midpoint on the same continuous scale. `bedMinutes` and `wakeMinutes` are both
+        /// already anchored to the SAME preceding noon (`minutesSinceNoon` wraps a post-midnight
+        /// wake time onto that scale itself), so the midpoint is a plain average — adding another
+        /// 1440 here double-wraps the wake side and shifts the midpoint by exactly 12 hours (AM
+        /// reads as PM). Variance-based stats (`midpointVariability`, `regularityScore`) were
+        /// unaffected since a constant offset doesn't change spread, but every DISPLAYED midpoint
+        /// clock time was wrong.
+        var midpointMinutes: Double { (bedMinutes + wakeMinutes) / 2 }
     }
 
     /// Nights, oldest→newest.
