@@ -82,7 +82,7 @@ struct PremiumMetricDef: Identifiable {
     /// a deviation from the wearable's own baseline, so this app's 30-day mean of THAT value is
     /// typically within tenths of a degree of zero, and dividing by it produces absurd percentages
     /// (e.g. "+900%" for a perfectly normal 0.4 °C night).
-    let usesAbsoluteDeviation: Bool = false
+    let usesAbsoluteDeviation: Bool
     let explanation: String
     /// Pulls the per-day value out of a `DailyMetric`, already normalised (e.g. efficiency scaled
     /// to 0–100) and bounds-checked by the catalog's `series(...)`.
@@ -90,6 +90,28 @@ struct PremiumMetricDef: Identifiable {
     /// Some metrics are not per-day `DailyMetric` fields (live HR, sleep regularity, journal
     /// status). They render from a live/derived source instead and have no history series.
     let isDerived: Bool
+
+    /// Explicit init (rather than the synthesized memberwise one) so `usesAbsoluteDeviation` can
+    /// default to `false` and stay omittable at every existing call site.
+    init(id: PremiumMetricID, name: String, shortName: String, unit: String, icon: String, tint: Color,
+        group: PremiumMetricGroup, provenance: PremiumProvenance, decimals: Int, higherBetter: Bool?,
+        usesAbsoluteDeviation: Bool = false, explanation: String,
+        read: @escaping (DailyMetric) -> Double?, isDerived: Bool) {
+        self.id = id
+        self.name = name
+        self.shortName = shortName
+        self.unit = unit
+        self.icon = icon
+        self.tint = tint
+        self.group = group
+        self.provenance = provenance
+        self.decimals = decimals
+        self.higherBetter = higherBetter
+        self.usesAbsoluteDeviation = usesAbsoluteDeviation
+        self.explanation = explanation
+        self.read = read
+        self.isDerived = isDerived
+    }
 
     /// Formats a value with this metric's decimals, optionally with its unit.
     func format(_ v: Double, withUnit: Bool = true) -> String {
