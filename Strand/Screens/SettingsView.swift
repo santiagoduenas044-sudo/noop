@@ -1444,14 +1444,18 @@ struct SettingsView: View {
                 }
                 .toggleStyle(.switch)
                 .tint(StrandPalette.accent)
-                Text("An unverified community report claims a WHOOP MG's electrode can be read by requesting the same raw stream above (opcode 63) after the R22 unlock. NOOP has not confirmed this. With this on, the button below re-arms that stream for 30 seconds and saves every raw frame it sees to a file on your device \u{2014} nothing is decoded, filtered, or shown as a waveform yet. Requires the R22 unlock above to have been sent first. Touch the strap's electrode with your other hand during the capture to test the contact-channel claim. WHOOP 5/MG only; no effect on WHOOP 4.0.")
+                Text("A developer report from the WHOOP reverse-engineering community (Discord, not this repo) describes reading a WHOOP MG's ECG \u{2014} raw and filtered, without the official app \u{2014} by decoding opcode-63 type-43 frames after enabling the R22 flags, and demonstrated the same channel differing with a finger on the strap's electrode versus no contact. NOOP already sends opcode 63 safely elsewhere (it's the confirmed, reversible R10/R11 motion/optical control); this only arms it for a bounded 30-second research window and saves every raw frame it sees to a file on your device \u{2014} nothing is decoded, filtered, or shown as a waveform yet. Requires the R22 unlock above to have been sent first. Run BOTH buttons below once each \u{2014} one with the electrode untouched, one with a finger held on it for the full 30 seconds \u{2014} so the two captures can be compared. WHOOP 5/MG only; no effect on WHOOP 4.0 or on normal syncing.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if ecgProbeEnabled {
-                    NoopButton("Capture 30s of raw ECG-probe frames", systemImage: "waveform.path.ecg", kind: .secondary) {
-                        model.ble.captureExperimentalEcgProbe()
+                    NoopButton("1. Capture 30s \u{2014} NO contact (baseline)", systemImage: "hand.raised.slash", kind: .secondary) {
+                        model.ble.captureExperimentalEcgProbe(contact: .noContact)
+                    }
+                    .disabled(deepDataButtonDisabled || !deepDataEnabled)
+                    NoopButton("2. Capture 30s \u{2014} finger ON electrode", systemImage: "hand.point.up.left.fill", kind: .secondary) {
+                        model.ble.captureExperimentalEcgProbe(contact: .onElectrode)
                     }
                     .disabled(deepDataButtonDisabled || !deepDataEnabled)
                     Text(!deepDataEnabled
@@ -1465,6 +1469,24 @@ struct SettingsView: View {
                               systemImage: "doc.badge.clock")
                             .font(StrandFont.caption)
                             .foregroundStyle(StrandPalette.textSecondary)
+                    }
+
+                    if PuffinEcgProbeLog.fileURL() != nil {
+                        HStack(spacing: NoopMetrics.space3) {
+                            NoopButton("Export ECG probe log\u{2026}", systemImage: "square.and.arrow.up", kind: .primary) {
+                                exportEcgProbeLog()
+                            }
+                            #if os(macOS)
+                            NoopButton("Reveal in Finder", systemImage: "folder", kind: .secondary) {
+                                revealEcgProbeLog()
+                            }
+                            #endif
+                            Spacer(minLength: 0)
+                        }
+                        Text("Contains BOTH capture runs (contact and no-contact) with their session ids \u{2014} bring the whole file back, not a trimmed excerpt.")
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
@@ -1692,6 +1714,40 @@ struct SettingsView: View {
     private func revealPuffinCaptures() {
         model.ble.flushPuffinCaptures()
         guard let url = live.puffinCaptureURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+    #endif
+
+    /// Export the EXPERIMENTAL MG ECG/electrode probe's raw JSONL log (`puffin-ecg-probe.jsonl`) — save
+    /// panel on macOS, share sheet on iOS/Android. Same pattern as `exportPuffinCaptures()`, but there is
+    /// no in-flight buffer to flush first: `PuffinEcgProbeLog` writes straight to disk on every frame.
+    private func exportEcgProbeLog() {
+        guard let src = PuffinEcgProbeLog.fileURL() else { return }
+        let suggested = FileExport.timestampedName("noop-ecg-probe", ext: "jsonl")
+        #if os(macOS)
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = suggested
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        let fm = FileManager.default
+        do {
+            if fm.fileExists(atPath: dest.path) { try fm.removeItem(at: dest) }
+            try fm.copyItem(at: src, to: dest)
+        } catch {
+            backupAlertTitle = String(localized: "Export failed")
+            backupAlertMessage = error.localizedDescription
+            showBackupAlert = true
+        }
+        #else
+        FileExport.exportFile(at: src, suggestedName: suggested)
+        #endif
+    }
+
+    #if os(macOS)
+    /// Reveal the ECG probe log in Finder so it can be grabbed directly.
+    private func revealEcgProbeLog() {
+        guard let url = PuffinEcgProbeLog.fileURL() else { return }
         NSWorkspace.shared.activateFileViewerSelecting([url])
     }
     #endif

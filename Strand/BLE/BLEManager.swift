@@ -2323,7 +2323,11 @@ public final class BLEManager: NSObject, ObservableObject {
     /// existing HR/HRV/sleep/SpO2 handling: this never touches the Collector, the analytics pipeline, or
     /// any published metric. "Experimental ECG waveform" is not shown anywhere by this function — that
     /// label is reserved for a future decode step once (if) a real capture shows MG sends something new.
-    public func captureExperimentalEcgProbe(seconds: TimeInterval = 30) {
+    ///
+    /// - Parameter contact: caller-asserted electrode state for this ENTIRE window (NOOP cannot detect
+    ///   contact itself). Run this twice — once `.noContact`, once `.onElectrode` — to produce two
+    ///   separately-labeled sessions in the same log file that can be diffed offline.
+    public func captureExperimentalEcgProbe(seconds: TimeInterval = 30, contact: EcgProbeContactLabel) {
         guard PuffinExperiment.ecgProbeEnabled else {
             log("Experimental ECG probe: the ECG probe toggle is off — enable it in Settings → Experimental first."); return
         }
@@ -2342,15 +2346,21 @@ public final class BLEManager: NSObject, ObservableObject {
         ecgProbeInFlight = true
         let secs = RawCaptureWindow.clamp(seconds)
         state.ecgProbeFramesThisSession = 0   // fresh attempt — count this window's frames from zero
-        puffinEcgProbeLog.beginWindow()
+        // Short, unique-enough session id: wall-clock ms since epoch. Only needs to distinguish THIS
+        // window from any other in the same log file, never parsed back — a human-readable timestamp is
+        // more useful when eyeballing the raw JSONL than a UUID would be.
+        let sessionId = "ecg-\(Int(Date().timeIntervalSince1970 * 1000))"
+        let context = PuffinEcgProbeLog.WindowContext(
+            r22FlagsAccepted: state.r22FlagsAccepted, worn: state.worn, encryptedBond: state.encryptedBond)
+        puffinEcgProbeLog.beginWindow(sessionId: sessionId, contact: contact, context: context, seconds: secs)
         send(.sendR10R11Realtime, payload: [0x01])
-        log("Experimental ECG probe: armed SEND_R10_R11_REALTIME(63) for \(secs)s, logging every raw type-43 frame seen (unfiltered, no interpretation)")
+        log("Experimental ECG probe: armed SEND_R10_R11_REALTIME(63) for \(secs)s, contact=\(contact.rawValue), session=\(sessionId) — logging every raw type-43 frame seen (unfiltered, no interpretation)")
         DispatchQueue.main.asyncAfter(deadline: .now() + secs) { [weak self] in
             guard let self else { return }
             self.send(.sendR10R11Realtime, payload: [0x00])
             self.puffinEcgProbeLog.endWindow()
             self.ecgProbeInFlight = false
-            self.log("Experimental ECG probe: window closed, stream disarmed, \(self.state.ecgProbeFramesThisSession) type-43 frame(s) logged raw")
+            self.log("Experimental ECG probe: window closed, stream disarmed, \(self.state.ecgProbeFramesThisSession) type-43 frame(s) logged raw (session=\(sessionId))")
         }
     }
 
@@ -4269,7 +4279,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // seen while captureExperimentalEcgProbe's bounded window is open. No-op unless both
                     // the dedicated toggle is on AND a window is currently active. Never decoded, never
                     // feeds the UI beyond its own counter.
-                    if puffinEcgProbeLog.appendIfCandidate(frame: frame, family: .whoop5, char: characteristic.uuid) {
+                    if puffinEcgProbeLog.appendIfCandidate(frame: frame, family: .whoop5, char: characteristic.uuid, hr: state.heartRate) {
                         state.ecgProbeFramesThisSession += 1
                     }
                     // #423: the queryable twin of that diagnostics line — persist the decoded 100 Hz 6-axis
