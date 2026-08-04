@@ -12,10 +12,11 @@ import StrandDesign
 /// shared `.tabRouteDestinations()`), and screens push a value with `NavigationLink(value:)` or by
 /// appending to the tab's bound `NavigationPath` — so a tab re-tap can still pop these off (#135/#198).
 enum PremiumRoute: Hashable {
-    case metric(PremiumMetricKind)
     /// Any metric in the full `PremiumMetricCatalog`, rendered by the catalog-driven detail screen.
     /// This is what Home's customisable grid pushes, so every one of the ~24 catalog metrics has a
-    /// real detail view rather than only the six legacy `PremiumMetricKind` cases.
+    /// real detail view (history, baseline, 7/30/90D change, distribution, weekday pattern, related
+    /// metrics, explanation). Replaces an older 6-metric `PremiumMetricKind`/`PremiumMetricDetailView`
+    /// path that was never actually pushed from anywhere — removed rather than kept as dead code.
     case catalogMetric(PremiumMetricID)
     case energy
     case bloodOxygen
@@ -30,7 +31,6 @@ extension View {
         navigationDestination(for: PremiumRoute.self) { route in
             Group {
                 switch route {
-                case .metric(let kind):    PremiumMetricDetailView(kind: kind)
                 case .catalogMetric(let id): PremiumCatalogDetailView(metric: id)
                 case .energy:             PremiumEnergyView()
                 case .bloodOxygen:        PremiumBloodOxygenView()
