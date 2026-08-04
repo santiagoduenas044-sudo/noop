@@ -473,45 +473,42 @@ struct PremiumTrendsView: View {
 
     // MARK: Distribution histogram
 
-    /// A 10-bucket histogram of the period's real values — shape, not just trend. Hidden below 8
-    /// samples, where a histogram is just noise rather than a meaningful distribution.
+    /// Where this metric usually lands, with the LATEST reading marked inside it. The old version
+    /// drew bare bucket bars with no reference point at all — pretty, but it answered nothing.
+    /// `DistributionHistogram` marks today's value, and the caption states its percentile, so the
+    /// card answers "how unusual is this for me?" rather than leaving the shape to be admired.
     @ViewBuilder private var histogramCard: some View {
         if series.count >= 8 {
-            let buckets = Self.histogramCounts(series, bucketCount: 10)
-            let maxCount = max(1, buckets.max() ?? 1)
             VStack(alignment: .leading, spacing: 14) {
                 Text("Distribution", comment: "Trends section title").font(StrandFont.title2).foregroundStyle(StrandPalette.textPrimary)
                 StrandCard {
-                    GeometryReader { geo in
-                        let barW = geo.size.width / CGFloat(buckets.count)
-                        HStack(alignment: .bottom, spacing: 2) {
-                            ForEach(Array(buckets.enumerated()), id: \.offset) { _, count in
-                                RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                    .fill(metric.tint.opacity(0.75))
-                                    .frame(width: max(2, barW - 2),
-                                           height: max(2, geo.size.height * CGFloat(count) / CGFloat(maxCount)))
-                            }
+                    VStack(alignment: .leading, spacing: 10) {
+                        DistributionHistogram(values: series, buckets: 10, tint: metric.tint,
+                                              highlight: series.last, height: 90)
+                        HStack {
+                            Text(series.min().map(metric.fmt) ?? "—")
+                            Spacer()
+                            Text(series.max().map(metric.fmt) ?? "—")
                         }
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        Text(percentileCaption)
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .frame(height: 80)
                 }
             }
         }
     }
-    /// Bucket `values` into `bucketCount` equal-width bins over [min, max]; an all-equal series
-    /// collapses to one full bucket rather than dividing by zero.
-    private static func histogramCounts(_ values: [Double], bucketCount: Int) -> [Int] {
-        guard let lo = values.min(), let hi = values.max(), hi > lo else {
-            return values.isEmpty ? [] : [values.count]
+
+    /// Places the most recent value inside the period's own distribution.
+    private var percentileCaption: String {
+        guard let latest = series.last, series.count >= 8 else {
+            return String(localized: "Your recorded readings for this period, bucketed.")
         }
-        var buckets = [Int](repeating: 0, count: bucketCount)
-        let span = hi - lo
-        for v in values {
-            let idx = min(bucketCount - 1, max(0, Int((v - lo) / span * Double(bucketCount))))
-            buckets[idx] += 1
-        }
-        return buckets
+        let below: Int = series.filter { $0 < latest }.count
+        let pct: Int = Int((Double(below) / Double(series.count) * 100).rounded())
+        return String(format: String(localized: "Latest %1$@ sits higher than %2$d%% of this period's %3$d readings."),
+                      metric.fmt(latest), pct, series.count)
     }
 
     // MARK: Day-of-week breakdown

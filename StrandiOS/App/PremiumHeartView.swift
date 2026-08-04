@@ -31,6 +31,12 @@ struct PremiumHeartView: View {
     @State private var overnight: [(t: Date, bpm: Double)] = []
     @State private var findings: [PremiumFinding] = []
     @State private var journalFindings: [PremiumFinding] = []
+    /// Candidate relationships, strongest first. Computed in `load()` rather than in a computed
+    /// property so the day-alignment and correlation work doesn't rerun on every body evaluation.
+    @State private var relationships: [HeartRelationship] = []
+    @State private var selectedRelationship: String?
+    /// Which signal the distribution card is currently aimed at.
+    @State private var distributionMetric: PremiumMetricID = .restingHr
 
     struct DailyHRRange: Identifiable {
         let id: Int
@@ -69,7 +75,6 @@ struct PremiumHeartView: View {
                 todayRangeCard
                 findingsSection
                 baselinesSection
-                changeOverTimeSection
                 dayChartCard
                 zonesCard
                 loadSection
@@ -177,6 +182,29 @@ struct PremiumHeartView: View {
         }
         journalOut.sort { $0.confidence > $1.confidence }
         journalFindings = Array(journalOut.prefix(5))
+
+        // Candidate relationships, ranked by strength so the card leads with the one that actually
+        // matters for this user rather than a fixed editorial order.
+        let candidates: [(PremiumMetricID, PremiumMetricID)] = [
+            (.hrv, .recovery), (.hrv, .sleepDuration), (.hrv, .sleepEfficiency),
+            (.restingHr, .recovery), (.restingHr, .sleepDuration),
+        ]
+        var rels: [HeartRelationship] = []
+        for (a, b) in candidates {
+            let sa = PremiumMetricCatalog.series(a, repo: repo).map { (day: $0.day, value: $0.value) }
+            let sb = PremiumMetricCatalog.series(b, repo: repo).map { (day: $0.day, value: $0.value) }
+            let aligned = CorrelationEngine.alignByDay(sa, sb)
+            guard aligned.count >= PremiumAnalysis.minCorrelationSamples,
+                  let c = CorrelationEngine.pearson(aligned) else { continue }
+            rels.append(HeartRelationship(a: a, b: b, correlation: c,
+                                          points: Self.normalise(aligned)))
+        }
+        rels.sort { abs($0.correlation.r) > abs($1.correlation.r) }
+        relationships = rels
+        // Drop a stale selection if its pair no longer clears the sample-count gate.
+        if let sel = selectedRelationship, !rels.contains(where: { $0.id == sel }) {
+            selectedRelationship = nil
+        }
     }
 
     // MARK: Chrome
@@ -334,6 +362,24 @@ struct PremiumHeartView: View {
                         BaselineBandChart(values: values, baseline: a.baseline, spread: a.spread,
                                           tint: d.tint, height: 96,
                                           valueFormat: { d.format($0, withUnit: false) })
+                        // Range + period change live INSIDE the baseline card rather than in a
+                        // separate section: "what is it now, what's normal for me, how wide does it
+                        // swing, and is it improving" is one question, so it gets one card.
+                        if let lo = values.min(), let hi = values.max() {
+                            Text(String(format: String(localized: "Ranged %1$@–%2$@ over these %3$d readings"),
+                                        d.format(lo, withUnit: false), d.format(hi, withUnit: false),
+                                        values.count))
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                        HStack(spacing: 14) {
+                            changeStat("7D", PremiumMetricCatalog.changeText(id, pct: a.change7, abs: a.change7Abs),
+                                      PremiumMetricCatalog.changeGood(id, pct: a.change7, abs: a.change7Abs))
+                            changeStat("30D", PremiumMetricCatalog.changeText(id, pct: a.change30, abs: a.change30Abs),
+                                      PremiumMetricCatalog.changeGood(id, pct: a.change30, abs: a.change30Abs))
+                            changeStat("90D", PremiumMetricCatalog.changeText(id, pct: a.change90, abs: a.change90Abs),
+                                      PremiumMetricCatalog.changeGood(id, pct: a.change90, abs: a.change90Abs))
+                        }
                     } else {
                         MetricUnavailable(name: d.shortName,
                                           reason: "Not enough readings recorded yet.")
@@ -359,42 +405,9 @@ struct PremiumHeartView: View {
         return s + "."
     }
 
-    // MARK: Change over time (7D / 30D / 90D) — RHR and HRV side by side.
-
-    @ViewBuilder private var changeOverTimeSection: some View {
-        if rhrAnalysis.series.count >= 14 || hrvAnalysis.series.count >= 14 {
-            VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: "Change over time")
-                StrandCard {
-                    VStack(alignment: .leading, spacing: 16) {
-                        changeMetricBlock(.restingHr, rhrAnalysis)
-                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
-                        changeMetricBlock(.hrv, hrvAnalysis)
-                    }
-                }
-            }
-        }
-    }
-
-    /// One metric's 7/30/90-day change row, reusing the same absolute-vs-percent display logic as
-    /// the catalog detail screen so a metric flagged `usesAbsoluteDeviation` never shows a
-    /// misleading percentage here either.
-    private func changeMetricBlock(_ id: PremiumMetricID, _ a: PremiumMetricAnalysis) -> some View {
-        let d: PremiumMetricDef = PremiumMetricCatalog.def(id)
-        return VStack(alignment: .leading, spacing: 10) {
-            Text(d.shortName.uppercased()).font(StrandFont.overline).tracking(1.2)
-                .foregroundStyle(StrandPalette.textTertiary)
-            HStack(spacing: 14) {
-                changeStat("7D", PremiumMetricCatalog.changeText(id, pct: a.change7, abs: a.change7Abs),
-                          PremiumMetricCatalog.changeGood(id, pct: a.change7, abs: a.change7Abs))
-                changeStat("30D", PremiumMetricCatalog.changeText(id, pct: a.change30, abs: a.change30Abs),
-                          PremiumMetricCatalog.changeGood(id, pct: a.change30, abs: a.change30Abs))
-                changeStat("90D", PremiumMetricCatalog.changeText(id, pct: a.change90, abs: a.change90Abs),
-                          PremiumMetricCatalog.changeGood(id, pct: a.change90, abs: a.change90Abs))
-            }
-        }
-    }
-
+    /// One 7/30/90-day change figure, using the same absolute-vs-percent display logic as the
+    /// catalog detail screen so a metric flagged `usesAbsoluteDeviation` never shows a misleading
+    /// percentage. Rendered inside `baselineCard`, not as its own section.
     private func changeStat(_ label: String, _ text: String?, _ good: Bool?) -> some View {
         let tint: Color = good == nil
             ? StrandPalette.textSecondary
@@ -677,28 +690,36 @@ struct PremiumHeartView: View {
         }
     }
 
-    // MARK: Distribution — RHR and HRV get the SAME treatment, not just RHR.
+    // MARK: Distribution — ONE card, re-aimable between RHR and HRV.
 
-    /// One reusable distribution + weekday-pattern card, called once for RHR and once for HRV so
-    /// neither signal gets a richer presentation than the other — the "HRV was an afterthought"
-    /// problem the old RHR-only distribution card had.
+    /// "How unusual is today?" for whichever signal the user points it at. Previously this was two
+    /// stacked cards (four charts) asking the same question of two metrics; a selector gives both
+    /// signals equal prominence without doubling the screen's length.
     @ViewBuilder private var distributionSection: some View {
-        metricDistributionCard(.restingHr, analysis: rhrAnalysis, tint: StrandPalette.metricCyan)
-        metricDistributionCard(.hrv, analysis: hrvAnalysis, tint: StrandPalette.metricCyan)
-    }
-
-    @ViewBuilder
-    private func metricDistributionCard(_ id: PremiumMetricID, analysis a: PremiumMetricAnalysis,
-                                        tint: Color) -> some View {
+        let a: PremiumMetricAnalysis = distributionMetric == .hrv ? hrvAnalysis : rhrAnalysis
         if a.series.count >= 10 {
-            let d: PremiumMetricDef = PremiumMetricCatalog.def(id)
+            let d: PremiumMetricDef = PremiumMetricCatalog.def(distributionMetric)
+            let tint: Color = d.tint
             VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: String(format: String(localized: "%1$@ distribution"), d.shortName))
+                PremiumSectionHeader(title: "How unusual is today?")
+                PremiumChipPicker<PremiumMetricID>(options: [
+                    PremiumChipPicker<PremiumMetricID>.Option(
+                        value: .restingHr,
+                        label: PremiumMetricCatalog.def(.restingHr).shortName,
+                        tint: PremiumMetricCatalog.def(.restingHr).tint),
+                    PremiumChipPicker<PremiumMetricID>.Option(
+                        value: .hrv,
+                        label: PremiumMetricCatalog.def(.hrv).shortName,
+                        tint: PremiumMetricCatalog.def(.hrv).tint),
+                ], selection: $distributionMetric)
                 StrandCard {
                     VStack(alignment: .leading, spacing: 10) {
                         DistributionHistogram(values: a.series.map(\.value), buckets: 12,
                                               tint: tint,
                                               highlight: a.latest, height: 110)
+                        Text(distributionCaption(d, a))
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
                         if a.byWeekday.count >= 3 {
                             Rectangle().fill(StrandPalette.hairline).frame(height: 1)
                             Text("BY DAY OF WEEK", comment: "Section label above a weekday pattern chart").font(StrandFont.overline).tracking(1.2)
@@ -713,48 +734,102 @@ struct PremiumHeartView: View {
         }
     }
 
-    // MARK: Relationships — HRV and RHR against recovery and sleep, not just one pairing.
-
-    @ViewBuilder private var relationshipSection: some View {
-        relationshipCard(.hrv, .recovery, tint: StrandPalette.metricCyan)
-        relationshipCard(.hrv, .sleepDuration, tint: StrandPalette.sleepDeep)
-        relationshipCard(.restingHr, .recovery, tint: StrandPalette.metricRose)
+    /// Places today's reading inside its own distribution — a percentile, so the histogram states
+    /// how unusual today is rather than leaving the user to eyeball the marker.
+    private func distributionCaption(_ d: PremiumMetricDef, _ a: PremiumMetricAnalysis) -> String {
+        let values: [Double] = a.series.map(\.value)
+        guard let latest = a.latest, values.count >= 10 else {
+            return String(localized: "Your recorded readings, bucketed.")
+        }
+        let below: Int = values.filter { $0 < latest }.count
+        let pct: Int = Int((Double(below) / Double(values.count) * 100).rounded())
+        return String(format: String(localized: "Today's %1$@ sits higher than %2$d%% of your last %3$d readings."),
+                      d.format(latest, withUnit: false), pct, values.count)
     }
 
-    /// A scatter card for one metric pair, computed from the two REAL series aligned by calendar
-    /// day. Renders nothing below `PremiumAnalysis.minCorrelationSamples` aligned days — the same
-    /// honesty gate every relationship in the app uses.
-    @ViewBuilder
-    private func relationshipCard(_ aId: PremiumMetricID, _ bId: PremiumMetricID, tint: Color) -> some View {
-        let aName: String = PremiumMetricCatalog.def(aId).shortName
-        let bName: String = PremiumMetricCatalog.def(bId).shortName
-        let aSeries: [PremiumSample] = PremiumMetricCatalog.series(aId, repo: repo)
-        let bSeries: [PremiumSample] = PremiumMetricCatalog.series(bId, repo: repo)
-        if let best = PremiumAnalysis.bestRelationship(aSeries, bSeries) {
-            let pairs = CorrelationEngine.alignByDay(aSeries.map { (day: $0.day, value: $0.value) },
-                                                     bSeries.map { (day: $0.day, value: $0.value) })
-            let points: [CGPoint] = Self.normalise(pairs)
+    // MARK: Relationships — ONE card, ranked strongest-first, re-aimable.
+
+    /// One computed relationship between two of the user's real signals.
+    struct HeartRelationship: Identifiable {
+        let a: PremiumMetricID
+        let b: PremiumMetricID
+        let correlation: Correlation
+        let points: [CGPoint]
+        var id: String { "\(a.rawValue).\(b.rawValue)" }
+    }
+
+    /// "What else moves with my heart signals?" — as ONE card showing the STRONGEST relationship
+    /// first, with the others a tap away. Three stacked scatters said the same thing three times and
+    /// left the user to work out which mattered; ranking answers that directly.
+    @ViewBuilder private var relationshipSection: some View {
+        if !relationships.isEmpty {
+            let shown: HeartRelationship = relationships.first { $0.id == selectedRelationship }
+                ?? relationships[0]
+            let aName: String = PremiumMetricCatalog.def(shown.a).shortName
+            let bName: String = PremiumMetricCatalog.def(shown.b).shortName
+            let tint: Color = PremiumMetricCatalog.def(shown.a).tint
+            let confidence: PremiumConfidence = PremiumConfidence.from(n: shown.correlation.n,
+                                                                       strength: shown.correlation.r)
             VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: String(format: String(localized: "%1$@ and %2$@"), aName, bName))
+                PremiumSectionHeader(title: "What moves with your heart")
+                if relationships.count > 1 {
+                    PremiumChipPicker<String>(
+                        options: relationships.map { rel in
+                            PremiumChipPicker<String>.Option(
+                                value: rel.id,
+                                label: String(format: String(localized: "%1$@ · %2$@"),
+                                              PremiumMetricCatalog.def(rel.a).shortName,
+                                              PremiumMetricCatalog.def(rel.b).shortName),
+                                tint: PremiumMetricCatalog.def(rel.a).tint)
+                        },
+                        selection: selectedRelationshipBinding)
+                }
                 StrandCard {
                     VStack(alignment: .leading, spacing: 12) {
-                        CorrelationScatter(points: points, tint: tint, height: 150)
+                        Text(Self.relationshipSentence(aName: aName, bName: bName,
+                                                       r: shown.correlation.r))
+                            .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        CorrelationScatter(points: shown.points, tint: tint, height: 150)
                         HStack {
-                            Text(String(format: String(localized: "%1$@ →"), aName))
+                            Text(String(format: String(localized: "%1$@ → %2$@"), aName, bName))
                                 .font(StrandFont.footnote)
                                 .foregroundStyle(StrandPalette.textTertiary)
                             Spacer()
-                            Text(String(format: String(localized: "r = %1$@ · %2$d days"), String(format: "%.2f", best.correlation.r), best.correlation.n))
+                            Text(String(format: String(localized: "r = %1$@ · %2$d days"),
+                                        String(format: "%.2f", shown.correlation.r), shown.correlation.n))
                                 .font(StrandFont.captionNumber)
                                 .foregroundStyle(StrandPalette.textSecondary)
                         }
-                        Text(String(format: String(localized: "Each dot is one day: your %1$@ against that day's %2$@. This is an association measured in your own data, not a cause."), aName.lowercased(), bName.lowercased()))
-                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        HStack {
+                            Text(confidence.label).font(StrandFont.footnote)
+                                .foregroundStyle(confidence.tint)
+                            Spacer()
+                            Text("association, not cause", comment: "Correlation disclaimer")
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// Non-causal plain-language read of the coefficient, so the scatter states its own conclusion
+    /// instead of leaving the user to interpret a dot cloud.
+    private static func relationshipSentence(aName: String, bName: String, r: Double) -> String {
+        let mag: Double = abs(r)
+        let strength: String = mag >= 0.6 ? String(localized: "strongly")
+            : (mag >= 0.3 ? String(localized: "moderately") : String(localized: "weakly"))
+        let template: String = r >= 0
+            ? String(localized: "Your %1$@ and %2$@ have %3$@ risen and fallen together.")
+            : String(localized: "Your %1$@ and %2$@ have %3$@ moved in opposite directions.")
+        return String(format: template, aName, bName, strength)
+    }
+
+    /// Selection binding that falls back to the strongest relationship when nothing is chosen yet.
+    private var selectedRelationshipBinding: Binding<String> {
+        Binding(get: { selectedRelationship ?? relationships.first?.id ?? "" },
+                set: { selectedRelationship = $0 })
     }
 
     // MARK: Journal relationships — do logged behaviours line up with HRV or RHR?

@@ -113,6 +113,45 @@ struct PremiumInfoRow: View {
     }
 }
 
+// MARK: - Chip selector
+
+/// A horizontal row of selectable chips. Exists so a screen can offer ONE high-information chart
+/// with a selector instead of stacking a near-identical chart per option — the difference between
+/// "four charts answering the same question" and "one chart you can re-aim".
+struct PremiumChipPicker<T: Hashable>: View {
+    struct Option: Identifiable {
+        let value: T
+        let label: String
+        let tint: Color
+        var id: String { "\(value)" }
+    }
+
+    let options: [Option]
+    @Binding var selection: T
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(options) { opt in
+                    let on: Bool = opt.value == selection
+                    Button {
+                        withAnimation(.easeOut(duration: 0.2)) { selection = opt.value }
+                    } label: {
+                        Text(opt.label)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(on ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(Capsule().fill(on ? opt.tint : StrandPalette.surfaceInset))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? [.isSelected] : [])
+                }
+            }
+            .padding(.horizontal, 1)
+        }
+    }
+}
+
 // MARK: - Empty / loading / error states
 
 struct PremiumEmptyState: View {

@@ -29,6 +29,9 @@ struct PremiumSleepView: View {
                                                  latestWake: nil, overnightHR: [])
     @State private var selectedStage: SleepStage?
     @State private var findings: [PremiumFinding] = []
+    /// Sleep-duration relationships, strongest first (computed in `load()`).
+    @State private var sleepRelationships: [SleepRelationship] = []
+    @State private var selectedSleepRelationship: String?
 
     // MARK: Real per-day values
 
@@ -67,8 +70,7 @@ struct PremiumSleepView: View {
                     nightPanelSection
                     findingsSection
                     continuitySection
-                    regularitySection
-                    timingSection
+                    scheduleSection
                     balanceSection
                     overnightVitalsSection
                     historySection
@@ -120,6 +122,12 @@ struct PremiumSleepView: View {
             out.append(f)
         }
         findings = out.sorted { $0.confidence > $1.confidence }
+
+        let rels = computeSleepRelationships()
+        sleepRelationships = rels
+        if let sel = selectedSleepRelationship, !rels.contains(where: { $0.id == sel }) {
+            selectedSleepRelationship = nil
+        }
     }
 
     private var ambient: some View {
@@ -313,15 +321,24 @@ struct PremiumSleepView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: Regularity
+    // MARK: Schedule (regularity + timing, merged)
 
-    @ViewBuilder private var regularitySection: some View {
+    /// Your body clock as ONE section. Regularity and Timing used to be two sections that both
+    /// described bed/wake/midpoint — one as ± variability stats, the other as three stacked line
+    /// charts. Merged here: the score and the timing map give the shape, the ± row gives the
+    /// numbers, and a SINGLE drift chart (re-aimable between bedtime, wake and midpoint) replaces
+    /// the three near-identical charts.
+    private enum ScheduleSeries: Hashable { case bedtime, wake, midpoint }
+    @State private var scheduleSeries: ScheduleSeries = .bedtime
+
+    @ViewBuilder private var scheduleSection: some View {
         if intel.nights.count >= 4 {
             let nights: [PremiumSleepIntel.Night] = Array(intel.nights.suffix(14))
             let score: Double? = intel.regularityScore()
+            let values: [Double] = scheduleValues
             VStack(alignment: .leading, spacing: 14) {
                 HStack {
-                    PremiumSectionHeader(title: "Regularity")
+                    PremiumSectionHeader(title: "Your schedule")
                     Spacer()
                     ProvenanceChip(provenance: .calculated)
                 }
@@ -345,41 +362,20 @@ struct PremiumSleepView: View {
                         Text("Each bar is one night, positioned by clock time. The tighter they line up, the steadier your body clock.", comment: "Sleep timing map caption")
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-        }
-    }
-
-    private func regularityCaption(_ score: Double) -> String {
-        let band: String
-        if score >= 80 { band = "Very consistent" }
-        else if score >= 60 { band = "Fairly consistent" }
-        else if score >= 40 { band = "Variable" }
-        else { band = "Highly variable" }
-        return "\(band) — how tightly your sleep midpoint clusters across your last \(min(14, intel.nights.count)) nights."
-    }
-    private func variabilityText(_ minutes: Double?) -> String {
-        guard let m = minutes else { return "—" }
-        return PremiumAnalysis.durText(m)
-    }
-
-    // MARK: Timing
-
-    @ViewBuilder private var timingSection: some View {
-        if intel.nights.count >= 4 {
-            let bedSeries: [Double] = intel.bedtimeSeries(window: 30)
-            let wakeSeries: [Double] = intel.wakeSeries(window: 30)
-            let midSeries: [Double] = intel.midpointSeries(window: 30)
-            VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: "Timing", trailing: "\(bedSeries.count) nights")
-                StrandCard {
-                    VStack(alignment: .leading, spacing: 18) {
-                        timingChart("Bedtime", bedSeries, StrandPalette.sleepDeep)
-                        timingChart("Wake time", wakeSeries, StrandPalette.metricAmber)
-                        timingChart("Midpoint", midSeries, StrandPalette.metricCyan)
+                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                        PremiumChipPicker<ScheduleSeries>(options: [
+                            PremiumChipPicker<ScheduleSeries>.Option(
+                                value: .bedtime, label: String(localized: "Bedtime"),
+                                tint: StrandPalette.sleepDeep),
+                            PremiumChipPicker<ScheduleSeries>.Option(
+                                value: .wake, label: String(localized: "Wake time"),
+                                tint: StrandPalette.metricAmber),
+                            PremiumChipPicker<ScheduleSeries>.Option(
+                                value: .midpoint, label: String(localized: "Midpoint"),
+                                tint: StrandPalette.metricCyan),
+                        ], selection: $scheduleSeries)
+                        driftChart(values)
                         if let shift = intel.weekendShiftMinutes(), abs(shift) >= 10 {
-                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
                             Text(String(format: shift > 0
                                         ? String(localized: "Weekend bedtime runs %@ later than your weekdays.")
                                         : String(localized: "Weekend bedtime runs %@ earlier than your weekdays."),
@@ -393,28 +389,75 @@ struct PremiumSleepView: View {
         }
     }
 
-    /// A timing trend against its own personal band — the shaded range is this metric's own mean ±
-    /// spread, so "am I drifting?" is answerable at a glance rather than by reading a bare line.
-    private func timingChart(_ label: String, _ values: [Double], _ tint: Color) -> some View {
+    private var scheduleValues: [Double] {
+        switch scheduleSeries {
+        case .bedtime:  return intel.bedtimeSeries(window: 30)
+        case .wake:     return intel.wakeSeries(window: 30)
+        case .midpoint: return intel.midpointSeries(window: 30)
+        }
+    }
+    private var scheduleTint: Color {
+        switch scheduleSeries {
+        case .bedtime:  return StrandPalette.sleepDeep
+        case .wake:     return StrandPalette.metricAmber
+        case .midpoint: return StrandPalette.metricCyan
+        }
+    }
+
+    /// The selected timing series against its own personal band, plus how far the last week has
+    /// drifted from the weeks before it — so the chart states whether the schedule is moving, not
+    /// just what it looks like.
+    private func driftChart(_ values: [Double]) -> some View {
         let base: Double? = PremiumAnalysis.mean(values)
         let sd: Double? = PremiumAnalysis.stdev(values)
+        let tint: Color = scheduleTint
         return VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(label.uppercased()).font(StrandFont.overline).tracking(1.2)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                Spacer()
                 if let b = base {
                     Text(String(format: String(localized: "typ %@"), PremiumSleepIntel.clockText(b)))
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                 }
+                Spacer()
+                if let drift = scheduleDrift(values) {
+                    Text(drift).font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
+                }
             }
             if values.count >= 2 {
-                BaselineBandChart(values: values, baseline: base, spread: sd, tint: tint, height: 92,
+                BaselineBandChart(values: values, baseline: base, spread: sd, tint: tint, height: 100,
                                   valueFormat: { PremiumSleepIntel.clockText($0) })
             } else {
-                MetricUnavailable(name: label, reason: "Need at least two nights.")
+                MetricUnavailable(name: String(localized: "Timing"),
+                                  reason: "Need at least two nights.")
             }
         }
+    }
+
+    /// "38m later than the fortnight before" — the last 7 nights against the 7 before them.
+    /// `nil` until both windows are full, and below a 10-minute floor that is just schedule noise.
+    private func scheduleDrift(_ values: [Double]) -> String? {
+        guard values.count >= 14 else { return nil }
+        let recent = Array(values.suffix(7))
+        let prior = Array(values.dropLast(7).suffix(7))
+        guard let a = PremiumAnalysis.mean(recent), let b = PremiumAnalysis.mean(prior) else { return nil }
+        let delta = a - b
+        guard abs(delta) >= 10 else { return String(localized: "steady vs last week") }
+        return String(format: delta > 0
+                      ? String(localized: "%@ later than last week")
+                      : String(localized: "%@ earlier than last week"),
+                      PremiumAnalysis.durText(abs(delta)))
+    }
+
+    private func regularityCaption(_ score: Double) -> String {
+        let band: String
+        if score >= 80 { band = "Very consistent" }
+        else if score >= 60 { band = "Fairly consistent" }
+        else if score >= 40 { band = "Variable" }
+        else { band = "Highly variable" }
+        return "\(band) — how tightly your sleep midpoint clusters across your last \(min(14, intel.nights.count)) nights."
+    }
+    private func variabilityText(_ minutes: Double?) -> String {
+        guard let m = minutes else { return "—" }
+        return PremiumAnalysis.durText(m)
     }
 
     // MARK: Balance
@@ -599,49 +642,96 @@ struct PremiumSleepView: View {
         }
     }
 
-    // MARK: Relationships — does sleep actually move with recovery and HRV for this person?
+    // MARK: Relationships — ONE card, strongest first, re-aimable.
 
-    @ViewBuilder private var relationshipsSection: some View {
-        sleepRelationshipCard(.recovery, tint: StrandPalette.recoveryColor(85))
-        sleepRelationshipCard(.hrv, tint: StrandPalette.metricCyan)
+    struct SleepRelationship: Identifiable {
+        let partner: PremiumMetricID
+        let correlation: Correlation
+        let points: [CGPoint]
+        var id: String { partner.rawValue }
     }
 
-    /// Sleep duration plotted against another metric, same-day aligned pairs via the shared
-    /// `CorrelationEngine` — visual, not just the one-line finding `findingsSection` already shows,
-    /// so "what else changed with it" is answerable by eye, not only by sentence.
-    @ViewBuilder
-    private func sleepRelationshipCard(_ partnerId: PremiumMetricID, tint: Color) -> some View {
-        let partnerName: String = PremiumMetricCatalog.def(partnerId).shortName
-        let durSeries = PremiumMetricCatalog.series(.sleepDuration, repo: repo)
-            .map { (day: $0.day, value: $0.value) }
-        let partnerSeries = PremiumMetricCatalog.series(partnerId, repo: repo)
-            .map { (day: $0.day, value: $0.value) }
-        let aligned = CorrelationEngine.alignByDay(durSeries, partnerSeries)
-        if let corr = CorrelationEngine.pearson(aligned) {
-            let xs = aligned.map(\.0), ys = aligned.map(\.1)
-            let xlo = xs.min() ?? 0, xhi = xs.max() ?? 1
-            let ylo = ys.min() ?? 0, yhi = ys.max() ?? 1
-            let xspan = max(xhi - xlo, 0.0001), yspan = max(yhi - ylo, 0.0001)
-            let points = Self.normalisedScatter(xs: xs, ys: ys, xlo: xlo, xspan: xspan, ylo: ylo, yspan: yspan)
-            let confidence = PremiumConfidence.from(n: corr.n, strength: corr.r)
+    /// "What does my sleep actually move with?" — one card leading with the STRONGEST association,
+    /// the rest a tap away, rather than a stack of scatters the user has to compare by eye.
+    @ViewBuilder private var relationshipsSection: some View {
+        if !sleepRelationships.isEmpty {
+            let shown: SleepRelationship = sleepRelationships.first { $0.id == selectedSleepRelationship }
+                ?? sleepRelationships[0]
+            let d: PremiumMetricDef = PremiumMetricCatalog.def(shown.partner)
+            let confidence: PremiumConfidence = PremiumConfidence.from(n: shown.correlation.n,
+                                                                        strength: shown.correlation.r)
             VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: String(format: String(localized: "Sleep and %@"), partnerName))
+                PremiumSectionHeader(title: "What your sleep moves with")
+                if sleepRelationships.count > 1 {
+                    PremiumChipPicker<String>(
+                        options: sleepRelationships.map { rel in
+                            PremiumChipPicker<String>.Option(
+                                value: rel.id,
+                                label: PremiumMetricCatalog.def(rel.partner).shortName,
+                                tint: PremiumMetricCatalog.def(rel.partner).tint)
+                        },
+                        selection: selectedSleepRelationshipBinding)
+                }
                 StrandCard {
                     VStack(alignment: .leading, spacing: 10) {
-                        CorrelationScatter(points: points, tint: tint, height: 140)
+                        Text(Self.sleepRelationshipSentence(partner: d.shortName,
+                                                            r: shown.correlation.r))
+                            .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        CorrelationScatter(points: shown.points, tint: d.tint, height: 140)
                         HStack {
                             Text(confidence.label).font(StrandFont.footnote).foregroundStyle(confidence.tint)
                             Spacer()
-                            Text(String(format: String(localized: "r = %1$@ · %2$d nights"), String(format: "%.2f", corr.r), corr.n))
+                            Text(String(format: String(localized: "r = %1$@ · %2$d nights"),
+                                        String(format: "%.2f", shown.correlation.r), shown.correlation.n))
                                 .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
                         }
-                        Text(String(format: String(localized: "Each dot is one night: your sleep duration against that day's %@. An association in your own data, not a cause."), partnerName.lowercased()))
+                        Text(String(format: String(localized: "Each dot is one night: your sleep duration against that day's %@. An association in your own data, not a cause."), d.shortName.lowercased()))
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
         }
+    }
+
+    private static func sleepRelationshipSentence(partner: String, r: Double) -> String {
+        let mag: Double = abs(r)
+        let strength: String = mag >= 0.6 ? String(localized: "a strong")
+            : (mag >= 0.3 ? String(localized: "a moderate") : String(localized: "a weak"))
+        let template: String = r >= 0
+            ? String(localized: "Nights you sleep longer tend to come with higher %1$@ — %2$@ association.")
+            : String(localized: "Nights you sleep longer tend to come with lower %1$@ — %2$@ association.")
+        return String(format: template, partner.lowercased(), strength)
+    }
+
+    private var selectedSleepRelationshipBinding: Binding<String> {
+        Binding(get: { selectedSleepRelationship ?? sleepRelationships.first?.id ?? "" },
+                set: { selectedSleepRelationship = $0 })
+    }
+
+    /// Ranks sleep duration against each candidate partner. Computed in `load()` so the alignment
+    /// and correlation work stays off the body-evaluation path.
+    private func computeSleepRelationships() -> [SleepRelationship] {
+        let durSeries = PremiumMetricCatalog.series(.sleepDuration, repo: repo)
+            .map { (day: $0.day, value: $0.value) }
+        var out: [SleepRelationship] = []
+        for partner in [PremiumMetricID.recovery, .hrv, .restingHr, .respiratory] {
+            let ps = PremiumMetricCatalog.series(partner, repo: repo)
+                .map { (day: $0.day, value: $0.value) }
+            let aligned = CorrelationEngine.alignByDay(durSeries, ps)
+            guard aligned.count >= PremiumAnalysis.minCorrelationSamples,
+                  let corr = CorrelationEngine.pearson(aligned) else { continue }
+            let xs = aligned.map(\.0), ys = aligned.map(\.1)
+            let xlo = xs.min() ?? 0, xhi = xs.max() ?? 1
+            let ylo = ys.min() ?? 0, yhi = ys.max() ?? 1
+            let xspan = max(xhi - xlo, 0.0001), yspan = max(yhi - ylo, 0.0001)
+            out.append(SleepRelationship(
+                partner: partner, correlation: corr,
+                points: Self.normalisedScatter(xs: xs, ys: ys, xlo: xlo, xspan: xspan,
+                                               ylo: ylo, yspan: yspan)))
+        }
+        return out.sorted { abs($0.correlation.r) > abs($1.correlation.r) }
     }
 
     /// Normalises aligned pairs into the unit square. Kept as a static helper (not inline
