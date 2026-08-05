@@ -37,7 +37,7 @@ final class AppleHealthDailyMergeTests: XCTestCase {
     func testAppleHealthNeverOverwritesHigherPrioritySources() {
         let imported = daily(day: "2026-08-04", spo2Pct: 97.5, steps: 8_000)
         let computed = daily(day: "2026-08-04", recovery: 71)
-        let apple = daily(day: "2026-08-04", spo2Pct: 90.1, recovery: 40, steps: 12_345)
+        let apple = daily(day: "2026-08-04", recovery: 40, spo2Pct: 90.1, steps: 12_345)
 
         let merged = Repository.mergeDaily(imported: [imported], computed: [computed], apple: [apple])
 
