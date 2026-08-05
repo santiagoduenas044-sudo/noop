@@ -29,11 +29,14 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after SpO₂ Part 1 (data path + analytics + ⓘ explainer)
-**Current commit:** `be3f127`
-**Installable build:** `NOOP-ios-unsigned-v9.1.3.ipa` on the rolling `testing-latest` release,
-built from `a521faa` (build 214) and **asset presence verified**, not just "workflow went green".
-Confirm the asset actually exists on the release before ever telling the owner an IPA is ready.
+**Last updated:** after SpO₂ Part 1 verified green; Journal Part 2 starting
+**Current commit:** `6196f02` — **VERIFIED GREEN** (`app-build.yml` run 31002826303, macOS + iOS both)
+**⚠️ STANDING OWNER INSTRUCTION — DO NOT CUT A NEW IPA UNTIL JOURNAL IS UPGRADED.** The last
+published IPA is still `NOOP-ios-unsigned-v9.1.3.ipa` / build 214 / commit `a521faa` on the rolling
+`testing-latest` release — it does NOT contain the SpO₂ work above or anything from Journal Part 2.
+Do not dispatch `fork-testing-build.yml` or bump `CURRENT_PROJECT_VERSION` until the owner confirms
+Journal Part 2 (or a milestone of it) is ready to ship. If asked "is the IPA ready", the answer is
+no by standing instruction, not by omission — say so explicitly rather than silently not mentioning it.
 **Previous commit line (superseded):** `0f9548c`
 **Current milestone:** Product-direction pivot — the owner explicitly redirected priority AWAY from
 finishing i18n-4 and toward visibly useful analytics depth (richer graphs, baselines, 7/30/90D
