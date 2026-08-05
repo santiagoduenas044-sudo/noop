@@ -29,9 +29,11 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after the strain-scale + nap-affordance fixes
-**Current commit:** `b6a4109`. Last commit VERIFIED GREEN on both workflows: `e5cedd6`.
-**IPA hold LIFTED** — the owner authorised the cut. Build 215 (predates the fixes below).
+**Last updated:** after the strain-scale, nap-affordance, Journal-expansion and hydration fixes
+**Current commit:** `36f8820` (build 216). **`f762426` is VERIFIED GREEN on BOTH app-build legs**
+(macOS build + StrandTests, iOS build) — that covers the nap card, the shared `SleepTimeEditor`
+change, `PremiumSleepIntel`, the strain-scale fix, `effortAxisMax`, and the 350-factor Journal.
+**IPA hold LIFTED** — the owner authorised the cut.
 
 ### ⚠️ READ THIS BEFORE TRUSTING A GREEN CHECK
 
@@ -86,9 +88,41 @@ paths (`Repository.addManualNap` / `editSleepTimes` / `deleteSleepSession`) were
   `SleepEditGuard.napSeedWindow` (Swift + Kotlin twins, both tested) uses the anchor only once its
   window has elapsed and the wake is not stale, else seeds the half-hour just gone.
 
-**This class of bug is the one to hunt next:** a capability that exists and works, on a screen the
-iOS shell never presents. `Strand/Screens/*` is full of them — anything reachable only through
-`RootView` (macOS sidebar) or `TabRoute` is invisible on iPhone.
+### THE UNREACHABLE-SCREEN BUG CLASS — how to audit for it
+
+A capability that exists and works, on a screen the iOS shell never presents. The nap report was
+one; hydration was a second, found by audit. **Run this audit before assuming a feature is missing
+— it is usually present and unrouted.**
+
+Walk `RootTabView` + `StrandiOSApp` transitively (stripping `#if DEBUG`, or the screenshot harness
+makes everything look reachable), collect every `struct … : View` declared in the iOS target, and
+diff. As of `36f8820` the remaining unreachable views under `Strand/Screens` are:
+
+| View | Verdict |
+|---|---|
+| `TodayView`, `HealthView`, `CoupledView` | intentional — the Premium UI replaced them |
+| `HydrationView` | **was a bug** — fixed in `36f8820` (`PremiumRoute.hydration` + opt-in Home card) |
+| `WeeklyDigestView` | **unresolved** — no Premium equivalent found. Check before closing. |
+| `MarkerEditorView` | **unresolved** — markers render on `PremiumHeartView`/`PremiumCharts` but there may be no way to EDIT one on iOS. |
+
+### JOURNAL — 350 factors, and why they felt absent (`f762426`)
+
+Two separate problems behind "the Journal still feels almost unchanged":
+1. **Discoverability, not reachability.** `addFactorCard` (a searchable, grouped browser over the
+   library) was already wired — it just sat *seventh* in the screen, under the associations,
+   collecting and mood-history cards. Moved directly beneath the daily log.
+2. **Size.** 113 → 350, extending every group and adding the two the library never covered
+   (`.health`, `.behaviour`). `JournalFactorLibraryTests` now pins a ≥300 floor and asserts every
+   factor's group is one the browser actually renders — the failure mode being a data file that
+   outgrows its UI.
+
+`scaleControl` lays its tap targets out with `PremiumFlowLayout` now, which is what unblocked the
+0–10 clinical scales; 11 targets used to run off a phone card, the only reason every library scale
+had been capped at five points.
+
+**Known gap:** `JournalKind.scaleRange` is consumed by `PremiumJournalView.scaleControl` but the
+retype menu (`editControls`) still only offers `.bool` / `.numeric(nil)`, so an existing factor
+cannot be converted to a scale/time/duration/multiSelect after the fact.
 
 ### RELIABILITY MILESTONE — what was fixed and why it mattered
 1. **Strain started the day unrealistically high** (`49d83ab`). `sampleDurationMinutes()` measured
