@@ -29,8 +29,9 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after SpO₂ Part 1 verified green; Journal Part 2 starting
-**Current commit:** `6196f02` — **VERIFIED GREEN** (`app-build.yml` run 31002826303, macOS + iOS both)
+**Last updated:** after Journal Part 2 Milestone 1 (data model + factor library), build in flight
+**Current commit:** `9f13963` — build dispatched, not yet confirmed (check `app-build.yml` before
+trusting this commit; last CONFIRMED green was `6196f02`)
 **⚠️ STANDING OWNER INSTRUCTION — DO NOT CUT A NEW IPA UNTIL JOURNAL IS UPGRADED.** The last
 published IPA is still `NOOP-ios-unsigned-v9.1.3.ipa` / build 214 / commit `a521faa` on the rolling
 `testing-latest` release — it does NOT contain the SpO₂ work above or anything from Journal Part 2.
@@ -165,76 +166,119 @@ CI does not run this by default (see "Known bugs / gotchas" below).
 - Empty states distinguish "Health isn't connected" from "Health is connected but holds no
   readings", because those need different user action.
 
-**Part 2 — Journal overhaul — NOT STARTED.** Research done; here is what the next agent needs:
+**Part 2 — Journal overhaul.** Owner instruction on record: **do not cut a new testing IPA until
+this is upgraded** (see the warning at the top of this doc). Status below.
 
-- **The single most useful finding: the response-type expansion needs NO schema migration.**
-  `JournalEntry` (`Packages/WhoopStore/.../JournalWorkoutAppleCache.swift`) already carries
-  `day, question, answeredYes, notes, numericValue`. So:
-  `bool → answeredYes`; `scale(1–5) → numericValue`; `quantity(mg) → numericValue`;
-  `time(3:42 PM) → numericValue as minutes-since-midnight`; `duration(38 min) → numericValue as
-  minutes`. Only **multi-select** needs a new shape, and it can be modelled as **one row per
-  selected option** (`question = "factor:option"`), which also drops straight into the existing
-  with/without analytics. A numeric log already writes `answeredYes = true` AND `numericValue`, so
-  `BehaviorInsights`' with/without split keeps working unchanged. **Extend `JournalKind`
-  additively** (it is `Codable`, persisted) and keep `canonical` stable — rename must never touch
-  it, or history is orphaned.
-- **`Strand/Data/JournalCatalog.swift` is SHARED with macOS** (not under `StrandiOS/`), and
-  `JournalGroup` explicitly "mirrors Android `JournalGroup` value-for-value". Adding the ~9 richer
-  categories the owner listed therefore (a) needs the macOS build checked, and (b) diverges from
-  Android unless the Kotlin twin is added. `JournalGroup.rawValue` is persisted — **never rename an
-  existing case**, only add.
-- Today there are only **6 starter items** and `JournalKind` has only `.bool` / `.numeric`. The
-  library work is genuinely additive from here.
-- **Analytics already exist and work** — do not rebuild them. `PremiumAnalysis.behaviorAssociation`
-  does the with/without split via the shipping `BehaviorInsights` engine, tries same-day and next-day
-  framings and keeps the stronger, and gates on `minBehaviorOccurrences = 5`.
-  `PremiumAnalysis.behaviorFinding` renders the sentence. `PremiumConfidence` already provides the
-  Early signal / Emerging pattern / Consistent pattern labels the owner asked for. The Journal,
-  Heart and Trends screens all already consume these. What's missing is the richer **WITH vs
-  WITHOUT detail screen** (averages, absolute + percent difference, n, history, methodology) and the
-  "What may be affecting you" ranked list.
-- **Coach**: `PremiumCoachContext` already has a journal section; extending it with per-factor
-  `withValue / withoutValue / difference / sampleSize / confidence` is a small addition. The
-  grounding rule (engine computes, model explains) is already enforced there.
-- **One-tap Home access** — Home already has a Journal card (`PremiumHomeView`'s journal fast-access
-  section) and `RootTabView` has journal sheet routing; the ask is to make it prominent and
-  single-tap, not to build routing from scratch.
-- ⚠️ **Item 13 (cloud sync) conflicts with a hard project rule.** `CLAUDE.md` states NOOP is fully
-  offline: no server, no account, no cloud sync, and a PR adding one is out of scope. There is no
-  cloud-sync architecture to participate in. The defensible reading — and what should be built — is:
-  keep Journal data in the normal store, versioned and additive, and make sure custom factors +
-  preferences are in the **`.noopbak` backup whitelist** (`BackupSettings.swift` +
-  `BackupSettingsCodec` on Android, which is a byte-identical contract — only Int/Double/String
-  cross that wire). That gives portability without breaking the offline guarantee. Confirm with the
-  owner before going further than that.
+**Milestone 1 — data model + factor library — DONE** (`9f13963`, build dispatched, confirm green
+before trusting it). What exists now:
+- `JournalKind` (`Strand/Data/JournalCatalog.swift`, shared with macOS) extended additively with
+  `.scale(range:)`, `.quantity(unitLabel:)`, `.time`, `.duration(unitLabel:)`,
+  `.multiSelect(options:)`. Confirmed **no schema migration needed**: every case but multiSelect
+  rides the EXISTING `JournalEntry.numericValue` (`.time` stores minutes-since-midnight,
+  `.duration` stores minutes), so `BehaviorInsights`' with/without split needed zero changes.
+  `.multiSelect` stores one row per selected option under
+  `JournalCatalogItem.multiSelectKey(factor:option:)` (`"<factor> — <option>"`) — each option is
+  just an independent bool factor, reusing the same storage and analysis path as any starter
+  question rather than inventing new machinery.
+- `JournalGroup` gained 6 categories (`sleepHabits, caffeine, activity, recovery, environment,
+  subjective`) alongside the original 6 (`supplements, nutrition, lifestyle, health, behaviour,
+  other`) — additive only, `rawValue` never reused. **These 6 new cases are NOT yet mirrored on
+  Android's `JournalGroup.kt`**, which the original 6 explicitly matched value-for-value — Android
+  has no Premium UI consuming this yet, so nothing broke, but true parity needs the Kotlin twin
+  eventually. Flagged, not done.
+- `JournalCatalogItem` gained `favorite: Bool` (promotes to Quick Check-in). **Uses hand-written
+  Codable**, not synthesized — a plain synthesized `Decodable` throws on any pre-existing persisted
+  item missing the new key, which would have corrupted every existing user's saved journal
+  customisation (`journal.catalog.v2` in `UserDefaults`) on first launch post-update. If you add
+  ANOTHER field to this struct, extend the hand-written `init(from:)`/`encode(to:)` the same way —
+  do not let Xcode "helpfully" resynthesize it.
+- New `Strand/Data/JournalFactorLibrary.swift`: ~35 factor templates (`JournalFactorTemplate`)
+  across the 9 categories from the brief, as pure data — deliberately NOT hardcoded into a view.
+  Does not duplicate the 6 starters (screen-in-bed, shared bed, read-before-bed, sauna, late
+  caffeine, late meal, stressed yes/no) or `MoodStore` (mood already has a dedicated 1–5
+  feature) — see the file's doc comment for the exact reasoning per omission.
+  `JournalCatalogStore.addFromLibrary(_:)` adds one (thin wrapper over `addCustom`, same storage,
+  no new tier). `toggleFavorite(_:)` sets the new flag.
+- `PremiumJournalView`'s daily log now routes each item to a response-appropriate control instead
+  of the old bool/numeric-only branch: `.scale` gets discrete tap targets, `.time` gets a real
+  `DatePicker(.hourAndMinute)` (raw minutes-since-midnight in the old numeric stepper would have
+  been unreadable), `.multiSelect` gets wrapping chips via new `PremiumFlowLayout` (a proper
+  SwiftUI `Layout` conformance — iOS 17+ min target supports this). `.numeric`/`.quantity`/
+  `.duration` reuse the EXISTING numeric stepper unchanged, since it already renders exactly like
+  the brief's own examples ("120 mg", "38 min") once `unitLabel` is set.
+- New "Add a factor" card + `.searchable` sheet over `JournalFactorLibrary.all`, grouped by
+  category, filtering out factors already in `resolved` (norm-deduped the same way the rest of the
+  catalog dedupes). Favourite star added to edit-mode item rows; `quickItems` (the Quick
+  Check-in/quick-log row) now ranks favourites first, then usage — previously usage-only.
+
+**STILL OPEN** — not attempted yet, in priority order:
+1. **WITH vs WITHOUT detail screen + "What may be affecting you" ranked list.** The underlying
+   engine already exists and must NOT be rebuilt: `PremiumAnalysis.behaviorAssociation` (with/without
+   split via the shipping `BehaviorInsights`, tries same-day and next-day framings, gates on
+   `minBehaviorOccurrences = 5`), `PremiumAnalysis.behaviorFinding` (renders the sentence),
+   `PremiumConfidence` (Early signal / Emerging pattern / Consistent pattern labels). What's
+   missing is a detail screen surfacing the full picture (with-avg, without-avg, absolute +
+   percent difference, n, history chart, methodology under `PremiumExplainer`) and a ranked
+   "What may be affecting you" list — most likely on Journal itself, reusing the
+   strongest-first-with-chip-picker pattern from Heart/Sleep's relationship cards (same PRODUCT
+   RULES apply: one ranked card, not N stacked ones).
+2. **Coach integration.** `PremiumCoachContext` already has a journal section
+   (`PremiumCoachContext.swift`); extend it with per-factor `withValue/withoutValue/difference/
+   sampleSize/confidence` structured data, reusing `behaviorAssociation` output directly — do not
+   let the model compute this, only explain it (grounding rule already enforced elsewhere in that
+   file).
+3. **Home one-tap polish.** Home already has a Journal fast-access card and `RootTabView` has
+   journal sheet routing — this is refinement (make today's state — "3 factors recorded" /
+   "Complete today's check-in" — obvious at a glance), not new routing.
+4. **Backup-whitelist inclusion.** ⚠️ Item 13 of the brief ("cloud sync") conflicts with
+   `CLAUDE.md`'s hard offline rule (no server, no account, no cloud sync — out of scope by
+   definition) — there is no cloud-sync architecture to participate in. The defensible
+   interpretation, not yet built: add `journal.catalog.v2` (custom factors, favourites, groups) to
+   the **`.noopbak` backup whitelist** (`BackupSettings.swift` + Android's byte-identical
+   `BackupSettingsCodec` — only Int/Double/String cross that wire) so journal customisation is
+   portable across devices without breaking the offline guarantee. Confirm this reading with the
+   owner before building it — don't assume.
+5. **Tests.** None written yet for: `JournalKind` Codable round-trip (esp. old-blob-compatible
+   decoding of `favorite`), `multiSelectKey` join behaviour, `addFromLibrary`/`toggleFavorite`,
+   insufficient-sample gating on the new with/without screen. `AppleHealthDailyMergeTests.swift`
+   (this session, SpO₂ work) is the template to follow for pure-logic tests in this codebase.
+6. **Response-type retype menu is incomplete.** `editControls`' "Change to Yes/No" / "Change to
+   Number" only ever sets `.bool` or `.numeric(nil)` — a `.scale`/`.quantity`/`.time`/`.duration`/
+   `.multiSelect` item can be retyped INTO but never cleanly retyped BETWEEN the richer kinds via
+   that menu. Minor, not blocking, worth fixing before calling Journal "done".
 
 ### NEXT TASK
-0. **Confirm the SpO₂ build is green**, then verify on device: the merge fix means Apple Health
-   values now reach `repo.days` for the first time, which is worth eyeballing against real history.
-1. **Journal Part 2**, in this order: (a) extend `JournalKind` additively + the category/factor
-   library data model (NOT in a view); (b) daily check-in UI with quick/favourites/search;
-   (c) the WITH-vs-WITHOUT detail screen + "What may be affecting you" ranked list on top of the
-   EXISTING `behaviorAssociation` engine; (d) Coach context extension. Tests for migrations, custom
-   factors, response types and insufficient-sample gating were explicitly requested.
-2. **Roll `PremiumExplainer` out to the other metrics** (HRV, RHR, temperature, respiratory, sleep,
-   recovery) — same ask as SpO₂'s, only SpO₂ is done.
-3. **Audit `PremiumCatalogDetailView` against the PRODUCT RULES.** It is the screen every metric card
-   opens into, and it predates the rules. Expect to merge its separate `changeSection` into the
-   header/history card the same way Heart's `baselineCard` was fixed, and to check each section
-   earns its place. This is the highest-value remaining UI work because it is shared by ~24 metrics.
-2. **Journal** — bigger configurable factor library + one-tap access from Home. NOTE: the catalog
-   lives in `Strand/Data/JournalCatalog.swift`, which is **shared with macOS** — a higher blast
-   radius than the iOS-only `StrandiOS/App/Premium*` files touched so far. Build BOTH targets.
-3. **Coach** — `PremiumCoachContext` is complete and correct (read it before changing anything);
-   `PremiumCoachView` still shows canned content. Wire the context in; any API client must be behind
-   an explicit user opt-in (offline-by-default is a hard project rule, not a preference).
-4. **Verify on a real device with real history** — none of this session's analytics output has been
-   eyeballed against a populated database; sparse-history and brand-new-install states especially.
+**⚠️ Do not cut a testing IPA — standing owner instruction until Journal Part 2 is upgraded** (see
+the warning banner at the top of this doc). Work through Journal Part 2's "STILL OPEN" list above,
+in the order given there:
+1. WITH vs WITHOUT detail screen + "What may be affecting you" ranked list (reuses the existing
+   `behaviorAssociation`/`behaviorFinding`/`PremiumConfidence` engine — do not rebuild it).
+2. Coach integration (extend `PremiumCoachContext`'s journal section with per-factor structured
+   data; engine computes, model explains).
+3. Home one-tap polish.
+4. Backup-whitelist inclusion for journal customisation (confirm the offline-compliant reading with
+   the owner first — see the ⚠️ note above).
+5. Tests — Codable round-trip for the new `favorite` field against an OLD persisted blob is the
+   single highest-value one (that's the exact failure mode a careless future change would reintroduce).
+6. The response-type retype menu gap noted above.
 
-Always dispatch `app-build.yml` and confirm green before considering a milestone done — this branch's
-CI does not build app targets by default. To cut an installable build: bump `CURRENT_PROJECT_VERSION`
-in `project.yml`, dispatch `fork-testing-build.yml`, then **verify the `.ipa` asset actually exists on
+Once Journal Part 2 reaches a state the owner is happy shipping, THEN: bump `CURRENT_PROJECT_VERSION`
+in `project.yml`, dispatch `fork-testing-build.yml`, and **verify the `.ipa` asset actually exists on
 the `testing-latest` release** before telling the owner it is ready.
+
+Lower priority, after Journal:
+- **Roll `PremiumExplainer` out to the other metrics** (HRV, RHR, temperature, respiratory, sleep,
+  recovery) — same ⓘ ask as SpO₂'s; only SpO₂ has it so far.
+- **Audit `PremiumCatalogDetailView` against the PRODUCT RULES.** It is the screen every metric card
+  opens into, and it predates the rules — expect the same "separate section per question" pattern
+  Heart had before its own consolidation.
+- **Verify on a real device with real history** — none of this session's analytics output (Heart,
+  Trends, Sleep, SpO₂, or Journal) has been eyeballed against a populated database; sparse-history
+  and brand-new-install states especially.
+
+Always dispatch `app-build.yml` and confirm green before considering ANY milestone done — this
+branch's CI does not build app targets by default, and this session already caught two real
+compile errors this way (the `PremiumMetricDef` init issue, and a mis-ordered test argument).
 
 ### IMPORTANT IMPLEMENTATION NOTES
 - **Swift gotcha hit this session:** a stored property with an inline default value
@@ -339,7 +383,10 @@ Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not lang
 | `c397c07` | **Chart audit + consolidation** (see PRODUCT RULES above) — verified green (`app-build.yml` run 30877739443) |
 | `a521faa` | Build number 213→214 — testing IPA published and verified (build 214) |
 | `cd3eb96` | **SpO₂ root cause**: Apple Health rows folded into `mergeDaily` (+ `AppleHealthDailyMergeTests`) |
-| `be3f127` | SpO₂ overnight sample analytics, percentage-point deltas, reusable `PremiumExplainer` — **current head** |
+| `be3f127` | SpO₂ overnight sample analytics, percentage-point deltas, reusable `PremiumExplainer` |
+| `fcb696c` | docs checkpoint |
+| `6196f02` | Fix build: argument order in `AppleHealthDailyMergeTests` — **last CONFIRMED green** |
+| `9f13963` | Journal Part 2 Milestone 1: response-type model + factor library + daily-log UI — **current head, build in flight** |
 
 ---
 
