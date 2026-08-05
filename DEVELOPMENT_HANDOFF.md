@@ -94,16 +94,28 @@ A capability that exists and works, on a screen the iOS shell never presents. Th
 one; hydration was a second, found by audit. **Run this audit before assuming a feature is missing
 — it is usually present and unrouted.**
 
-Walk `RootTabView` + `StrandiOSApp` transitively (stripping `#if DEBUG`, or the screenshot harness
-makes everything look reachable), collect every `struct … : View` declared in the iOS target, and
-diff. As of `36f8820` the remaining unreachable views under `Strand/Screens` are:
+Walk the iOS entry points transitively, collect every `struct … : View` declared in the iOS target,
+and diff. **Three things make a naive version of this audit lie — a first pass produced two false
+positives before they were fixed:**
+
+1. **Strip `#if DEBUG`.** `DemoScreens` in `StrandiOSApp.swift` instantiates almost every screen, so
+   without stripping it everything looks reachable and the audit finds nothing.
+2. **Match trailing-closure instantiation.** A view can be constructed with no parentheses at all —
+   `MarkerEditorView { drafts in … }`. Anchoring the scan on `Name(` misses those. This is what
+   wrongly flagged `MarkerEditorView`; it is reachable via `LabBookView`, which `RootTabView` wires.
+3. **Seed the route tables.** `PremiumNav.swift` and `TabRoute.swift` are reached through extension
+   *methods* (`.premiumRouteDestinations()`, `.tabRouteDestinations()`), which a type-name walk
+   cannot follow — so everything routed only by enum case looks unreachable.
+
+With all three handled, as of `264f7c7` the complete unreachable set under `Strand/Screens` is:
 
 | View | Verdict |
 |---|---|
-| `TodayView`, `HealthView`, `CoupledView` | intentional — the Premium UI replaced them |
-| `HydrationView` | **was a bug** — fixed in `36f8820` (`PremiumRoute.hydration` + opt-in Home card) |
-| `WeeklyDigestView` | **unresolved** — no Premium equivalent found. Check before closing. |
-| `MarkerEditorView` | **unresolved** — markers render on `PremiumHeartView`/`PremiumCharts` but there may be no way to EDIT one on iOS. |
+| `TodayView` (and `HealthView` / `CoupledView`, reached only as its children) | intentional — the Premium UI replaced them on iOS |
+| `HydrationView` | **was a real bug** — fixed in `36f8820` (`PremiumRoute.hydration` + opt-in Home card) |
+| `WeeklyDigestView`, `WeeklyDigestCard` | **not an iOS bug** — unreachable on macOS too. `WeeklyDigestView.swift` says both surfaces exist "so the orchestrator can wire whichever it wants", and neither ever was. Nothing in the UI promises the feature, so wiring it would be new work, not a fix. |
+
+So the class is currently CLEAN: no other capability is advertised to the user and then unreachable.
 
 ### JOURNAL — 350 factors, and why they felt absent (`f762426`)
 
