@@ -2,6 +2,9 @@
 import SwiftUI
 import StrandDesign
 import WhoopStore
+// `HydrationGoal` (the shared, fixed-locale goal/format engine the hydration card reads) lives in
+// the pure analytics package, not the app module.
+import StrandAnalytics
 
 /// Phase 2 · Home — the approved Premium UI prototype's flagship dashboard, rebuilt
 /// natively in SwiftUI on the REAL app data (`Repository` → `DailyMetric`): a
