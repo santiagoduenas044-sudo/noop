@@ -29,8 +29,8 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after the chart audit/consolidation pass + testing IPA (build 214)
-**Current commit:** `a521faa`
+**Last updated:** after SpO₂ Part 1 (data path + analytics + ⓘ explainer)
+**Current commit:** `be3f127`
 **Installable build:** `NOOP-ios-unsigned-v9.1.3.ipa` on the rolling `testing-latest` release,
 built from `a521faa` (build 214) and **asset presence verified**, not just "workflow went green".
 Confirm the asset actually exists on the release before ever telling the owner an IPA is ready.
@@ -131,8 +131,91 @@ CI does not run this by default (see "Known bugs / gotchas" below).
 - **Journal factor library + one-tap Home access, and Coach wiring** — NOT started. Unchanged from
   the descriptions in "Partially implemented" / "What still needs to be done" below.
 
+### MILESTONE IN FLIGHT: SpO₂ (Part 1 DONE) + Journal overhaul (Part 2 NOT STARTED)
+
+**Part 1 — SpO₂ — COMPLETE** (`cd3eb96`, `be3f127`). Read this before touching SpO₂ again:
+- **The actual bug was NOT HealthKit.** `.oxygenSaturation` was already in `quantityReadIds`, and
+  `sync()` already converted correctly (`.percent()` × 100). The bug was in
+  `Repository.refresh()`: it read the `apple-health` daily rows and passed them ONLY to
+  `sourceRows()` / `computeFreshness()` — **never into `mergeDaily()`**, which builds `repo.days`.
+  Every screen reads `repo.days`, so anything Apple Health was the sole source of was invisible
+  app-wide. SpO₂ was the visible casualty because the on-device engine banks raw `spo2Red`/`spo2Ir`
+  and writes `spo2Pct = nil`. Fixed by adding `apple:` to `mergeDaily` applied LAST via
+  `fillingNilFields` (gap-fill only, matching `DailyMetricSource.vitalPriority`).
+  **This fix helps every Apple-only metric, not just SpO₂.**
+- **`HealthKitBridge.oxygenSaturationSamples(from:to:)`** is new — individual samples via
+  `HKSampleQuery`, needed because a daily `discreteAverage` can never yield "lowest tonight" or a
+  reading count. It carries the `notNoopAuthored` guard: **SpO₂ is in `quantityWriteIds`, so NOOP
+  writes it back to Health** — without that guard the app re-reads its own output as if it were an
+  independent watch measurement. Do not drop that guard.
+- `PremiumSpo2Intel` deliberately separates per-night stored values (baseline/trend) from individual
+  samples (overnight avg/low/high/count/gaps). Its `baseline` excludes the most recent night so
+  "tonight vs baseline" isn't compared against a window containing tonight.
+- The overnight timeline is drawn as **DOTS, not a line** — Apple Watch SpO₂ is intermittent spot
+  checks, and connecting them would draw a trace the hardware never measured. Don't "improve" it
+  into a line chart.
+- SpO₂ deltas are in **percentage points** (`deltaUnit: "pts"`), because a percent-of-a-percent is
+  ambiguous. New `PremiumMetricDef.deltaUnit` supports this generally.
+- **`PremiumExplainer`** (in `PremiumKit.swift`) is the reusable ⓘ system: plain-language Q&A with
+  derivation under a separate "How this was calculated" heading, never diagnostic. SpO₂ is its first
+  adopter — **roll it out to the other metrics next** (that was part of the same ask).
+- Empty states distinguish "Health isn't connected" from "Health is connected but holds no
+  readings", because those need different user action.
+
+**Part 2 — Journal overhaul — NOT STARTED.** Research done; here is what the next agent needs:
+
+- **The single most useful finding: the response-type expansion needs NO schema migration.**
+  `JournalEntry` (`Packages/WhoopStore/.../JournalWorkoutAppleCache.swift`) already carries
+  `day, question, answeredYes, notes, numericValue`. So:
+  `bool → answeredYes`; `scale(1–5) → numericValue`; `quantity(mg) → numericValue`;
+  `time(3:42 PM) → numericValue as minutes-since-midnight`; `duration(38 min) → numericValue as
+  minutes`. Only **multi-select** needs a new shape, and it can be modelled as **one row per
+  selected option** (`question = "factor:option"`), which also drops straight into the existing
+  with/without analytics. A numeric log already writes `answeredYes = true` AND `numericValue`, so
+  `BehaviorInsights`' with/without split keeps working unchanged. **Extend `JournalKind`
+  additively** (it is `Codable`, persisted) and keep `canonical` stable — rename must never touch
+  it, or history is orphaned.
+- **`Strand/Data/JournalCatalog.swift` is SHARED with macOS** (not under `StrandiOS/`), and
+  `JournalGroup` explicitly "mirrors Android `JournalGroup` value-for-value". Adding the ~9 richer
+  categories the owner listed therefore (a) needs the macOS build checked, and (b) diverges from
+  Android unless the Kotlin twin is added. `JournalGroup.rawValue` is persisted — **never rename an
+  existing case**, only add.
+- Today there are only **6 starter items** and `JournalKind` has only `.bool` / `.numeric`. The
+  library work is genuinely additive from here.
+- **Analytics already exist and work** — do not rebuild them. `PremiumAnalysis.behaviorAssociation`
+  does the with/without split via the shipping `BehaviorInsights` engine, tries same-day and next-day
+  framings and keeps the stronger, and gates on `minBehaviorOccurrences = 5`.
+  `PremiumAnalysis.behaviorFinding` renders the sentence. `PremiumConfidence` already provides the
+  Early signal / Emerging pattern / Consistent pattern labels the owner asked for. The Journal,
+  Heart and Trends screens all already consume these. What's missing is the richer **WITH vs
+  WITHOUT detail screen** (averages, absolute + percent difference, n, history, methodology) and the
+  "What may be affecting you" ranked list.
+- **Coach**: `PremiumCoachContext` already has a journal section; extending it with per-factor
+  `withValue / withoutValue / difference / sampleSize / confidence` is a small addition. The
+  grounding rule (engine computes, model explains) is already enforced there.
+- **One-tap Home access** — Home already has a Journal card (`PremiumHomeView`'s journal fast-access
+  section) and `RootTabView` has journal sheet routing; the ask is to make it prominent and
+  single-tap, not to build routing from scratch.
+- ⚠️ **Item 13 (cloud sync) conflicts with a hard project rule.** `CLAUDE.md` states NOOP is fully
+  offline: no server, no account, no cloud sync, and a PR adding one is out of scope. There is no
+  cloud-sync architecture to participate in. The defensible reading — and what should be built — is:
+  keep Journal data in the normal store, versioned and additive, and make sure custom factors +
+  preferences are in the **`.noopbak` backup whitelist** (`BackupSettings.swift` +
+  `BackupSettingsCodec` on Android, which is a byte-identical contract — only Int/Double/String
+  cross that wire). That gives portability without breaking the offline guarantee. Confirm with the
+  owner before going further than that.
+
 ### NEXT TASK
-1. **Audit `PremiumCatalogDetailView` against the PRODUCT RULES.** It is the screen every metric card
+0. **Confirm the SpO₂ build is green**, then verify on device: the merge fix means Apple Health
+   values now reach `repo.days` for the first time, which is worth eyeballing against real history.
+1. **Journal Part 2**, in this order: (a) extend `JournalKind` additively + the category/factor
+   library data model (NOT in a view); (b) daily check-in UI with quick/favourites/search;
+   (c) the WITH-vs-WITHOUT detail screen + "What may be affecting you" ranked list on top of the
+   EXISTING `behaviorAssociation` engine; (d) Coach context extension. Tests for migrations, custom
+   factors, response types and insufficient-sample gating were explicitly requested.
+2. **Roll `PremiumExplainer` out to the other metrics** (HRV, RHR, temperature, respiratory, sleep,
+   recovery) — same ask as SpO₂'s, only SpO₂ is done.
+3. **Audit `PremiumCatalogDetailView` against the PRODUCT RULES.** It is the screen every metric card
    opens into, and it predates the rules. Expect to merge its separate `changeSection` into the
    header/history card the same way Heart's `baselineCard` was fixed, and to check each section
    earns its place. This is the highest-value remaining UI work because it is shared by ~24 metrics.
@@ -251,7 +334,9 @@ Skip pure numeric formats (axis ticks, "120–140" ranges) — they are not lang
 | `abbfeca` | Removed the dead legacy metric-detail path (`PremiumMetricKind`/`PremiumMetricKit`/`PremiumMetricDetailView` + its unreachable `PremiumRoute.metric` case) — the consolidation this doc had flagged as outstanding |
 | `6f631de` | Sleep depth — duration distribution + Sleep/Recovery + Sleep/HRV relationships — verified green |
 | `c397c07` | **Chart audit + consolidation** (see PRODUCT RULES above) — verified green (`app-build.yml` run 30877739443) |
-| `a521faa` | Build number 213→214 for the testing IPA — **current head, IPA published and verified** |
+| `a521faa` | Build number 213→214 — testing IPA published and verified (build 214) |
+| `cd3eb96` | **SpO₂ root cause**: Apple Health rows folded into `mergeDaily` (+ `AppleHealthDailyMergeTests`) |
+| `be3f127` | SpO₂ overnight sample analytics, percentage-point deltas, reusable `PremiumExplainer` — **current head** |
 
 ---
 
