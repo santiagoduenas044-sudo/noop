@@ -29,9 +29,8 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after Journal Part 2 Milestone 1 (data model + factor library), build in flight
-**Current commit:** `9f13963` — build dispatched, not yet confirmed (check `app-build.yml` before
-trusting this commit; last CONFIRMED green was `6196f02`)
+**Last updated:** after Journal Part 2 Milestone 1 confirmed green; expanding the factor library
+**Current commit:** `312071f` — **VERIFIED GREEN** (`app-build.yml` run 31009523863, macOS + iOS both)
 **⚠️ STANDING OWNER INSTRUCTION — DO NOT CUT A NEW IPA UNTIL JOURNAL IS UPGRADED.** The last
 published IPA is still `NOOP-ios-unsigned-v9.1.3.ipa` / build 214 / commit `a521faa` on the rolling
 `testing-latest` release — it does NOT contain the SpO₂ work above or anything from Journal Part 2.
