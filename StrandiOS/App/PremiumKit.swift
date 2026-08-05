@@ -188,6 +188,67 @@ struct PremiumExplainer: View {
     }
 }
 
+// MARK: - Flow layout (wrapping chips)
+
+/// Lays out its children left-to-right, wrapping onto a new row when the current row would
+/// overflow the available width. Used for a variable-length set of chips (e.g. multi-select
+/// options) where a fixed grid would either waste space or clip long labels.
+struct PremiumFlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        let rows = Self.arrange(subviews: subviews, maxWidth: width, spacing: spacing, lineSpacing: lineSpacing)
+        let height = rows.reduce(0) { $0 + $1.height } + lineSpacing * CGFloat(max(0, rows.count - 1))
+        let maxRowWidth = rows.map(\.width).max() ?? 0
+        return CGSize(width: width.isFinite ? width : maxRowWidth, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = Self.arrange(subviews: subviews, maxWidth: bounds.width, spacing: spacing, lineSpacing: lineSpacing)
+        var y = bounds.minY
+        for row in rows {
+            var x = bounds.minX
+            for item in row.items {
+                item.subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(item.size))
+                x += item.size.width + spacing
+            }
+            y += row.height + lineSpacing
+        }
+    }
+
+    private struct RowItem { let subview: LayoutSubview; let size: CGSize }
+    private struct Row { let items: [RowItem]; let width: CGFloat; let height: CGFloat }
+
+    private static func arrange(subviews: Subviews, maxWidth: CGFloat,
+                                spacing: CGFloat, lineSpacing: CGFloat) -> [Row] {
+        var rows: [Row] = []
+        var current: [RowItem] = []
+        var currentWidth: CGFloat = 0
+        var currentHeight: CGFloat = 0
+
+        func flush() {
+            guard !current.isEmpty else { return }
+            rows.append(Row(items: current, width: currentWidth, height: currentHeight))
+            current = []; currentWidth = 0; currentHeight = 0
+        }
+
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            let neededWidth = currentWidth == 0 ? size.width : currentWidth + spacing + size.width
+            if neededWidth > maxWidth, !current.isEmpty {
+                flush()
+            }
+            current.append(RowItem(subview: subview, size: size))
+            currentWidth = currentWidth == 0 ? size.width : currentWidth + spacing + size.width
+            currentHeight = max(currentHeight, size.height)
+        }
+        flush()
+        return rows
+    }
+}
+
 // MARK: - Chip selector
 
 /// A horizontal row of selectable chips. Exists so a screen can offer ONE high-information chart

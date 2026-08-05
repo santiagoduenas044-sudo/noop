@@ -32,6 +32,8 @@ struct PremiumJournalView: View {
     @State private var customDraft = ""
     @State private var customIsNumeric = false
     @State private var customGroup: JournalGroup = .other
+    @State private var showingFactorLibrary = false
+    @State private var factorSearch = ""
     @State private var renaming: JournalCatalogItem?
     @State private var renameDraft = ""
     /// How often each behaviour has been logged, used to rank the quick-log shortlist.
@@ -79,6 +81,7 @@ struct PremiumJournalView: View {
                     moodCard
                     associationsCard
                     moodHistoryCard
+                    addFactorCard
                     logSection
                     addCustomCard
                     Color.clear.frame(height: 8)
@@ -86,6 +89,7 @@ struct PremiumJournalView: View {
                 .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 96)
             }
             .background(PremiumAmbient(tints: [StrandPalette.gold]).ignoresSafeArea())
+            .sheet(isPresented: $showingFactorLibrary) { factorLibrarySheet }
             .onChange(of: scrollToTopSignal) { _, _ in
                 withAnimation(.easeInOut(duration: 0.35)) { proxy.scrollTo("top", anchor: .top) }
             }
@@ -245,13 +249,17 @@ struct PremiumJournalView: View {
         }
     }
 
-    /// The shortlist: the yes/no items the user has logged most often, falling back to the catalog's
-    /// first few when there's no history yet — so the quick row is useful on day one and gets more
-    /// personal as it learns what this user actually tracks.
+    /// The shortlist: favourited yes/no items first (an explicit "always show me this" signal), then
+    /// the items logged most often, falling back to the catalog's first few when there's no history
+    /// yet — so the quick row is useful on day one and gets more personal as it learns what this
+    /// user actually tracks. Scoped to yes/no items because the one-tap chip UI is a toggle; a
+    /// favourited scale/quantity/time factor still gets top billing in its full-list group via the
+    /// same star, just not here.
     private var quickItems: [JournalCatalogItem] {
         let yesNo: [JournalCatalogItem] = resolved.filter { !$0.kind.isNumeric }
         guard !yesNo.isEmpty else { return [] }
         let ranked: [JournalCatalogItem] = yesNo.sorted { a, b in
+            if a.favorite != b.favorite { return a.favorite && !b.favorite }
             let ca = usageCounts[a.canonical] ?? 0
             let cb = usageCounts[b.canonical] ?? 0
             if ca != cb { return ca > cb }
@@ -290,6 +298,102 @@ struct PremiumJournalView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(item.display), \(isOn ? "logged" : "not logged")")
+    }
+
+    // MARK: - Add factor (search the full library)
+
+    /// The entry point into `JournalFactorLibrary` — the scalable factor set the brief asked for,
+    /// kept OUT of today's log by default so a normal check-in stays fast. Browsing/adding is
+    /// explicit and separate from the quick daily flow.
+    private var addFactorCard: some View {
+        Button { showingFactorLibrary = true } label: {
+            StrandCard {
+                HStack(spacing: 12) {
+                    PremiumIconTile(system: "plus.magnifyingglass", tint: StrandPalette.gold, size: 30)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Add a factor").font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                        Text("Browse the full library — sleep habits, nutrition, caffeine, activity, recovery and more", comment: "Journal add-factor card subtitle")
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .lineLimit(2)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold)).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Factors not already in the resolved catalog, matching the search text (name or category).
+    /// Empty search shows everything, grouped.
+    private var filteredLibrary: [JournalFactorTemplate] {
+        let already = Set(resolved.map { JournalCatalogStore.norm($0.canonical) })
+        let pool = JournalFactorLibrary.all.filter { !already.contains(JournalCatalogStore.norm($0.canonical)) }
+        let q = factorSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !q.isEmpty else { return pool }
+        return pool.filter {
+            $0.canonical.localizedCaseInsensitiveContains(q) || $0.group.title.localizedCaseInsensitiveContains(q)
+        }
+    }
+
+    private var factorLibrarySheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    if filteredLibrary.isEmpty {
+                        PremiumEmptyState(icon: "magnifyingglass", title: String(localized: "No matching factors"),
+                                          message: String(localized: "Try a different search, or create a custom factor below."))
+                            .padding(.top, 20)
+                    } else {
+                        ForEach(JournalGroup.displayOrder, id: \.self) { group in
+                            let inGroup = filteredLibrary.filter { $0.group == group }
+                            if !inGroup.isEmpty {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text(group.title.uppercased()).font(StrandFont.overline).tracking(1.2)
+                                        .foregroundStyle(StrandPalette.textTertiary)
+                                    ForEach(inGroup) { factor in factorRow(factor) }
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(StrandPalette.surfaceBase.ignoresSafeArea())
+            .searchable(text: $factorSearch, prompt: Text("Search factors", comment: "Journal factor library search prompt"))
+            .navigationTitle("Add a factor")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") { showingFactorLibrary = false }
+                        .foregroundStyle(StrandPalette.accent)
+                }
+            }
+        }
+    }
+
+    private func factorRow(_ factor: JournalFactorTemplate) -> some View {
+        StrandCard(padding: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(factor.canonical).font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                    Text(factor.blurb).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 8)
+                Button {
+                    catalog.addFromLibrary(factor)
+                } label: {
+                    Text("Add", comment: "Add a factor from the library")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(StrandPalette.surfaceBase)
+                        .padding(.horizontal, 12).padding(.vertical, 6)
+                        .background(Capsule().fill(StrandPalette.gold))
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     // MARK: - Associations (computed, never causal)
@@ -430,18 +534,158 @@ struct PremiumJournalView: View {
     }
 
     @ViewBuilder private func itemRow(_ item: JournalCatalogItem) -> some View {
-        HStack {
+        if case .multiSelect(let options) = item.kind, !editing {
+            // Multi-select needs its own row shape (options wrap onto a second line), not the
+            // label+control HStack every other kind uses.
+            multiSelectRow(item, options: options)
+        } else {
+            HStack {
+                Text(verbatim: item.display)
+                    .font(StrandFont.body)
+                    .foregroundStyle(item.hidden ? StrandPalette.textTertiary : StrandPalette.textPrimary)
+                Spacer()
+                if editing {
+                    editControls(item)
+                } else {
+                    responseControl(item)
+                }
+            }
+        }
+    }
+
+    /// Routes to the response-appropriate control. `.numeric`/`.quantity`/`.duration` all share the
+    /// plain stepper+field — they already render exactly like the brief's own examples ("120 mg",
+    /// "38 min") since `numericField` appends `item.kind.unitLabel` generically. `.scale` and
+    /// `.time` get dedicated controls below: a free-form number field is the wrong UI for either
+    /// (a scale wants discrete taps; time stored as minutes-since-midnight is unreadable as a bare
+    /// number).
+    @ViewBuilder private func responseControl(_ item: JournalCatalogItem) -> some View {
+        switch item.kind {
+        case .bool:
+            answerPill("Yes", q: item.canonical, value: true)
+            answerPill("No", q: item.canonical, value: false)
+        case .numeric, .quantity, .duration:
+            numericField(item)
+        case .scale(let range):
+            scaleControl(item, range: range)
+        case .time:
+            timeControl(item)
+        case .multiSelect:
+            EmptyView()   // handled by multiSelectRow above; never reached
+        }
+    }
+
+    // MARK: - Scale control (1…5-style tap targets, not a free-form field)
+
+    private func scaleControl(_ item: JournalCatalogItem, range: ClosedRange<Int>) -> some View {
+        let current = numericAnswers[item.canonical].map { Int($0.rounded()) }
+        return HStack(spacing: 4) {
+            ForEach(Array(range), id: \.self) { v in
+                let selected = current == v
+                Button {
+                    Task {
+                        if selected {
+                            await repo.clearJournalAnswer(day: dayKey, question: item.canonical)
+                        } else {
+                            await repo.saveJournalNumeric(day: dayKey, question: item.canonical, value: Double(v))
+                        }
+                        await loadDay()
+                    }
+                } label: {
+                    Text("\(v)")
+                        .font(.system(size: 13, weight: .semibold)).monospacedDigit()
+                        .foregroundStyle(selected ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
+                        .frame(width: 26, height: 26)
+                        .background(Circle().fill(selected ? StrandPalette.gold : StrandPalette.surfaceInset))
+                        .overlay(Circle().strokeBorder(selected ? StrandPalette.gold : StrandPalette.hairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(String(format: String(localized: "%1$@, %2$@"), item.display,
+                                   current.map { "\($0) of \(range.upperBound)" } ?? String(localized: "not set")))
+    }
+
+    // MARK: - Time control (stored as minutes-since-midnight)
+
+    private func timeControl(_ item: JournalCatalogItem) -> some View {
+        let current = numericAnswers[item.canonical]
+        return HStack(spacing: 8) {
+            DatePicker("", selection: Binding(
+                get: { Self.dateFrom(minutesSinceMidnight: current ?? Self.defaultTimeMinutes) },
+                set: { d in
+                    let mins = Self.minutesSinceMidnight(d)
+                    commitNumeric(item.canonical, value: mins)
+                }
+            ), displayedComponents: .hourAndMinute)
+                .labelsHidden()
+                .fixedSize()
+            if current != nil {
+                Button {
+                    Task { await repo.clearJournalAnswer(day: dayKey, question: item.canonical); await loadDay() }
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(String(format: String(localized: "Clear %@"), item.display))
+            }
+        }
+    }
+
+    /// Noon — a neutral default so an unset `.time` factor doesn't silently open pinned at midnight.
+    private static let defaultTimeMinutes: Double = 12 * 60
+
+    private static func dateFrom(minutesSinceMidnight m: Double) -> Date {
+        let cal = Calendar.current
+        let base = cal.startOfDay(for: Date())
+        return cal.date(byAdding: .minute, value: Int(m.rounded()), to: base) ?? base
+    }
+    private static func minutesSinceMidnight(_ d: Date) -> Double {
+        let cal = Calendar.current
+        let c = cal.dateComponents([.hour, .minute], from: d)
+        return Double((c.hour ?? 0) * 60 + (c.minute ?? 0))
+    }
+
+    // MARK: - Multi-select (one logged row per selected option)
+
+    private func multiSelectChip(_ item: JournalCatalogItem, option: String) -> some View {
+        let key = JournalCatalogItem.multiSelectKey(factor: item.canonical, option: option)
+        let selected = answers[key] == true
+        return Button {
+            Task {
+                if selected {
+                    await repo.clearJournalAnswer(day: dayKey, question: key)
+                } else {
+                    await repo.saveJournalAnswer(day: dayKey, question: key, answeredYes: true)
+                }
+                await loadDay()
+            }
+        } label: {
+            Text(option)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(selected ? StrandPalette.surfaceBase : StrandPalette.textSecondary)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Capsule().fill(selected ? StrandPalette.gold : StrandPalette.surfaceInset))
+                .overlay(Capsule().strokeBorder(selected ? StrandPalette.gold : StrandPalette.hairline, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Renders one chip per suggested option; each is its own independent `.bool` factor logged
+    /// under `JournalCatalogItem.multiSelectKey(factor:option:)`. There is no separate "selection"
+    /// storage — what's selected IS whatever of those per-option rows are currently logged true for
+    /// today, so this reads back correctly even after an app restart with no extra state.
+    private func multiSelectRow(_ item: JournalCatalogItem, options: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             Text(verbatim: item.display)
                 .font(StrandFont.body)
                 .foregroundStyle(item.hidden ? StrandPalette.textTertiary : StrandPalette.textPrimary)
-            Spacer()
-            if editing {
-                editControls(item)
-            } else if item.kind.isNumeric {
-                numericField(item)
-            } else {
-                answerPill("Yes", q: item.canonical, value: true)
-                answerPill("No", q: item.canonical, value: false)
+            PremiumFlowLayout(spacing: 8) {
+                ForEach(options, id: \.self) { option in
+                    multiSelectChip(item, option: option)
+                }
             }
         }
     }
@@ -525,6 +769,16 @@ struct PremiumJournalView: View {
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.gold)
             } else {
+                Button { catalog.toggleFavorite(item.canonical) } label: {
+                    Image(systemName: item.favorite ? "star.fill" : "star")
+                        .font(StrandFont.body)
+                        .foregroundStyle(item.favorite ? StrandPalette.gold : StrandPalette.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(item.favorite
+                    ? String(format: String(localized: "Remove %@ from Quick Check-in"), item.display)
+                    : String(format: String(localized: "Add %@ to Quick Check-in"), item.display))
+
                 Menu {
                     Button("Rename…") { startRename(item) }
                     Menu("Group") {
