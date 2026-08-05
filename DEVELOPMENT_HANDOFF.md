@@ -29,14 +29,58 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after Journal Part 2 Milestone 1 confirmed green; expanding the factor library
-**Current commit:** `312071f` — **VERIFIED GREEN** (`app-build.yml` run 31009523863, macOS + iOS both)
-**⚠️ STANDING OWNER INSTRUCTION — DO NOT CUT A NEW IPA UNTIL JOURNAL IS UPGRADED.** The last
-published IPA is still `NOOP-ios-unsigned-v9.1.3.ipa` / build 214 / commit `a521faa` on the rolling
-`testing-latest` release — it does NOT contain the SpO₂ work above or anything from Journal Part 2.
-Do not dispatch `fork-testing-build.yml` or bump `CURRENT_PROJECT_VERSION` until the owner confirms
-Journal Part 2 (or a milestone of it) is ready to ship. If asked "is the IPA ready", the answer is
-no by standing instruction, not by omission — say so explicitly rather than silently not mentioning it.
+**Last updated:** after the reliability/accuracy milestone; IPA build 215 cut
+**Current commit:** `3c6a1fc` — reliability fixes VERIFIED GREEN at `e5cedd6` on BOTH
+`app-build.yml` (macOS + iOS) and `swift-packages.yml` (run 31024502533 — this one matters, it runs
+`StrainSampleDurationTests` pinning the CHANGED strain formula).
+**IPA hold LIFTED** — the owner authorised the cut. Build 215.
+
+### RELIABILITY MILESTONE — what was fixed and why it mattered
+1. **Strain started the day unrealistically high** (`49d83ab`). `sampleDurationMinutes()` measured
+   the gap between only the FIRST TWO samples and both TRIMP integrators multiplied EVERY sample by
+   it, so one unrepresentative leading gap rescaled the whole day. Overnight the stream is sparse
+   (5/MG drops to ~30 s cadence), so that gap is routinely minutes long and every later reading was
+   credited with minutes of time-in-zone; as the stream densified the number "settled". Replaced
+   with `sampleDurationsMinutes()` — per-sample actual elapsed time, capped at
+   `maxSampleGapSeconds` (120 s) so a removed strap can't integrate as hours of exercise.
+   **No-op for uniform streams** (pinned by a test asserting old == new), so only the genuinely
+   mis-integrated irregular days change. Android `StrainScorer.kt` updated to stay byte-identical.
+2. **Calories counted a full day's resting burn from midnight** (`4bcad5f`). Home and Energy each
+   had their OWN copy of Mifflin–St Jeor and used its kcal-per-FULL-DAY output as "today's
+   resting", including inside total = active + resting. New shared `PremiumEnergy` prorates by
+   elapsed day fraction (via the local calendar, so DST days stay correct); the duplicate formula
+   is gone.
+3. **The AI Coach was never grounded** (`71d96e7`). `PremiumCoachContext` had existed for several
+   milestones but a repo-wide search found NOTHING consuming it except `.streak` — the Coach sent
+   only its raw metrics summary and was free to invent relationships and state associations as
+   causes. Added `AICoachEngine.groundingProvider` (a hook, because `AICoach.swift` is shared with
+   macOS while the Premium intel is iOS-only) + `groundingRules`, fed by
+   `PremiumCoachContext.groundingBlock` — findings only, since the engine already sends metrics.
+4. **SpO₂** (`cd3eb96`, `be3f127`, `6ae47fb`). The `mergeDaily` fix (apple-health rows were read but
+   never reached `repo.days`) was a REAL bug affecting every Apple-only metric — but it was not the
+   owner's problem: their SpO₂ is expected from the WHOOP band. Traced end-to-end: the BLE stream
+   carries only RAW red/IR PPG counts; the #103 offset-82 strap-computed candidate is
+   instrumentation-only with CONTRADICTORY cross-device evidence and is barred from writing
+   `spo2Pct`; `IntelligenceEngine` never derives it. **NOOP genuinely cannot show SpO₂ from a live
+   WHOOP band** without WHOOP's proprietary calibration. Fix was honesty: the empty state and
+   explainer now lead with the strap reality and point at the two paths that DO work — a WHOOP CSV
+   export (Settings → Data Sources) or an Apple Watch via Health. Do NOT wire up the #103 candidate;
+   that is the withdrawn PPG→HR (#194) mistake.
+
+### RELIABILITY MILESTONE — still open
+- **`android.yml` is DISABLED**, so the Kotlin `StrainScorer` twin is **UNVERIFIED by CI**. It was
+  reviewed by eye only. Run a local Gradle build before trusting it.
+- **`.noopbak` backup format deliberately untouched** per owner instruction. Safe future migration:
+  `journal.catalog.v2` persists as `Data` while `BackupSettings.whitelist` permits only
+  Int/Double/String, AND that whitelist is a byte-identical contract with Android's
+  `BackupSettingsCodec`. The safe path is to add a canonical key holding the catalog as a JSON
+  STRING (not Data), add the Kotlin twin in the same change, and keep unknown-key tolerance so an
+  older build ignores it.
+- Android `JournalGroup` parity: the 6 new categories added this session are not mirrored yet.
+- The response-type retype menu only offers `.bool` / `.numeric(nil)`, so richer kinds can be
+  retyped INTO but not BETWEEN.
+- **Nothing here has been eyeballed against real device data.**
+
 **Previous commit line (superseded):** `0f9548c`
 **Current milestone:** Product-direction pivot — the owner explicitly redirected priority AWAY from
 finishing i18n-4 and toward visibly useful analytics depth (richer graphs, baselines, 7/30/90D
