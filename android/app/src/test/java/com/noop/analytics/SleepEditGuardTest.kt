@@ -180,4 +180,66 @@ class SleepEditGuardTest {
         assertNull(SleepEditGuard.clampedEditWindow(5_000, 4_000, nowTs = 10_000))
         assertNull(SleepEditGuard.clampedEditWindow(5_000, 5_000, nowTs = 10_000))
     }
+
+    // Rule 4 — nap seed window (twin of NapSeedWindowTests.swift). A seed ahead of the clock opens a
+    // picker whose save clampedEditWindow then refuses, so the seed must always be already elapsed.
+
+    private val now = 1_785_078_000L
+
+    @Test
+    fun napSeedIsAlwaysAPastNonEmptyWindow() {
+        var offset = -24 * 3600L
+        while (offset <= 6 * 3600L) {
+            val (start, end) = SleepEditGuard.napSeedWindow(lastWakeTs = now + offset, nowTs = now)
+            assertTrue("wake offset $offset: empty window", start < end)
+            assertTrue("wake offset $offset: seed ends in the future", end <= now)
+            assertTrue(
+                "wake offset $offset: seed refused by the persistence guard",
+                SleepEditGuard.clampedEditWindow(start, end, nowTs = now) != null,
+            )
+            offset += 900L
+        }
+    }
+
+    @Test
+    fun napSeedWithNoRecordedNight() {
+        val (start, end) = SleepEditGuard.napSeedWindow(lastWakeTs = null, nowTs = now)
+        assertEquals(now, end)
+        assertEquals(SleepEditGuard.NAP_SEED_DURATION_SEC, end - start)
+    }
+
+    @Test
+    fun napSeedAnchorsAfterWakeOnceThatWindowHasElapsed() {
+        val wake = now - 6 * 3600L
+        val (start, end) = SleepEditGuard.napSeedWindow(lastWakeTs = wake, nowTs = now)
+        assertEquals(wake + SleepEditGuard.NAP_SEED_AFTER_WAKE_SEC, start)
+        assertEquals(SleepEditGuard.NAP_SEED_DURATION_SEC, end - start)
+    }
+
+    @Test
+    fun napSeedFallsBackWhenTheWakeAnchorHasNotElapsed() {
+        val (start, end) = SleepEditGuard.napSeedWindow(lastWakeTs = now - 600L, nowTs = now)
+        assertEquals(now, end)
+        assertTrue(start < now)
+    }
+
+    @Test
+    fun napSeedStaleWakeIsNotUsedAsTheAnchor() {
+        val stale = now - (SleepEditGuard.NAP_SEED_MAX_WAKE_AGE_SEC + 3600L)
+        val (start, end) = SleepEditGuard.napSeedWindow(lastWakeTs = stale, nowTs = now)
+        assertEquals(now, end)
+        assertEquals(now - SleepEditGuard.NAP_SEED_DURATION_SEC, start)
+    }
+
+    @Test
+    fun napSeedBoundaryAtExactlyElapsed() {
+        val span = SleepEditGuard.NAP_SEED_AFTER_WAKE_SEC + SleepEditGuard.NAP_SEED_DURATION_SEC
+        val elapsed = SleepEditGuard.napSeedWindow(lastWakeTs = now - span, nowTs = now)
+        assertEquals(now - span + SleepEditGuard.NAP_SEED_AFTER_WAKE_SEC, elapsed.first)
+        assertEquals(now, elapsed.second)
+
+        val oneShort = SleepEditGuard.napSeedWindow(lastWakeTs = now - span + 1, nowTs = now)
+        assertEquals(now, oneShort.second)
+        assertEquals(now - SleepEditGuard.NAP_SEED_DURATION_SEC, oneShort.first)
+    }
 }

@@ -1,0 +1,117 @@
+/* ============================================================================
+   NOOP · Premium UI — Base layer
+   Reset, the phone "device" frame, the ambient background, scrolling shell.
+   ============================================================================ */
+
+*, *::before, *::after { box-sizing: border-box; }
+* { margin: 0; padding: 0; }
+html, body { height: 100%; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: 1.45;
+  color: var(--ink-1);
+  background: var(--bg-0);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;                 /* the app scrolls internally */
+  font-feature-settings: "ss01", "cv11", "tnum";
+}
+
+button, input, select, textarea { font: inherit; color: inherit; }
+button { background: none; border: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+a { color: inherit; text-decoration: none; }
+ul { list-style: none; }
+img, svg, canvas { display: block; max-width: 100%; }
+
+::selection { background: color-mix(in oklab, var(--accent-gold) 45%, transparent); color: #fff; }
+
+/* Tabular figures everywhere numbers matter (built into body via feature-settings) */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* ---- The device stage ----------------------------------------------------
+   On desktop the app lives inside a phone-sized frame floating on an ambient
+   backdrop. On a real phone (≤ app-max) it goes edge-to-edge.               */
+.stage {
+  position: fixed; inset: 0;
+  display: grid; place-items: center;
+  background:
+    radial-gradient(1200px 800px at 15% -10%, rgba(110,139,255,0.10), transparent 60%),
+    radial-gradient(1000px 700px at 100% 0%, rgba(156,123,255,0.10), transparent 55%),
+    radial-gradient(900px 900px at 50% 120%, rgba(70,229,160,0.07), transparent 60%),
+    var(--bg-0);
+  padding: 0;
+}
+
+.device {
+  position: relative;
+  width: min(100vw, var(--app-max));
+  height: 100vh; height: 100dvh;
+  max-height: 100dvh;
+  background: var(--bg-1);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+@media (min-width: 520px) {
+  .stage { padding: 26px; }
+  .device {
+    height: min(940px, calc(100dvh - 52px));
+    border-radius: 46px;
+    border: 1px solid var(--hairline);
+    box-shadow:
+      var(--shadow-lg),
+      0 0 0 10px color-mix(in oklab, var(--bg-0) 60%, #000),
+      0 0 0 11px rgba(255,255,255,0.04);
+  }
+  /* subtle dynamic-island-ish notch */
+  .device::before {
+    content: ""; position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: 112px; height: 30px; border-radius: 999px;
+    background: #000; z-index: 60; opacity: .9;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+  }
+}
+
+/* ---- The living ambient background inside the app ----------------------- */
+.ambient {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none;
+}
+.ambient .orb {
+  position: absolute; border-radius: 50%;
+  filter: blur(60px); opacity: 0.55;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+:root[data-theme="light"] .ambient .orb { mix-blend-mode: normal; opacity: 0.42; filter: blur(72px); }
+.ambient .orb.a { width: 340px; height: 340px; top: -80px; left: -60px;
+  background: radial-gradient(circle at 30% 30%, var(--accent-strain), transparent 70%);
+  animation: float-a 16s var(--ease-inout) infinite; }
+.ambient .orb.b { width: 300px; height: 300px; top: 6%; right: -90px;
+  background: radial-gradient(circle at 60% 40%, var(--accent-sleep), transparent 70%);
+  animation: float-b 19s var(--ease-inout) infinite; }
+.ambient .orb.c { width: 380px; height: 380px; bottom: -120px; left: 20%;
+  background: radial-gradient(circle at 50% 50%, var(--accent-recovery), transparent 72%);
+  animation: float-c 22s var(--ease-inout) infinite; opacity: 0.4; }
+
+/* ---- App scroll region --------------------------------------------------- */
+.app { position: absolute; inset: 0; z-index: 1; display: flex; flex-direction: column; }
+
+.scroll {
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  padding: calc(env(safe-area-inset-top) + 66px) 0 calc(var(--nav-h) + 26px);
+  scrollbar-width: none;
+}
+.scroll::-webkit-scrollbar { width: 0; height: 0; }
+
+.page { padding: 0 var(--s-5); }
+.page > * { }
+
+/* Screen-reader only */
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); border:0; }

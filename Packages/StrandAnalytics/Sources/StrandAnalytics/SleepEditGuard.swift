@@ -68,4 +68,34 @@ public enum SleepEditGuard {
         guard cappedEnd > start else { return nil }
         return (start, cappedEnd)
     }
+
+    /// Default length of the window the "Add a nap" picker opens on, seconds.
+    public static let napSeedDurationSec = 30 * 60
+    /// How long after the night's wake the nap seed is anchored, seconds — the natural place to look
+    /// for a missed late-morning/afternoon nap.
+    public static let napSeedAfterWakeSec = 60 * 60
+    /// How old the last recorded wake may be and still drive the seed, seconds. Beyond this the night
+    /// is a STALE anchor (an unsynced strap leaves the newest recorded night a day or more behind), and
+    /// seeding a picker in the middle of a past day is worse than seeding the half-hour just gone.
+    public static let napSeedMaxWakeAgeSec = 18 * 3600
+
+    /// Rule 4: the window the "Add a nap" picker should OPEN on, given the day's last recorded wake
+    /// (`lastWakeTs`, nil when the day has no main night yet) and the current time.
+    ///
+    /// The seed must always be a window that is already in the PAST, because `clampedEditWindow`
+    /// refuses a window lying entirely in the future — a picker seeded ahead of the clock therefore
+    /// opens on a window that saves to nothing at all. The wake+1h anchor is used only when its full
+    /// half-hour has already elapsed; right after a morning sync it has not, so the seed falls back to
+    /// the half-hour that just ended, which is valid at any time of day and is also the sensible
+    /// default for "I just woke up from a nap". A wake older than `napSeedMaxWakeAgeSec` is likewise
+    /// ignored — a stale night must not drop the picker into the middle of a past day.
+    ///
+    /// Returns `(start, end)` in unix seconds, guaranteed `start < end <= now`.
+    public static func napSeedWindow(lastWakeTs: Int?, now: Int) -> (start: Int, end: Int) {
+        if let wake = lastWakeTs, now - wake <= napSeedMaxWakeAgeSec {
+            let start = wake + napSeedAfterWakeSec
+            if start + napSeedDurationSec <= now { return (start, start + napSeedDurationSec) }
+        }
+        return (now - napSeedDurationSec, now)
+    }
 }

@@ -1821,6 +1821,16 @@ struct SettingsView: View {
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? AppChangelog.currentVersion
     }
 
+    /// One label/value row in the build-identifier block (monospaced value).
+    private func buildInfoRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            Spacer()
+            Text(value).font(.system(size: 12, weight: .medium, design: .monospaced))
+                .foregroundStyle(StrandPalette.textSecondary)
+        }
+    }
+
     private var aboutCard: some View {
         SettingsSection(
             icon: "info.circle.fill",
@@ -1838,6 +1848,21 @@ struct SettingsView: View {
                         showWhatsNew = true
                     }
                 }
+
+                // Premium redesign build identifier — verify an installed IPA against the exact
+                // source it was built from (version + build from the bundle; commit + date stamped
+                // by CI). Migrated from the HTML prototype's What's New / version block (Milestone 3).
+                VStack(alignment: .leading, spacing: 8) {
+                    buildInfoRow("Version", BuildInfo.version)
+                    buildInfoRow("Build", BuildInfo.build)
+                    buildInfoRow("Commit", BuildInfo.commit)
+                    buildInfoRow("Built", BuildInfo.builtAt)
+                    buildInfoRow("Milestone", "\(BuildInfo.milestone) · Prototype \(BuildInfo.prototypeVersion)")
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(StrandPalette.surfaceInset))
 
                 // How NOOP works — the plain-English primer: how sleep is sorted, how scores +
                 // calibration work, what recording means, and where the provenance badges come

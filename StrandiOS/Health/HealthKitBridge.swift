@@ -810,6 +810,56 @@ final class HealthKitBridge: ObservableObject {
         NSCompoundPredicate(notPredicateWithSubpredicate: HKQuery.predicateForObjects(from: [HKSource.default()]))
     }
 
+    // MARK: - Sample-level reads
+
+    /// One real oxygen-saturation reading: when it was taken and its percentage.
+    struct Spo2Sample: Equatable, Sendable {
+        let t: Date
+        /// Percent (0…100), already converted from HealthKit's 0…1 fraction.
+        let pct: Double
+    }
+
+    /// The INDIVIDUAL `oxygenSaturation` samples in a window, oldest→newest.
+    ///
+    /// `sync()` only aggregates a daily `discreteAverage` into `DailyMetric.spo2Pct`, which cannot
+    /// answer "lowest reading tonight", "how many readings were there" or "where were the gaps" —
+    /// those need the raw samples, so this reads them directly rather than inventing them from a
+    /// single daily mean.
+    ///
+    /// Carries the same `notNoopAuthored` guard as `collect`: SpO₂ is in `quantityWriteIds`, so NOOP
+    /// writes its own nightly value back into Health. Without the guard this would read those
+    /// write-backs and present NOOP's own output as if it were independent watch measurements.
+    ///
+    /// Returns `[]` — never a fabricated value — when Health is unauthorised, the type is
+    /// unavailable, or the user's hardware simply never recorded any samples.
+    func oxygenSaturationSamples(from start: Date, to end: Date,
+                                 limit: Int = 1000) async -> [Spo2Sample] {
+        guard auth == .authorized,
+              let type = HKQuantityType.quantityType(forIdentifier: .oxygenSaturation),
+              end > start else { return [] }
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
+            Self.notNoopAuthored,
+        ])
+        let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
+        return await withCheckedContinuation { (cont: CheckedContinuation<[Spo2Sample], Never>) in
+            let q = HKSampleQuery(sampleType: type, predicate: predicate,
+                                  limit: limit, sortDescriptors: [sort]) { _, samples, _ in
+                let out: [Spo2Sample] = (samples as? [HKQuantitySample] ?? []).compactMap { s in
+                    // HealthKit stores oxygen saturation as a 0…1 fraction; the rest of NOOP works in
+                    // percent, so convert once here exactly as `sync()` does (v * 100).
+                    let pct = s.quantity.doubleValue(for: .percent()) * 100
+                    // Reject physiologically impossible readings rather than charting them, matching
+                    // the bounds the analysis layer applies elsewhere.
+                    guard pct.isFinite, pct >= 70, pct <= 100 else { return nil }
+                    return Spo2Sample(t: s.startDate, pct: pct)
+                }
+                cont.resume(returning: out)
+            }
+            store.execute(q)
+        }
+    }
+
     private func collect(_ id: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date,
                          op: HKStatisticsOptions, sink: @escaping (String, Double) -> Void) async {
         guard let type = HKQuantityType.quantityType(forIdentifier: id) else { return }

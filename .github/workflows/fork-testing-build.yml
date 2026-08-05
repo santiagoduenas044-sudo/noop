@@ -133,6 +133,14 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
+      - name: Stamp build info (commit + date) into BuildInfo.swift
+        # Visible build identifier: replace the PLACEHOLDER tokens with the exact built commit
+        # + UTC timestamp so Settings → About shows the real commit the installed IPA came from.
+        run: |
+          SHA="${GITHUB_SHA:0:7}"
+          DATE=$(date -u '+%Y-%m-%d %H:%M UTC')
+          perl -0pi -e "s/COMMIT_PLACEHOLDER/$SHA/g; s/BUILDDATE_PLACEHOLDER/$DATE/g" Strand/App/BuildInfo.swift
+          grep -E 'commitRaw|builtAtRaw' Strand/App/BuildInfo.swift
       - name: Install XcodeGen
         run: brew install xcodegen
       - name: Generate Xcode project

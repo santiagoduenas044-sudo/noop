@@ -1,0 +1,139 @@
+/* ============================================================================
+   NOOP · Premium UI — Design Tokens
+   The single source of truth for color, type, space, radius, motion & depth.
+   Everything downstream references these variables — no raw hex in components.
+   Two themes ship: a default "midnight" dark theme and a "daylight" light theme,
+   switched by [data-theme] on <html>. Domain accents stay constant across both.
+   ============================================================================ */
+
+:root {
+  /* ---- Domain accents (constant across themes) -------------------------- */
+  /* Each life-signal owns a hue. Used for rings, charts, glows, chips.       */
+  --accent-recovery: #46E5A0;   /* mint — readiness / recovery               */
+  --accent-recovery-2: #12B981;
+  --accent-strain:   #6E8BFF;   /* electric indigo — strain / effort         */
+  --accent-strain-2: #4C63E6;
+  --accent-sleep:    #9C7BFF;   /* violet — sleep                            */
+  --accent-sleep-2:  #6E52E0;
+  --accent-heart:    #FF6B81;   /* coral — heart rate                        */
+  --accent-heart-2:  #E5405E;
+  --accent-hrv:      #4FD6E0;   /* aqua — HRV                                */
+  --accent-gold:     #E8B84B;   /* liquid-metal signature — brand / coach    */
+  --accent-gold-2:   #C8902F;
+  --accent-flame:    #FF9D4D;   /* warm orange — energy / active calories    */
+  --accent-flame-2:  #F5722E;
+
+  /* Score bands — the universal recovery language */
+  --band-high:  #46E5A0;
+  --band-mid:   #F5C451;
+  --band-low:   #FF6B81;
+
+  /* ---- Typography ------------------------------------------------------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+               "Inter", "Helvetica Neue", system-ui, sans-serif;
+  --font-mono: "SF Mono", "JetBrains Mono", ui-monospace, "Menlo", monospace;
+
+  /* A fluid modular type scale (clamped for phone → desktop) */
+  --fs-mega:   clamp(72px, 20vw, 132px); /* the hero score numeral           */
+  --fs-xl:     clamp(40px, 9vw, 56px);
+  --fs-lg:     clamp(28px, 6vw, 34px);
+  --fs-title:  22px;
+  --fs-h:      17px;
+  --fs-body:   15px;
+  --fs-sm:     13px;
+  --fs-xs:     11px;
+  --fs-micro:  10px;
+
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semi:    600;
+  --fw-bold:    700;
+  --fw-heavy:   800;
+
+  --tracking-tight: -0.02em;
+  --tracking-mega:  -0.04em;
+  --tracking-caps:  0.14em;
+
+  /* ---- Spacing scale (4pt grid) ---------------------------------------- */
+  --s-1: 4px;   --s-2: 8px;   --s-3: 12px;  --s-4: 16px;
+  --s-5: 20px;  --s-6: 24px;  --s-7: 32px;  --s-8: 40px;
+  --s-9: 56px;  --s-10: 72px;
+
+  /* ---- Radius ----------------------------------------------------------- */
+  --r-sm: 12px;  --r-md: 18px;  --r-lg: 24px;  --r-xl: 32px;  --r-pill: 999px;
+
+  /* ---- Motion ----------------------------------------------------------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);      /* the Apple "settle"     */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);/* gentle overshoot       */
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 140ms; --dur-2: 240ms; --dur-3: 420ms; --dur-4: 680ms; --dur-5: 1100ms;
+
+  /* App frame */
+  --app-max: 460px;         /* phone canvas width on desktop                 */
+  --nav-h: 76px;
+}
+
+/* ============================== MIDNIGHT (dark, default) =================== */
+:root, :root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg-0: #06070A;   /* deepest — behind the app frame                       */
+  --bg-1: #0A0C11;   /* app canvas                                           */
+  --bg-2: #10131A;   /* raised surface                                       */
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-2: rgba(255, 255, 255, 0.07);
+  --surface-strong: rgba(22, 26, 34, 0.72);
+  --hairline: rgba(255, 255, 255, 0.09);
+  --hairline-strong: rgba(255, 255, 255, 0.16);
+
+  --ink-1: #F4F6FB;  /* primary text                                         */
+  --ink-2: #AFB6C6;  /* secondary                                            */
+  --ink-3: #767E90;  /* tertiary / captions                                  */
+  --ink-4: #4A5162;  /* faint                                                */
+
+  --glass-bg: rgba(20, 24, 32, 0.55);
+  --glass-brd: rgba(255, 255, 255, 0.10);
+  --glass-hi: rgba(255, 255, 255, 0.16);
+
+  --shadow-sm: 0 2px 10px rgba(0,0,0,0.35);
+  --shadow-md: 0 12px 34px rgba(0,0,0,0.45);
+  --shadow-lg: 0 28px 70px rgba(0,0,0,0.55);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.06);
+
+  --scrim: rgba(4,5,8,0.72);
+}
+
+/* ============================== DAYLIGHT (light) ========================== */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg-0: #D9DCE6;
+  --bg-1: #EEF0F6;
+  --bg-2: #FFFFFF;
+  --surface: rgba(20, 24, 40, 0.028);
+  --surface-2: rgba(20, 24, 40, 0.05);
+  --surface-strong: rgba(255, 255, 255, 0.80);
+  --hairline: rgba(18, 22, 40, 0.09);
+  --hairline-strong: rgba(18, 22, 40, 0.16);
+
+  --ink-1: #0C0F17;
+  --ink-2: #444B5C;
+  --ink-3: #6B7284;
+  --ink-4: #9AA1B2;
+
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-brd: rgba(255, 255, 255, 0.9);
+  --glass-hi: rgba(255, 255, 255, 1);
+
+  --shadow-sm: 0 2px 10px rgba(30,40,80,0.08);
+  --shadow-md: 0 14px 34px rgba(30,40,80,0.12);
+  --shadow-lg: 0 30px 70px rgba(30,40,80,0.18);
+  --shadow-inset: inset 0 1px 0 rgba(255,255,255,0.7);
+
+  --scrim: rgba(20,24,40,0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+}

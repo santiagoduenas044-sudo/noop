@@ -2073,7 +2073,13 @@ private fun NightNavHeader(
     // Manual nap (#508) step 1: pick the nap's START time, anchored to the night's wake DAY (a natural
     // place to look for a missed daytime nap). Defaults to ~1h after the night's wake.
     if (addingNapStart && session != null) {
-        val anchorTs = session.endTs + 3_600L
+        // Shared seed rule (twin of the Swift `SleepEditGuard.napSeedWindow`): wake+1h ONLY once that
+        // window has actually elapsed, else the half-hour that just ended — a seed ahead of the clock
+        // opens a picker whose save `clampedEditWindow` then refuses outright.
+        val anchorTs = SleepEditGuard.napSeedWindow(
+            lastWakeTs = session.endTs,
+            nowTs = System.currentTimeMillis() / 1000L,
+        ).first
         val startCal = Calendar.getInstance().apply { timeInMillis = anchorTs * 1000L }
         DisposableEffect(Unit) {
             val dialog = TimePickerDialog(

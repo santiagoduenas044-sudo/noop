@@ -168088,6 +168088,2932 @@
           }
         }
       }
+    },
+    "System Default": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Systemstandard"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Predeterminado del sistema"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par défaut du système"
+          }
+        }
+      }
+    },
+    "Language": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sprache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue"
+          }
+        }
+      }
+    },
+    "App language": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App-Sprache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Idioma de la app"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Langue de l’app"
+          }
+        }
+      }
+    },
+    "Overriding your device language": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überschreibt die Gerätesprache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anula el idioma de tu dispositivo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remplace la langue de votre appareil"
+          }
+        }
+      }
+    },
+    "Relaunch NOOP to finish switching language.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Starte NOOP neu, um die Sprachumstellung abzuschließen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reinicia NOOP para completar el cambio de idioma."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relancez NOOP pour terminer le changement de langue."
+          }
+        }
+      }
+    },
+    "Following your device — %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folgt deinem Gerät — %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sigue tu dispositivo: %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suit votre appareil — %@"
+          }
+        }
+      }
+    },
+    "Measured": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gemessen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medido"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mesuré"
+          }
+        }
+      }
+    },
+    "Estimated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geschätzt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estimé"
+          }
+        }
+      }
+    },
+    "Calculated": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Berechnet"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculado"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculé"
+          }
+        }
+      }
+    },
+    "A direct sensor reading from your strap.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein direkter Sensorwert deines Straps."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una lectura directa del sensor de tu banda."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une lecture directe du capteur de votre bracelet."
+          }
+        }
+      }
+    },
+    "Computed on-device from sensor patterns. Not a clinical measurement.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf dem Gerät aus Sensormustern berechnet. Keine klinische Messung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculado en el dispositivo a partir de patrones del sensor. No es una medición clínica."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculé sur l’appareil à partir des signaux du capteur. Ce n’est pas une mesure clinique."
+          }
+        }
+      }
+    },
+    "Derived arithmetically from other values NOOP already stores.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rechnerisch aus anderen Werten abgeleitet, die NOOP bereits speichert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Derivado aritméticamente de otros valores que NOOP ya almacena."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dérivé arithmétiquement d’autres valeurs déjà stockées par NOOP."
+          }
+        }
+      }
+    },
+    "Early signal": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frühes Signal"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Señal temprana"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Signal précoce"
+          }
+        }
+      }
+    },
+    "Emerging pattern": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufkommendes Muster"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patrón emergente"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tendance émergente"
+          }
+        }
+      }
+    },
+    "Consistent pattern": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konsistentes Muster"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Patrón constante"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tendance constante"
+          }
+        }
+      }
+    },
+    "rising": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "steigend"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en aumento"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en hausse"
+          }
+        }
+      }
+    },
+    "falling": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "fallend"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en descenso"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en baisse"
+          }
+        }
+      }
+    },
+    "Your %1$@ has been %2$@%% below your %3$d-day baseline for %4$d days.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Wert %1$@ liegt seit %4$d Tagen %2$@ %% unter deinem %3$d-Tage-Basiswert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ lleva %4$d días un %2$@ %% por debajo de tu línea base de %3$d días."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ est %2$@ %% en dessous de votre référence sur %3$d jours depuis %4$d jours."
+          }
+        }
+      }
+    },
+    "Your %1$@ has been %2$@%% above your %3$d-day baseline for %4$d days.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Wert %1$@ liegt seit %4$d Tagen %2$@ %% über deinem %3$d-Tage-Basiswert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ lleva %4$d días un %2$@ %% por encima de tu línea base de %3$d días."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ est %2$@ %% au-dessus de votre référence sur %3$d jours depuis %4$d jours."
+          }
+        }
+      }
+    },
+    "Baseline %1$@ · %2$d days": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basiswert %1$@ · %2$d Tage"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Línea base %1$@ · %2$d días"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Référence %1$@ · %2$d jours"
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving together across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich in deiner jüngeren Historie gemeinsam."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido juntos en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent ensemble dans votre historique récent."
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving together the following day, across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich am Folgetag gemeinsam, über deine jüngere Historie hinweg."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido juntos al día siguiente, en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent ensemble le lendemain, dans votre historique récent."
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving in opposite directions across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich in deiner jüngeren Historie gegenläufig."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido en direcciones opuestas en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent en sens inverse dans votre historique récent."
+          }
+        }
+      }
+    },
+    "%1$@ and %2$@ have been moving in opposite directions the following day, across your recent history.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ und %2$@ bewegen sich am Folgetag gegenläufig, über deine jüngere Historie hinweg."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ y %2$@ se han movido en direcciones opuestas al día siguiente, en tu historial reciente."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ et %2$@ évoluent en sens inverse le lendemain, dans votre historique récent."
+          }
+        }
+      }
+    },
+    "r = %1$@ · %2$d matched days · association, not cause": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d übereinstimmende Tage · Zusammenhang, keine Ursache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d días coincidentes · asociación, no causa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d jours appariés · association, pas une cause"
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% lower %3$@ the same day, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am selben Tag mit %2$d %% niedrigerem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% menos de %3$@ el mismo día, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ inférieur de %2$d %% le jour même, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% lower %3$@ the following morning, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am Morgen danach mit %2$d %% niedrigerem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% menos de %3$@ a la mañana siguiente, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ inférieur de %2$d %% le lendemain matin, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% higher %3$@ the same day, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am selben Tag mit %2$d %% höherem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% más de %3$@ el mismo día, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ supérieur de %2$d %% le jour même, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$@ has coincided with %2$d%% higher %3$@ the following morning, across %4$d logged occasions.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ging am Morgen danach mit %2$d %% höherem %3$@ einher – bei %4$d erfassten Gelegenheiten."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ ha coincidido con un %2$d %% más de %3$@ a la mañana siguiente, en %4$d ocasiones registradas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ a coïncidé avec %3$@ supérieur de %2$d %% le lendemain matin, sur %4$d occurrences enregistrées."
+          }
+        }
+      }
+    },
+    "%1$d days with · %2$d without · association, not cause": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d Tage mit · %2$d ohne · Zusammenhang, keine Ursache"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d días con · %2$d sin · asociación, no causa"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d jours avec · %2$d sans · association, pas une cause"
+          }
+        }
+      }
+    },
+    "Your %1$@ shifted %2$@ later this week.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine %1$@ hat sich diese Woche um %2$@ nach hinten verschoben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ se ha desplazado %2$@ más tarde esta semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ s’est décalé de %2$@ plus tard cette semaine."
+          }
+        }
+      }
+    },
+    "Your %1$@ shifted %2$@ earlier this week.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine %1$@ hat sich diese Woche um %2$@ nach vorn verschoben."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu %1$@ se ha desplazado %2$@ más temprano esta semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre %1$@ s’est décalé de %2$@ plus tôt cette semaine."
+          }
+        }
+      }
+    },
+    "%1$d recent nights vs %2$d before": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d aktuelle Nächte vs. %2$d davor"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d noches recientes frente a %2$d anteriores"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d nuits récentes contre %2$d avant"
+          }
+        }
+      }
+    },
+    "No history recorded yet.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Noch keine Historie erfasst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no hay historial registrado."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aucun historique enregistré pour le moment."
+          }
+        }
+      }
+    },
+    "%1$d days recorded — baselines need at least %2$d.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d Tage erfasst – Basiswerte brauchen mindestens %2$d."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d días registrados: las líneas base necesitan al menos %2$d."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d jours enregistrés — les références nécessitent au moins %2$d."
+          }
+        }
+      }
+    },
+    "%1$d days recorded — enough for baselines; relationships need about %2$d.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d Tage erfasst – genug für Basiswerte; Zusammenhänge brauchen etwa %2$d."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d días registrados: suficiente para líneas base; las relaciones necesitan unos %2$d."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$d jours enregistrés — suffisant pour les références ; les relations en nécessitent environ %2$d."
+          }
+        }
+      }
+    },
+    "%d days recorded.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d Tage erfasst."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d días registrados."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%d jours enregistrés."
+          }
+        }
+      }
+    },
+    "Heart": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Herz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Corazón"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cœur"
+          }
+        }
+      }
+    },
+    "Recovery & load": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Erholung & Belastung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recuperación y carga"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Récupération et charge"
+          }
+        }
+      }
+    },
+    "Physiological Load": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Physiologische Last"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carga fisiológica"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge physiologique"
+          }
+        }
+      }
+    },
+    "Load": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Last"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carga"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge"
+          }
+        }
+      }
+    },
+    "Sleep Duration": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlafdauer"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duración del sueño"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durée de sommeil"
+          }
+        }
+      }
+    },
+    "Sleep Regularity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlafregelmäßigkeit"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regularidad del sueño"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Régularité du sommeil"
+          }
+        }
+      }
+    },
+    "Regularity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regelmäßigkeit"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regularidad"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Régularité"
+          }
+        }
+      }
+    },
+    "Sleep Balance": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schlafbilanz"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balance de sueño"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bilan de sommeil"
+          }
+        }
+      }
+    },
+    "Wake Time": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aufwachzeit"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hora de despertar"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heure de réveil"
+          }
+        }
+      }
+    },
+    "Resting Energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruheenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía en reposo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie au repos"
+          }
+        }
+      }
+    },
+    "Resting energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruheenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía en reposo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie au repos"
+          }
+        }
+      }
+    },
+    "Total Energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesamtenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía total"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie totale"
+          }
+        }
+      }
+    },
+    "Total energy": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesamtenergie"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía total"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie totale"
+          }
+        }
+      }
+    },
+    "Your heart rate right now, straight from the strap's optical sensor.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine Herzfrequenz genau jetzt, direkt vom optischen Sensor des Straps."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu frecuencia cardíaca en este momento, directamente del sensor óptico de la banda."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre fréquence cardiaque en ce moment, directement issue du capteur optique du bracelet."
+          }
+        }
+      }
+    },
+    "Your lowest heart rate during sleep. Lower usually reflects good cardiovascular fitness and recovery; a rise above your baseline often accompanies stress, dehydration or the onset of illness.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine niedrigste Herzfrequenz im Schlaf. Niedriger steht meist für gute Ausdauerfitness und Erholung; ein Anstieg über deinen Basiswert begleitet oft Stress, Dehydrierung oder einen beginnenden Infekt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu frecuencia cardíaca más baja durante el sueño. Una cifra más baja suele reflejar buena forma cardiovascular y recuperación; una subida por encima de tu línea base suele acompañar al estrés, la deshidratación o el inicio de una enfermedad."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre fréquence cardiaque la plus basse pendant le sommeil. Plus basse, elle traduit généralement une bonne condition cardiovasculaire et une bonne récupération ; une hausse au-dessus de votre référence accompagne souvent le stress, la déshydratation ou le début d’une maladie."
+          }
+        }
+      }
+    },
+    "The beat-to-beat variation in your heart rhythm, measured overnight. Higher HRV generally reflects a well-recovered, adaptable nervous system.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Schlag-zu-Schlag-Schwankung deines Herzrhythmus, über Nacht gemessen. Eine höhere HRV steht meist für ein gut erholtes, anpassungsfähiges Nervensystem."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La variación latido a latido de tu ritmo cardíaco, medida durante la noche. Una VFC más alta suele reflejar un sistema nervioso bien recuperado y adaptable."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La variation d’un battement à l’autre de votre rythme cardiaque, mesurée la nuit. Une VFC plus élevée traduit généralement un système nerveux bien récupéré et adaptable."
+          }
+        }
+      }
+    },
+    "Breaths per minute while you sleep. Remarkably stable night to night, so a sustained shift from your own baseline matters more than any single ideal number.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Atemzüge pro Minute im Schlaf. Sie ist von Nacht zu Nacht bemerkenswert stabil, daher zählt eine anhaltende Abweichung von deinem eigenen Basiswert mehr als ein Idealwert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respiraciones por minuto mientras duermes. Es notablemente estable de una noche a otra, así que un cambio sostenido respecto a tu propia línea base importa más que cualquier cifra ideal."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respirations par minute pendant votre sommeil. Remarquablement stable d’une nuit à l’autre : un écart durable par rapport à votre propre référence compte donc plus qu’une valeur idéale."
+          }
+        }
+      }
+    },
+    "The share of oxygen carried in your blood, sampled overnight. Healthy readings typically sit between 95 and 100%.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Sauerstoffanteil in deinem Blut, über Nacht gemessen. Gesunde Werte liegen typischerweise zwischen 95 und 100 %."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La proporción de oxígeno que transporta tu sangre, medida durante la noche. Los valores saludables suelen situarse entre el 95 y el 100 %."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La part d’oxygène transportée par votre sang, mesurée la nuit. Les valeurs saines se situent généralement entre 95 et 100 %."
+          }
+        }
+      }
+    },
+    "How far your overnight skin temperature sat from your own baseline. Shown as a deviation, not an absolute body temperature.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie weit deine nächtliche Hauttemperatur von deinem eigenen Basiswert abwich. Als Abweichung dargestellt, nicht als absolute Körpertemperatur."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuánto se alejó tu temperatura cutánea nocturna de tu propia línea base. Se muestra como desviación, no como temperatura corporal absoluta."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’écart entre votre température cutanée nocturne et votre propre référence. Affiché comme un écart, pas comme une température corporelle absolue."
+          }
+        }
+      }
+    },
+    "A daily readiness score blended from your overnight HRV, resting heart rate, sleep and respiratory rate.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ein täglicher Bereitschafts-Score aus deiner nächtlichen HRV, Ruheherzfrequenz, dem Schlaf und der Atemfrequenz."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una puntuación diaria de preparación que combina tu VFC nocturna, la frecuencia cardíaca en reposo, el sueño y la frecuencia respiratoria."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un score de disponibilité quotidien combinant votre VFC nocturne, votre fréquence cardiaque au repos, votre sommeil et votre fréquence respiratoire."
+          }
+        }
+      }
+    },
+    "Cardiovascular load accumulated across the day on a 0–21 scale, weighted by time spent in each heart-rate zone.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Über den Tag angesammelte kardiovaskuläre Belastung auf einer Skala von 0 bis 21, gewichtet nach der Zeit in jeder Herzfrequenzzone."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carga cardiovascular acumulada a lo largo del día en una escala de 0 a 21, ponderada por el tiempo en cada zona de frecuencia cardíaca."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Charge cardiovasculaire accumulée sur la journée, sur une échelle de 0 à 21, pondérée par le temps passé dans chaque zone de fréquence cardiaque."
+          }
+        }
+      }
+    },
+    "An estimate of daytime physiological load from your heart-rate pattern relative to your resting baseline. An estimated signal, not a medical stress measurement.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eine Schätzung der Tagesbelastung anhand deines Herzfrequenzmusters im Verhältnis zu deinem Ruhe-Basiswert. Ein geschätztes Signal, keine medizinische Stressmessung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una estimación de la carga fisiológica diurna a partir de tu patrón de frecuencia cardíaca respecto a tu línea base en reposo. Es una señal estimada, no una medición médica del estrés."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Une estimation de la charge physiologique diurne d’après votre profil de fréquence cardiaque par rapport à votre référence au repos. Un signal estimé, pas une mesure médicale du stress."
+          }
+        }
+      }
+    },
+    "How much of your time in bed was actually spent asleep.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie viel deiner Zeit im Bett du tatsächlich geschlafen hast."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué parte de tu tiempo en la cama pasaste realmente dormido."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La part de votre temps au lit réellement passée à dormir."
+          }
+        }
+      }
+    },
+    "Total time asleep last night, excluding time awake in bed.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gesamte Schlafzeit letzte Nacht, ohne wache Zeit im Bett."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiempo total dormido anoche, excluyendo el tiempo despierto en la cama."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temps total de sommeil la nuit dernière, hors temps éveillé au lit."
+          }
+        }
+      }
+    },
+    "The share of your time in bed spent asleep. Above 85% is generally considered strong.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Anteil deiner Zeit im Bett, den du schläfst. Über 85 % gilt allgemein als gut."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La proporción de tu tiempo en la cama que pasas dormido. Por encima del 85 % se considera bueno."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La part de votre temps au lit passée à dormir. Au-dessus de 85 %, c’est généralement considéré comme bon."
+          }
+        }
+      }
+    },
+    "Deep and REM sleep combined — the stages most associated with physical repair and memory consolidation.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tief- und REM-Schlaf zusammen – die Phasen, die am stärksten mit körperlicher Regeneration und Gedächtnisbildung verbunden sind."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sueño profundo y REM combinados: las fases más asociadas con la reparación física y la consolidación de la memoria."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sommeil profond et paradoxal réunis — les phases les plus associées à la réparation physique et à la consolidation de la mémoire."
+          }
+        }
+      }
+    },
+    "How consistent your bed and wake times have been. Computed from your real per-night sleep windows.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie gleichmäßig deine Zubettgeh- und Aufwachzeiten waren. Aus deinen echten Schlaffenstern berechnet."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué tan constantes han sido tus horas de acostarte y despertar. Se calcula a partir de tus ventanas de sueño reales."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La régularité de vos heures de coucher et de lever. Calculée à partir de vos fenêtres de sommeil réelles."
+          }
+        }
+      }
+    },
+    "Your running sleep surplus or deficit against your personal sleep need.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein laufender Schlafüberschuss oder ‑defizit gegenüber deinem persönlichen Schlafbedarf."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu superávit o déficit de sueño acumulado frente a tu necesidad personal de sueño."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre excédent ou déficit de sommeil cumulé par rapport à votre besoin personnel."
+          }
+        }
+      }
+    },
+    "When you fell asleep, from your real recorded sleep window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wann du eingeschlafen bist, laut deinem aufgezeichneten Schlaffenster."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo te dormiste, según tu ventana de sueño registrada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’heure à laquelle vous vous êtes endormi, d’après votre fenêtre de sommeil enregistrée."
+          }
+        }
+      }
+    },
+    "When you woke, from your real recorded sleep window.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wann du aufgewacht bist, laut deinem aufgezeichneten Schlaffenster."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuándo te despertaste, según tu ventana de sueño registrada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’heure à laquelle vous vous êtes réveillé, d’après votre fenêtre de sommeil enregistrée."
+          }
+        }
+      }
+    },
+    "Your daily step count, estimated on-device from the strap's motion counter. A trend gauge rather than a precise pedometer.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine täglichen Schritte, auf dem Gerät aus dem Bewegungszähler des Straps geschätzt. Eher ein Trendmaß als ein präziser Schrittzähler."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu recuento diario de pasos, estimado en el dispositivo a partir del contador de movimiento de la banda. Es un indicador de tendencia más que un podómetro preciso."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre nombre de pas quotidien, estimé sur l’appareil à partir du compteur de mouvement du bracelet. Un indicateur de tendance plutôt qu’un podomètre précis."
+          }
+        }
+      }
+    },
+    "How many workouts were recorded or detected today.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wie viele Workouts heute erfasst oder erkannt wurden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuántos entrenamientos se registraron o detectaron hoy."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le nombre de séances enregistrées ou détectées aujourd’hui."
+          }
+        }
+      }
+    },
+    "Calories burned through movement, estimated on-device from your heart rate.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durch Bewegung verbrannte Kalorien, auf dem Gerät aus deiner Herzfrequenz geschätzt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calorías quemadas con el movimiento, estimadas en el dispositivo a partir de tu frecuencia cardíaca."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calories brûlées par le mouvement, estimées sur l’appareil d’après votre fréquence cardiaque."
+          }
+        }
+      }
+    },
+    "The energy your body uses at rest, estimated from your profile.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Energie, die dein Körper in Ruhe verbraucht, aus deinem Profil geschätzt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La energía que tu cuerpo usa en reposo, estimada a partir de tu perfil."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’énergie que votre corps consomme au repos, estimée d’après votre profil."
+          }
+        }
+      }
+    },
+    "Active plus resting energy for the day.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktive plus Ruheenergie für den Tag."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Energía activa más energía en reposo del día."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Énergie active plus énergie au repos pour la journée."
+          }
+        }
+      }
+    },
+    "Whether you've logged today, and your current logging streak.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ob du heute etwas erfasst hast und deine aktuelle Erfassungsserie."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si has registrado hoy y tu racha actual de registros."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Si vous avez fait votre suivi aujourd’hui, et votre série en cours."
+          }
+        }
+      }
+    },
+    "LIVE": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LIVE"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EN VIVO"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EN DIRECT"
+          }
+        }
+      }
+    },
+    "LIVE · RESTING %d BPM": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LIVE · RUHE %d BPM"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EN VIVO · REPOSO %d LPM"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EN DIRECT · REPOS %d BPM"
+          }
+        }
+      }
+    },
+    "Today's range": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heutige Spanne"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rango de hoy"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Amplitude du jour"
+          }
+        }
+      }
+    },
+    "Shaded by your real zones · Tanaka max-HR, age %d": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach deinen echten Zonen eingefärbt · Tanaka-Maximalpuls, Alter %d"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sombreado según tus zonas reales · FC máx. de Tanaka, edad %d"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ombré selon vos zones réelles · FC max de Tanaka, âge %d"
+          }
+        }
+      }
+    },
+    "Zones from your Tanaka max-HR (208 − 0.7 × age, age %d) — personal, not generic thresholds.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zonen aus deinem Tanaka-Maximalpuls (208 − 0,7 × Alter, Alter %d) – persönlich, keine generischen Schwellen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zonas a partir de tu FC máx. de Tanaka (208 − 0,7 × edad, edad %d): personales, no umbrales genéricos."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zones issues de votre FC max de Tanaka (208 − 0,7 × âge, âge %d) — personnelles, pas des seuils génériques."
+          }
+        }
+      }
+    },
+    "The share of today's recorded readings sitting more than 15%% above your %d bpm resting baseline. An estimate of cardiovascular load from real samples — not a stress score or a medical assessment.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Der Anteil der heutigen Messwerte, die mehr als 15 %% über deinem Ruhe-Basiswert von %d bpm liegen. Eine Schätzung der Herz-Kreislauf-Belastung aus echten Messwerten – kein Stress-Score und keine medizinische Bewertung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La proporción de las lecturas registradas hoy que superan en más de un 15 %% tu línea base en reposo de %d lpm. Una estimación de la carga cardiovascular a partir de muestras reales: no es una puntuación de estrés ni una evaluación médica."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La part des mesures enregistrées aujourd’hui dépassant de plus de 15 %% votre référence au repos de %d bpm. Une estimation de la charge cardiovasculaire à partir de mesures réelles — ni score de stress ni évaluation médicale."
+          }
+        }
+      }
+    },
+    "Dipped to %1$d bpm, averaging %2$d bpm. The dashed line is your resting heart rate.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiefstwert %1$d bpm, im Mittel %2$d bpm. Die gestrichelte Linie ist deine Ruheherzfrequenz."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bajó a %1$d lpm, con una media de %2$d lpm. La línea discontinua es tu frecuencia cardíaca en reposo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descendue à %1$d bpm, moyenne %2$d bpm. La ligne pointillée est votre fréquence cardiaque au repos."
+          }
+        }
+      }
+    },
+    "Each column spans that day's lowest to highest recorded heart rate; the dot marks the day's average.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jede Säule reicht vom niedrigsten bis zum höchsten gemessenen Puls des Tages; der Punkt markiert den Tagesmittelwert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada columna abarca de la frecuencia cardíaca más baja a la más alta registrada ese día; el punto marca la media del día."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque colonne va de la fréquence cardiaque la plus basse à la plus haute du jour ; le point marque la moyenne."
+          }
+        }
+      }
+    },
+    "BY DAY OF WEEK": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NACH WOCHENTAG"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "POR DÍA DE LA SEMANA"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PAR JOUR DE LA SEMAINE"
+          }
+        }
+      }
+    },
+    "HRV →": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HRV →"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VFC →"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VFC →"
+          }
+        }
+      }
+    },
+    "r = %1$@ · %2$d days": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d Tage"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d días"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "r = %1$@ · %2$d jours"
+          }
+        }
+      }
+    },
+    "Each dot is one day: your HRV against that day's recovery. This is an association measured in your own data, not a cause.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeder Punkt ist ein Tag: deine HRV gegenüber der Erholung dieses Tages. Das ist ein in deinen eigenen Daten gemessener Zusammenhang, keine Ursache."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada punto es un día: tu VFC frente a la recuperación de ese día. Es una asociación medida en tus propios datos, no una causa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque point est un jour : votre VFC face à la récupération de ce jour. C’est une association mesurée dans vos propres données, pas une cause."
+          }
+        }
+      }
+    },
+    "EFFICIENCY": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EFFIZIENZ"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EFICIENCIA"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "EFFICACITÉ"
+          }
+        }
+      }
+    },
+    "Time awake after first falling asleep, from your real decoded stage timeline. Sleep-onset latency is excluded — it isn't an awakening.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wachzeit nach dem ersten Einschlafen, aus deiner echten dekodierten Phasen-Zeitleiste. Die Einschlaflatenz ist ausgenommen – sie ist kein Aufwachen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tiempo despierto tras dormirte por primera vez, según tu línea temporal de fases real. La latencia de inicio del sueño se excluye: no es un despertar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Temps éveillé après l’endormissement initial, d’après votre chronologie de phases réelle. La latence d’endormissement est exclue — ce n’est pas un réveil."
+          }
+        }
+      }
+    },
+    "typ %d%%": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "typ. %d %%"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "típ. %d %%"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "typ. %d %%"
+          }
+        }
+      }
+    },
+    "typ %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "typ. %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "típ. %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "typ. %@"
+          }
+        }
+      }
+    },
+    "baseline %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Basiswert %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "línea base %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "référence %@"
+          }
+        }
+      }
+    },
+    "no baseline yet": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "noch kein Basiswert"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "aún sin línea base"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pas encore de référence"
+          }
+        }
+      }
+    },
+    "Each bar is one night, positioned by clock time. The tighter they line up, the steadier your body clock.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jeder Balken ist eine Nacht, nach Uhrzeit positioniert. Je enger sie zusammenliegen, desto stabiler deine innere Uhr."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada barra es una noche, situada según la hora del reloj. Cuanto más se alineen, más estable es tu reloj biológico."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chaque barre est une nuit, positionnée selon l’heure. Plus elles s’alignent, plus votre horloge biologique est stable."
+          }
+        }
+      }
+    },
+    "Weekend bedtime runs %@ later than your weekdays.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Am Wochenende gehst du %@ später ins Bett als unter der Woche."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El fin de semana te acuestas %@ más tarde que entre semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le week-end, vous vous couchez %@ plus tard qu’en semaine."
+          }
+        }
+      }
+    },
+    "Weekend bedtime runs %@ earlier than your weekdays.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Am Wochenende gehst du %@ früher ins Bett als unter der Woche."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El fin de semana te acuestas %@ más temprano que entre semana."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le week-end, vous vous couchez %@ plus tôt qu’en semaine."
+          }
+        }
+      }
+    },
+    "Your sleep need is the greater of 7h 30m and your own 30-day average — the same rule the rest of NOOP uses.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Schlafbedarf ist der größere Wert aus 7 Std. 30 Min. und deinem eigenen 30-Tage-Mittel – dieselbe Regel wie im restlichen NOOP."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu necesidad de sueño es el mayor valor entre 7 h 30 min y tu propia media de 30 días: la misma regla que usa el resto de NOOP."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre besoin de sommeil est la plus grande valeur entre 7 h 30 et votre propre moyenne sur 30 jours — la règle utilisée partout dans NOOP."
+          }
+        }
+      }
+    },
+    "Heart rate is measured continuously overnight — see the chart above. These are stored as one value per night, so they're shown as nightly figures rather than invented minute-by-minute curves.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Herzfrequenz wird nachts durchgehend gemessen – siehe Diagramm oben. Diese Werte werden als ein Wert pro Nacht gespeichert und daher als Nachtwerte gezeigt statt als erfundene Minutenkurven."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La frecuencia cardíaca se mide de forma continua durante la noche (ver el gráfico de arriba). Estos valores se guardan como un dato por noche, así que se muestran como cifras nocturnas en lugar de curvas minuto a minuto inventadas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La fréquence cardiaque est mesurée en continu la nuit — voir le graphique ci-dessus. Ces valeurs sont stockées à raison d’une par nuit et affichées comme telles, plutôt qu’en courbes minute par minute inventées."
+          }
+        }
+      }
+    },
+    "OVERNIGHT AVERAGE": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NÄCHTLICHER DURCHSCHNITT"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MEDIA NOCTURNA"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MOYENNE NOCTURNE"
+          }
+        }
+      }
+    },
+    "AT %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "UM %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A LAS %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "À %@"
+          }
+        }
+      }
+    },
+    "%@ stage, selected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phase %@, ausgewählt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fase %@, seleccionada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phase %@, sélectionnée"
+          }
+        }
+      }
+    },
+    "%@ stage, not selected": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phase %@, nicht ausgewählt"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fase %@, no seleccionada"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phase %@, non sélectionnée"
+          }
+        }
+      }
+    },
+    "Tap a stage to highlight exactly when it happened overnight. Drag the chart to read any moment. Sleep stages are estimated on-device from motion and heart rate — not a clinical measurement.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tippe auf eine Phase, um zu sehen, wann genau sie nachts auftrat. Ziehe im Diagramm, um jeden Moment abzulesen. Schlafphasen werden auf dem Gerät aus Bewegung und Herzfrequenz geschätzt – keine klinische Messung."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca una fase para resaltar exactamente cuándo ocurrió durante la noche. Arrastra el gráfico para leer cualquier momento. Las fases del sueño se estiman en el dispositivo a partir del movimiento y la frecuencia cardíaca: no es una medición clínica."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touchez une phase pour voir exactement quand elle s’est produite la nuit. Faites glisser le graphique pour lire n’importe quel instant. Les phases de sommeil sont estimées sur l’appareil à partir du mouvement et de la fréquence cardiaque — ce n’est pas une mesure clinique."
+          }
+        }
+      }
+    },
+    "Edit Home": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start bearbeiten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar inicio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifier l’accueil"
+          }
+        }
+      }
+    },
+    "Edit Home metrics": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start-Metriken bearbeiten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar métricas de inicio"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifier les mesures de l’accueil"
+          }
+        }
+      }
+    },
+    "TODAY'S STORY": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DIE GESCHICHTE DES TAGES"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LA HISTORIA DE HOY"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’HISTOIRE DU JOUR"
+          }
+        }
+      }
+    },
+    "Log today's check-in": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heutigen Check-in erfassen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registrar el control de hoy"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faire le suivi du jour"
+          }
+        }
+      }
+    },
+    "Journal, logged today": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tagebuch, heute erfasst"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diario, registrado hoy"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Journal, enregistré aujourd’hui"
+          }
+        }
+      }
+    },
+    "Log today's journal check-in": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heutigen Tagebuch-Check-in erfassen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registrar el control del diario de hoy"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Faire le suivi du journal aujourd’hui"
+          }
+        }
+      }
+    },
+    "Computed on-device from your own history. Associations, not causes.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf dem Gerät aus deiner eigenen Historie berechnet. Zusammenhänge, keine Ursachen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculado en el dispositivo a partir de tu propio historial. Asociaciones, no causas."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calculé sur l’appareil à partir de votre propre historique. Des associations, pas des causes."
+          }
+        }
+      }
+    },
+    "SCORE": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SCORE"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PUNTUACIÓN"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SCORE"
+          }
+        }
+      }
+    },
+    "Start activity": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aktivität starten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciar actividad"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Démarrer une activité"
+          }
+        }
+      }
+    },
+    "YOUR LONG GAME": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "DEIN LANGFRISTIGES SPIEL"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "TU JUEGO A LARGO PLAZO"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "VOTRE JEU SUR LA DURÉE"
+          }
+        }
+      }
+    },
+    "Week": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Woche"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Semana"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Semaine"
+          }
+        }
+      }
+    },
+    "Month": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Monat"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mes"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mois"
+          }
+        }
+      }
+    },
+    "Quarter": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quartal"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trimestre"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trimestre"
+          }
+        }
+      }
+    },
+    "%@ average": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durchschnitt %@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Media de %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Moyenne %@"
+          }
+        }
+      }
+    },
+    "%1$@ · %2$d days": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$d Tage"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$d días"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ · %2$d jours"
+          }
+        }
+      }
+    },
+    "Shaded band = your typical range for this period": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schattiertes Band = dein typischer Bereich für diesen Zeitraum"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Banda sombreada = tu rango típico en este período"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bande ombrée = votre plage habituelle sur cette période"
+          }
+        }
+      }
+    },
+    "Tap any day for its full context.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tippe auf einen Tag für den vollen Kontext."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toca cualquier día para ver su contexto completo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Touchez un jour pour voir tout son contexte."
+          }
+        }
+      }
+    },
+    "Only signals actually recorded that day are shown.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es werden nur Signale gezeigt, die an diesem Tag tatsächlich erfasst wurden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se muestran las señales realmente registradas ese día."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seuls les signaux réellement enregistrés ce jour-là sont affichés."
+          }
+        }
+      }
+    },
+    "Rising": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Steigend"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subiendo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En hausse"
+          }
+        }
+      }
+    },
+    "Easing": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nachlassend"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bajando"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En baisse"
+          }
+        }
+      }
+    },
+    "This %@ vs last": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diese(r) %@ vs. letzte(r)"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este %@ frente al anterior"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce %@ vs le précédent"
+          }
+        }
+      }
+    },
+    "Digest": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Überblick"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resumen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Synthèse"
+          }
+        }
+      }
+    },
+    "Consistency is the standard deviation across the period — lower means steadier day to day.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konstanz ist die Standardabweichung über den Zeitraum – niedriger heißt gleichmäßiger von Tag zu Tag."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La constancia es la desviación estándar del período: cuanto menor, más estable día a día."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La régularité est l’écart type sur la période — plus il est bas, plus les jours se ressemblent."
+          }
+        }
+      }
+    },
+    "Distribution": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verteilung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribución"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribution"
+          }
+        }
+      }
+    },
+    "By day of week": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nach Wochentag"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por día de la semana"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Par jour de la semaine"
+          }
+        }
+      }
+    },
+    "%1$@ vs %2$@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ vs. %2$@"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ frente a %2$@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$@ vs %2$@"
+          }
+        }
+      }
+    },
+    "LOG": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ERFASSEN"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "REGISTRO"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SUIVI"
+          }
+        }
+      }
+    },
+    "MOOD · LAST %d DAYS": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "STIMMUNG · LETZTE %d TAGE"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ÁNIMO · ÚLTIMOS %d DÍAS"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HUMEUR · %d DERNIERS JOURS"
+          }
+        }
+      }
+    },
+    "Your most-logged behaviours. Tap to log, tap again to clear.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deine am häufigsten erfassten Verhaltensweisen. Tippen zum Erfassen, erneut tippen zum Löschen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los comportamientos que más registras. Toca para registrar, toca otra vez para borrar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vos comportements les plus enregistrés. Touchez pour enregistrer, touchez à nouveau pour effacer."
+          }
+        }
+      }
+    },
+    "These are associations from your own logged history — not proven causes. More logging sharpens them.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das sind Zusammenhänge aus deiner eigenen erfassten Historie – keine belegten Ursachen. Mehr Einträge schärfen sie."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estas son asociaciones de tu propio historial registrado, no causas probadas. Registrar más las afina."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce sont des associations issues de votre propre historique — pas des causes démontrées. Plus vous enregistrez, plus elles s’affinent."
+          }
+        }
+      }
+    },
+    "Clear %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ löschen"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Effacer %@"
+          }
+        }
+      }
+    },
+    "Edit %@": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ bearbeiten"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar %@"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modifier %@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

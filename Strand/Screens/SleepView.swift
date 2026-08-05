@@ -2489,6 +2489,15 @@ struct SleepView: View {
             ?? 0
     }
 
+    /// The real, time-resolved stage timeline for one session's stored `stagesJSON` — the same decode
+    /// `decodedAsleepMinutes` uses, exposed for callers that need the `[SleepInterval]` itself (the
+    /// `Hypnogram`'s domain), not just a total. Nil for the imported minutes-only format (no timing) or
+    /// when there's nothing to decode. Internal (not private) so `PremiumSleepView` renders the same
+    /// on-device-computed timeline this screen does, without re-deriving the segment decode.
+    static func decodedIntervals(_ json: String?, sessionStart: Int) -> [SleepInterval]? {
+        decodeSegments(json, sessionStart: sessionStart)?.intervals
+    }
+
     /// Decode the imported stagesJSON dict of MINUTES {"light","deep","rem","awake"}.
     private static func decodeStages(_ json: String?) -> Stages? {
         guard let json, let data = json.data(using: .utf8) else { return nil }
@@ -2881,7 +2890,10 @@ private struct AddNapSeed: Identifiable {
 /// A small sheet to hand-correct a night's bed (onset) and wake (end) times. Seeds both pickers with the
 /// current values; the wake picker is bounded to after the chosen bedtime. Hands the chosen unix-second
 /// (bed, wake) back via `onSave`. Pure presentation + a single async save — persistence lives in the repo.
-private struct SleepTimeEditor: View {
+/// Internal (not `private`) so the iOS Premium Sleep tab reuses the EXACT same picker — including the
+/// #940 future-bed / disjoint-window guards and the #68 delete confirm — instead of growing a second,
+/// subtly-different sleep editor. `PremiumSleepView` presents it for both the main night and naps.
+struct SleepTimeEditor: View {
     let onSave: (Int, Int) async -> Void
     /// Optional destructive delete (#68). Non-nil for an existing main-sleep / nap edit (the editor then
     /// shows a "Delete this sleep" button gated behind a confirmation); nil for the "Add a nap" sheet,

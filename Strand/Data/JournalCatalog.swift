@@ -299,20 +299,91 @@ final class JournalCatalogStore: ObservableObject {
             items[idx].hidden = false
         }
     }
+
+    // MARK: - Factor library (search/add) and favourites
+
+    /// Add a factor from `JournalFactorLibrary` to today's catalog. Behaves exactly like
+    /// `addCustom` (a library factor is just as removable/re-addable as anything the user typed) —
+    /// there is no third "library" storage tier, only the same `items` array, so every existing
+    /// piece of merge/dedupe/persistence plumbing applies unchanged.
+    func addFromLibrary(_ factor: JournalFactorTemplate) {
+        addCustom(factor.canonical, kind: factor.kind, group: factor.group)
+    }
+
+    /// Toggle whether an item is promoted to the daily Quick Check-in row. Materialises a
+    /// starter/imported item into `items` on first use, same as `rename`/`setGroup`/`setKind`.
+    func toggleFavorite(_ canonical: String) {
+        edit(canonical) { $0.favorite.toggle() }
+    }
 }
 
-/// A journal item's type: a plain yes/no toggle, or a numeric value with an optional unit label.
+/// A journal item's response type.
+///
+/// `.bool` and `.numeric` are the original two shapes and their storage is untouched: a bool answer
+/// writes `JournalEntry.answeredYes`, a numeric answer writes `answeredYes = true` PLUS
+/// `numericValue`. Every case added below is deliberately just a different UI + validation wrapper
+/// around one of those same two storage shapes, so `BehaviorInsights`' with/without split (which
+/// only ever looks at `answeredYes` and, for numerics, `numericValue`) keeps working unchanged for
+/// every response type without any change to the analysis engine:
+///
+/// * `.scale(range:)` → numeric, integer-constrained to `range` (e.g. stress 1–5).
+/// * `.quantity(unitLabel:)` → numeric with a required unit (e.g. caffeine "mg") — distinct from
+///   plain `.numeric` only so the log UI can pick a quantity-appropriate stepper.
+/// * `.time` → numeric storing MINUTES SINCE MIDNIGHT (0..<1440), so "last caffeine 3:42 PM" is a
+///   plain comparable number, not a wall-clock string that would need timezone-aware parsing later.
+/// * `.duration(unitLabel:)` → numeric storing minutes (unit label is what's SHOWN, e.g. "min");
+///   distinct from `.quantity` so the log UI offers a duration picker instead of a numeric pad.
+/// * `.multiSelect(options:)` → NOT numeric storage. One logged row PER SELECTED OPTION, with the
+///   canonical key `"<factor> — <option>"` (see `JournalCatalogItem.multiSelectKey`), each a plain
+///   `.bool` answer. This reuses the with/without engine exactly as any other bool factor — "Alcohol
+///   — Wine" is just a behaviour like any starter question — rather than inventing new analysis
+///   machinery for one response type. `options` here is the LIBRARY's suggested set for the picker;
+///   the persisted rows are independent bool factors once logged.
 enum JournalKind: Equatable, Codable {
     case bool
     case numeric(unitLabel: String?)
+    case scale(range: ClosedRange<Int>)
+    case quantity(unitLabel: String)
+    case time
+    case duration(unitLabel: String)
+    case multiSelect(options: [String])
 
-    var isNumeric: Bool { if case .numeric = self { return true } else { return false } }
-    var unitLabel: String? { if case let .numeric(u) = self { return u } else { return nil } }
+    /// True for every response type that ultimately reads/writes `numericValue` — i.e. everything
+    /// except `.bool` and `.multiSelect`. Existing call sites that ask "is this numeric?" (the
+    /// numeric-field UI, the stepper) keep working unchanged for `.scale`/`.quantity`/`.time`/
+    /// `.duration` for free.
+    var isNumeric: Bool {
+        switch self {
+        case .bool, .multiSelect: return false
+        case .numeric, .scale, .quantity, .time, .duration: return true
+        }
+    }
+    var unitLabel: String? {
+        switch self {
+        case .numeric(let u):        return u
+        case .quantity(let u):       return u
+        case .duration(let u):       return u
+        case .bool, .scale, .time, .multiSelect: return nil
+        }
+    }
+    /// The valid integer range for a `.scale` item; `nil` for every other kind, so the log UI can
+    /// ask "is there a fixed range to clamp/render as a segmented control?" without a switch.
+    var scaleRange: ClosedRange<Int>? {
+        if case let .scale(r) = self { return r } else { return nil }
+    }
+    var multiSelectOptions: [String]? {
+        if case let .multiSelect(o) = self { return o } else { return nil }
+    }
 }
 
 /// A user-visible grouping for related journal items (display + organisation only, never a scoring
-/// change). Mirrors Android `JournalGroup` value-for-value. `rawValue` is the stable persisted key;
-/// `title` is the localised display label.
+/// change). `rawValue` is the stable persisted key — NEVER rename or remove an existing case, only
+/// add.
+///
+/// The first six cases originally mirrored Android `JournalGroup` value-for-value; the six after
+/// `.behaviour` are new (the factor-library expansion) and are NOT YET mirrored on Android — see
+/// DEVELOPMENT_HANDOFF.md. Existing items keep whatever group they were already saved under; this
+/// change relabels nothing for an existing user.
 enum JournalGroup: String, CaseIterable, Codable {
     case supplements
     case nutrition
@@ -320,9 +391,18 @@ enum JournalGroup: String, CaseIterable, Codable {
     case health
     case behaviour
     case other
+    case sleepHabits
+    case caffeine
+    case activity
+    case recovery
+    case environment
+    case subjective
 
-    /// Fixed display order (matches Android). Groups render in this order; empty ones hide outside edit.
-    static let displayOrder: [JournalGroup] = [.nutrition, .supplements, .lifestyle, .health, .behaviour, .other]
+    /// Fixed display order. Groups render in this order; empty ones hide outside edit.
+    static let displayOrder: [JournalGroup] = [
+        .sleepHabits, .nutrition, .caffeine, .supplements, .activity, .recovery,
+        .lifestyle, .environment, .subjective, .health, .behaviour, .other,
+    ]
 
     var title: String {
         switch self {
@@ -332,6 +412,12 @@ enum JournalGroup: String, CaseIterable, Codable {
         case .health:      return String(localized: "Health")
         case .behaviour:   return String(localized: "Behaviour")
         case .other:       return String(localized: "Other")
+        case .sleepHabits: return String(localized: "Sleep habits")
+        case .caffeine:    return String(localized: "Caffeine")
+        case .activity:    return String(localized: "Activity")
+        case .recovery:    return String(localized: "Recovery")
+        case .environment: return String(localized: "Environment")
+        case .subjective:  return String(localized: "How you felt")
         }
     }
 }
@@ -351,6 +437,9 @@ struct JournalCatalogItem: Equatable, Codable, Identifiable {
     var hidden: Bool
     /// True for a user-added question (deletable); false for a starter/imported one (hideable only).
     var custom: Bool
+    /// Promoted to the daily Quick Check-in row. Display + ranking only, same as `group` — never
+    /// changes what's stored or how the with/without engine reads it.
+    var favorite: Bool
 
     var id: String { canonical }
 
@@ -360,7 +449,7 @@ struct JournalCatalogItem: Equatable, Codable, Identifiable {
     }
 
     init(canonical: String, displayName: String?, kind: JournalKind, group: JournalGroup,
-         sortIndex: Int, hidden: Bool, custom: Bool) {
+         sortIndex: Int, hidden: Bool, custom: Bool, favorite: Bool = false) {
         self.canonical = canonical
         self.displayName = displayName
         self.kind = kind
@@ -368,5 +457,48 @@ struct JournalCatalogItem: Equatable, Codable, Identifiable {
         self.sortIndex = sortIndex
         self.hidden = hidden
         self.custom = custom
+        self.favorite = favorite
+    }
+
+    // MARK: - Codable
+    //
+    // Hand-written rather than synthesized: `favorite` was added after this type was already
+    // persisted (a single JSON blob under `journal.catalog.v2`), and a plain synthesized
+    // `Decodable` throws "key not found" for any field added after the fact, which would corrupt
+    // every existing user's saved journal customisation on first launch post-update. Never let
+    // Codable synthesis reclaim this type without re-adding this same allowance for the new field.
+    private enum CodingKeys: String, CodingKey {
+        case canonical, displayName, kind, group, sortIndex, hidden, custom, favorite
+    }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        canonical = try c.decode(String.self, forKey: .canonical)
+        displayName = try c.decodeIfPresent(String.self, forKey: .displayName)
+        kind = try c.decode(JournalKind.self, forKey: .kind)
+        group = try c.decode(JournalGroup.self, forKey: .group)
+        sortIndex = try c.decode(Int.self, forKey: .sortIndex)
+        hidden = try c.decode(Bool.self, forKey: .hidden)
+        custom = try c.decode(Bool.self, forKey: .custom)
+        favorite = try c.decodeIfPresent(Bool.self, forKey: .favorite) ?? false
+    }
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(canonical, forKey: .canonical)
+        try c.encodeIfPresent(displayName, forKey: .displayName)
+        try c.encode(kind, forKey: .kind)
+        try c.encode(group, forKey: .group)
+        try c.encode(sortIndex, forKey: .sortIndex)
+        try c.encode(hidden, forKey: .hidden)
+        try c.encode(custom, forKey: .custom)
+        try c.encode(favorite, forKey: .favorite)
+    }
+
+    /// The canonical key one multi-select OPTION logs under: `"<factor> — <option>"`, e.g.
+    /// `"Alcohol — Wine"`. Each option becomes its own independent `.bool` behaviour — the same
+    /// storage and analysis path as any starter question — rather than a new answer shape. Kept as
+    /// one pure function (not duplicated at call sites) so the join key can never drift between the
+    /// logging UI and whatever reads it back.
+    static func multiSelectKey(factor: String, option: String) -> String {
+        "\(factor) — \(option)"
     }
 }
