@@ -29,11 +29,66 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after the reliability/accuracy milestone; IPA build 215 cut
-**Current commit:** `3c6a1fc` — reliability fixes VERIFIED GREEN at `e5cedd6` on BOTH
-`app-build.yml` (macOS + iOS) and `swift-packages.yml` (run 31024502533 — this one matters, it runs
-`StrainSampleDurationTests` pinning the CHANGED strain formula).
-**IPA hold LIFTED** — the owner authorised the cut. Build 215.
+**Last updated:** after the strain-scale + nap-affordance fixes
+**Current commit:** `b6a4109`. Last commit VERIFIED GREEN on both workflows: `e5cedd6`.
+**IPA hold LIFTED** — the owner authorised the cut. Build 215 (predates the fixes below).
+
+### ⚠️ READ THIS BEFORE TRUSTING A GREEN CHECK
+
+`23a5772` (the strain 27/21 fix) passed `swift-packages.yml` and **did not compile**. It failed
+`app-build.yml` on BOTH legs: the iOS target on `UnitFormatter.effortScaleKey` (that member lives on
+`UnitPrefs`), and the macOS leg because `EffortScaleDisplayTests` referenced `PremiumMetricCatalog` /
+`PremiumSample` / `PremiumBounds` — every Premium type is `#if os(iOS)` and **StrandTests is a
+macOS-only bundle**, so none of them exist there. Both are fixed in `b6a4109`.
+
+Two rules follow, and they are not optional:
+- **`swift-packages.yml` proves nothing about app-target Swift.** Dispatch `app-build.yml` (it is
+  disabled by default) on any commit touching `Strand/`, `StrandiOS/`, `StrandiOSShared/`.
+- **A StrandTests test can only reference macOS-visible types.** There is no iOS unit-test target.
+  If a contract worth pinning lives behind `#if os(iOS)`, push the contract down to a shared or pure
+  layer and test it there — that is what `UnitFormatter.effortAxisMax` now exists for.
+
+### STRAIN SCALE — the impossible "27 / 21" (`23a5772`, fixed up in `b6a4109`)
+
+`DailyMetric.strain` is STORED on NOOP's native 0–100 axis (`StrainScorer.maxStrain` = 100); WHOOP's
+Day Strain axis is 0–21 and the user picks which they see. The classic UI always converted via
+`UnitFormatter.effortValue` (×21/100). **Every Premium surface read `$0.strain` raw and drew it
+against a hardcoded 21**, so a perfectly ordinary stored 27 rendered as "27 / 21".
+
+- Converted at the single read boundary: `PremiumMetricCatalog.strainDisplay` / `.strainScaleMax`.
+  Every hardcoded `/21` and `"of 21"` in the Premium screens now goes through them.
+- `UnitFormatter.effortAxisMax(scale)` DERIVES the gauge denominator from the same conversion rather
+  than restating 21, so the axis and the value can no longer be changed independently.
+- **Also a silent data-loss bug:** `PremiumBounds.ranges["strain"]` was `0...21` while being fed the
+  raw 0–100 value, so `clean` DISCARDED every day above 21 — strain history, baselines and
+  correlations only ever saw the lightest days. Widened to `0...100`.
+
+### NAPS COULD NOT BE ADDED ON iOS (`e9aec77`)
+
+The owner reported "I can't add a nap". Nothing was broken — the affordance simply had no iOS home.
+"Add nap" (#508) lives on the classic `SleepView`; `RootTabView` binds the iOS Sleep tab to
+`PremiumSleepView`, and `SleepView` is reachable on iOS **only from the DEBUG screenshot harness**.
+The same was true of correcting a night's sleep window (the pencil is on the same screen). The write
+paths (`Repository.addManualNap` / `editSleepTimes` / `deleteSleepSession`) were fine throughout.
+
+- `PremiumSleepView` gained a Naps card: the day's sleep outside the main night, each row editable
+  and deletable, plus **Add nap** and **Edit sleep times**. The card is always present — an empty
+  list is exactly when the button is needed.
+- It presents the **shared `SleepTimeEditor`** (made internal, not private) rather than a second
+  picker, so the #940 future-bed clamp, the bed-derived wake date and the #68 delete confirm all
+  apply identically. **Do not fork this editor.**
+- `PremiumSleepIntel` now carries `latestMainBlock` + `latestDayNaps`, split via the shared
+  `SleepView.mainNightGroup`, so a briefly-interrupted night's bridged fragments stay part of the
+  night and never render as phantom naps (#555).
+- Latent seed bug fixed on BOTH platforms: the picker anchored at wake+1h unconditionally, which
+  right after a morning sync is a FUTURE window — `SleepEditGuard.clampedEditWindow` refuses it
+  outright, so the user picked times, saved, and nothing was written. New
+  `SleepEditGuard.napSeedWindow` (Swift + Kotlin twins, both tested) uses the anchor only once its
+  window has elapsed and the wake is not stale, else seeds the half-hour just gone.
+
+**This class of bug is the one to hunt next:** a capability that exists and works, on a screen the
+iOS shell never presents. `Strand/Screens/*` is full of them — anything reachable only through
+`RootView` (macOS sidebar) or `TabRoute` is invisible on iPhone.
 
 ### RELIABILITY MILESTONE — what was fixed and why it mattered
 1. **Strain started the day unrealistically high** (`49d83ab`). `sampleDurationMinutes()` measured
