@@ -531,4 +531,53 @@ final class PremiumHomeLayoutStore: ObservableObject {
         UserDefaults.standard.set(hidden.map(\.rawValue).sorted(), forKey: K.hidden)
     }
 }
+
+// MARK: - Energy
+
+/// The ONE definition of NOOP's energy figures, so Home and the Energy screen can't drift.
+///
+/// Both previously carried their own private copy of the Mifflin–St Jeor formula, and both used its
+/// output — a **kcal-per-FULL-DAY** basal rate — directly as "today's resting energy", including in
+/// "total = active + resting". At 8 AM that credited the user with a whole day's resting burn
+/// (~1700 kcal for a typical adult) and inflated the day's total for every hour until midnight.
+/// The number was right as a RATE and wrong as an AS-OF-NOW total.
+enum PremiumEnergy {
+
+    /// Mifflin–St Jeor basal metabolic rate, kcal per FULL day. An estimate from the user's profile,
+    /// never a strap measurement — every surface that shows it must label it as an estimate.
+    /// `nil` when the profile lacks weight / height / age, so the UI shows "—" rather than a
+    /// fabricated figure.
+    static func basalKcalPerDay(weightKg: Double, heightCm: Double, age: Double, sex: String) -> Double? {
+        guard weightKg > 0, heightCm > 0, age > 0 else { return nil }
+        let constant: Double
+        switch sex.lowercased() {
+        case "male":   constant = 5
+        case "female": constant = -161
+        default:       constant = -78   // neutral midpoint for non-binary / unspecified
+        }
+        return 10 * weightKg + 6.25 * heightCm - 5 * age + constant
+    }
+
+    /// How much of the LOCAL day has elapsed, 0…1. Uses the local calendar's own start-of-day, so
+    /// DST transitions (a 23- or 25-hour day) stay correct rather than assuming a fixed 86 400 s.
+    static func elapsedDayFraction(now: Date = Date(), calendar: Calendar = .current) -> Double {
+        let start = calendar.startOfDay(for: now)
+        guard let next = calendar.date(byAdding: .day, value: 1, to: start) else { return 1 }
+        let span = next.timeIntervalSince(start)
+        guard span > 0 else { return 1 }
+        return min(1, max(0, now.timeIntervalSince(start) / span))
+    }
+
+    /// Resting energy burned SO FAR — the honest companion to a same-day active figure.
+    ///
+    /// For today this prorates the basal rate by the elapsed fraction of the day; for any completed
+    /// past day it is the full rate. Pass `isToday: false` when rendering history, or a past day
+    /// would be understated by whatever time it currently is.
+    static func restingKcalSoFar(weightKg: Double, heightCm: Double, age: Double, sex: String,
+                                 isToday: Bool, now: Date = Date()) -> Double? {
+        guard let perDay = basalKcalPerDay(weightKg: weightKg, heightCm: heightCm, age: age, sex: sex)
+        else { return nil }
+        return isToday ? perDay * elapsedDayFraction(now: now) : perDay
+    }
+}
 #endif

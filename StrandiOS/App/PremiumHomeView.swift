@@ -561,20 +561,16 @@ struct PremiumHomeView: View {
         }
     }
 
-    /// Resting energy is not a stored column — it is a Mifflin–St Jeor BMR estimate from the
-    /// user's profile, the SAME formula `PremiumEnergyView.restingKcal` uses so the two screens
-    /// can never disagree. Returns nil when the profile lacks weight/height/age, so the card shows
-    /// "—" rather than a fabricated figure.
+    /// Resting energy is not a stored column — it's a Mifflin–St Jeor estimate from the profile,
+    /// now via the shared `PremiumEnergy` so Home and the Energy screen can't drift (both used to
+    /// carry their own copy of the formula).
+    ///
+    /// Prorated by the elapsed fraction of today: the formula yields a kcal-per-FULL-DAY rate, and
+    /// showing it whole at 8 AM credited a whole day's resting burn before it happened — and
+    /// inflated "total energy" with it for the rest of the day.
     private var restingKcalEstimate: Double? {
-        let w = profile.weightKg, h = profile.heightCm, a = Double(profile.age)
-        guard w > 0, h > 0, a > 0 else { return nil }
-        let constant: Double
-        switch profile.sex.lowercased() {
-        case "male":   constant = 5
-        case "female": constant = -161
-        default:       constant = -78   // neutral midpoint for non-binary / unspecified
-        }
-        return 10 * w + 6.25 * h - 5 * a + constant
+        PremiumEnergy.restingKcalSoFar(weightKg: profile.weightKg, heightCm: profile.heightCm,
+                                       age: Double(profile.age), sex: profile.sex, isToday: true)
     }
 
     private func route(for id: PremiumMetricID) -> PremiumRoute {

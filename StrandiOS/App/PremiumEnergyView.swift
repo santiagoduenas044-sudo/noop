@@ -23,18 +23,36 @@ struct PremiumEnergyView: View {
     /// Real daily step series, oldest→newest, nil-free.
     private var stepsSeries: [Double] { repo.days.compactMap { $0.steps.map(Double.init) } }
 
-    /// Resting energy for a full day via Mifflin–St Jeor BMR (kcal/day). An ESTIMATE from profile, always
-    /// labelled as such — never presented as a strap measurement.
+    /// Resting energy burned SO FAR TODAY — a Mifflin–St Jeor estimate from the profile, prorated
+    /// by the elapsed fraction of the day. An ESTIMATE, always labelled as such, never presented as
+    /// a strap measurement.
+    ///
+    /// Previously this returned the full kcal-per-DAY rate and paired it with a same-day active
+    /// figure, so at 8 AM the split and the total both counted a whole day of resting burn that
+    /// hadn't happened yet. Shares `PremiumEnergy` with Home so the two screens can't disagree.
     private var restingKcal: Double? {
-        let w = profile.weightKg, h = profile.heightCm, a = Double(profile.age)
-        guard w > 0, h > 0, a > 0 else { return nil }
-        let constant: Double
-        switch profile.sex.lowercased() {
-        case "male": constant = 5
-        case "female": constant = -161
-        default: constant = -78   // neutral midpoint for non-binary / unspecified
+        PremiumEnergy.restingKcalSoFar(weightKg: profile.weightKg, heightCm: profile.heightCm,
+                                       age: Double(profile.age), sex: profile.sex, isToday: true)
+    }
+
+    /// The full-day basal rate, for copy that describes the estimate itself rather than today's
+    /// elapsed portion.
+    private var restingKcalPerDay: Double? {
+        PremiumEnergy.basalKcalPerDay(weightKg: profile.weightKg, heightCm: profile.heightCm,
+                                      age: Double(profile.age), sex: profile.sex)
+    }
+
+    /// States exactly where each number comes from, and — importantly — that resting is the
+    /// elapsed share of a daily estimate rather than a measured burn, so "why is resting low this
+    /// morning?" is answered on the screen instead of looking like a bug.
+    private var explanationText: String {
+        var s = String(localized: "Active energy is estimated on-device from your heart rate through the day — a rough figure, best read as a trend. Resting energy is a Mifflin–St Jeor estimate from your profile (age, sex, weight, height), not a measurement your strap took.")
+        if let perDay = restingKcalPerDay {
+            s += " " + String(format: String(localized: "Your profile works out to about %1$d kcal across a full day; the figure above is the share of that elapsed so far today, so it climbs as the day goes on."),
+                              Int(perDay.rounded()))
         }
-        return 10 * w + 6.25 * h - 5 * a + constant
+        s += " " + String(localized: "NOOP never sends this off your device.")
+        return s
     }
     private var totalToday: Double? {
         switch (activeToday, restingKcal) {
@@ -258,7 +276,7 @@ struct PremiumEnergyView: View {
         StrandCard {
             VStack(alignment: .leading, spacing: 8) {
                 sectionLabel("How this is calculated")
-                Text("Active energy is estimated on-device from your heart rate through the day — a rough figure, best read as a trend. Resting energy is a Mifflin–St Jeor BMR estimate from your profile (age, sex, weight, height), not a measurement your strap took. NOOP never sends this off your device.")
+                Text(explanationText)
                     .font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true).lineSpacing(3)
             }
