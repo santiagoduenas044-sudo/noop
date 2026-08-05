@@ -80,12 +80,15 @@ struct PremiumJournalView: View {
                     dayPicker
                     quickLogCard
                     moodCard
-                    associationsCard
-                    collectingCard
-                    moodHistoryCard
+                    // The library entry point sits DIRECTLY under the log, not below three analysis
+                    // cards. Buried at position seven it read as absent — the 300+ factors were
+                    // reachable the whole time and still felt like nothing had changed.
                     addFactorCard
                     logSection
                     addCustomCard
+                    associationsCard
+                    collectingCard
+                    moodHistoryCard
                     Color.clear.frame(height: 8)
                 }
                 .padding(.horizontal, 20).padding(.top, 6).padding(.bottom, 96)
@@ -641,11 +644,16 @@ struct PremiumJournalView: View {
         }
     }
 
-    // MARK: - Scale control (1…5-style tap targets, not a free-form field)
+    // MARK: - Scale control (tap targets, not a free-form field)
 
+    /// Laid out with `PremiumFlowLayout` rather than a fixed `HStack` so a WIDE scale wraps instead
+    /// of overflowing the card. A 1–5 scale is unchanged (it always fitted on one line); the
+    /// conventional 0–10 clinical scales — perceived exertion, pain — are 11 tap targets and would
+    /// have run off the edge of a phone, which is the only reason the library had been limited to
+    /// five-point scales.
     private func scaleControl(_ item: JournalCatalogItem, range: ClosedRange<Int>) -> some View {
         let current = numericAnswers[item.canonical].map { Int($0.rounded()) }
-        return HStack(spacing: 4) {
+        return PremiumFlowLayout(spacing: 4, lineSpacing: 4) {
             ForEach(Array(range), id: \.self) { v in
                 let selected = current == v
                 Button {

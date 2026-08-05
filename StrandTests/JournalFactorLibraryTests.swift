@@ -39,13 +39,54 @@ final class JournalFactorLibraryTests: XCTestCase {
         }
     }
 
-    /// A `.scale` factor's range must be non-empty and sane (this app renders it as a row of tap
-    /// targets — an empty or absurdly large range would produce a broken or unusable control).
+    /// A `.scale` factor's range must be non-empty and sane (this app renders it as tap targets —
+    /// an empty or absurdly large range would produce a broken or unusable control). The upper
+    /// bound is 11 points, which is exactly the conventional 0–10 clinical scale (perceived
+    /// exertion, pain); `scaleControl` wraps with `PremiumFlowLayout`, so a wide scale flows onto a
+    /// second line instead of overflowing the card.
     func testScaleRangesAreSane() {
         for f in JournalFactorLibrary.all {
             if case let .scale(range) = f.kind {
                 XCTAssertGreaterThanOrEqual(range.count, 2, "\(f.canonical): scale needs at least 2 points")
-                XCTAssertLessThanOrEqual(range.count, 10, "\(f.canonical): scale range implausibly large")
+                XCTAssertLessThanOrEqual(range.count, 11, "\(f.canonical): scale range implausibly large")
+            }
+        }
+    }
+
+    /// The library is the whole point of the "Add a factor" screen, and every entry there must be a
+    /// real, selectable factor — not a data file that outgrew what the UI can render. Pins the size
+    /// so a future refactor cannot quietly shrink it, and asserts every group in `displayOrder` that
+    /// the library claims to cover is actually reachable through the browser's grouped sections.
+    func testLibraryIsLargeAndEveryFactorLandsInARenderableGroup() {
+        XCTAssertGreaterThanOrEqual(JournalFactorLibrary.all.count, 300,
+                                    "the factor library is the product feature — do not shrink it")
+        let renderable = Set(JournalGroup.displayOrder)
+        for f in JournalFactorLibrary.all {
+            XCTAssertTrue(renderable.contains(f.group),
+                          "\(f.canonical) is in group .\(f.group.rawValue), which the library browser never renders")
+        }
+    }
+
+    /// Every factor must carry a blurb — the library browser shows it under the name, and a blank
+    /// one leaves a row that says nothing about why the factor is worth tracking.
+    func testEveryFactorHasABlurb() {
+        for f in JournalFactorLibrary.all {
+            XCTAssertFalse(f.blurb.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                           "\(f.canonical): empty blurb")
+        }
+    }
+
+    /// A `.multiSelect` factor needs at least two distinct options, since its answers are stored as
+    /// one key per option (`multiSelectKey`) and a single-option list is just a `.bool` in disguise.
+    func testMultiSelectOptionsAreUsable() {
+        for f in JournalFactorLibrary.all {
+            if case let .multiSelect(options) = f.kind {
+                XCTAssertGreaterThanOrEqual(options.count, 2, "\(f.canonical): multiSelect needs 2+ options")
+                XCTAssertEqual(Set(options).count, options.count, "\(f.canonical): duplicate multiSelect options")
+                for o in options {
+                    XCTAssertFalse(o.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                   "\(f.canonical): empty multiSelect option")
+                }
             }
         }
     }
