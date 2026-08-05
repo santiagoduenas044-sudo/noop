@@ -21,6 +21,9 @@ enum PremiumRoute: Hashable {
     case energy
     case bloodOxygen
     case strain
+    /// One journal factor's WITH vs WITHOUT breakdown. Carries the CANONICAL key (never the
+    /// display name) so a renamed factor still resolves to the same history.
+    case journalFactor(String)
 }
 
 extension View {
@@ -41,6 +44,7 @@ extension View {
                 case .energy:             PremiumEnergyView()
                 case .bloodOxygen:        PremiumBloodOxygenView()
                 case .strain:             PremiumStrainView()
+                case .journalFactor(let canonical): PremiumFactorDetailView(factorCanonical: canonical)
                 }
             }
             .background(StrandPalette.surfaceBase.ignoresSafeArea())

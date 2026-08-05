@@ -38,8 +38,9 @@ struct PremiumJournalView: View {
     @State private var renameDraft = ""
     /// How often each behaviour has been logged, used to rank the quick-log shortlist.
     @State private var usageCounts: [String: Int] = [:]
-    /// Computed behaviour ↔ metric associations (never causal claims).
-    @State private var associations: [PremiumFinding] = []
+    /// Ranked behaviour ↔ metric discoveries (never causal claims), plus the below-threshold
+    /// factors still collecting data.
+    @State private var journalIntel = PremiumJournalIntel.empty
     @AppStorage("journal.collapsedGroups") private var collapsedGroupsRaw = ""
 
     /// Same bounded, chronological range as the classic `JournalLogCard` (#656): Tomorrow through
@@ -80,6 +81,7 @@ struct PremiumJournalView: View {
                     quickLogCard
                     moodCard
                     associationsCard
+                    collectingCard
                     moodHistoryCard
                     addFactorCard
                     logSection
@@ -396,19 +398,103 @@ struct PremiumJournalView: View {
         }
     }
 
-    // MARK: - Associations (computed, never causal)
+    // MARK: - What may be affecting you (ranked, tappable, never causal)
 
-    /// What your logged behaviours have coincided with, from `PremiumAnalysis`. Every statement is
-    /// an association measured in the user's own history, carries a confidence label, and is worded
-    /// so it can't be read as a claim of cause.
+    /// The headline discoveries: one row per FACTOR (its strongest outcome), ranked by effect size,
+    /// each tapping through to the full WITH vs WITHOUT breakdown. Replaces the old flat sentence
+    /// list — same underlying engine, but ranked, quantified and explorable rather than a wall of
+    /// prose the user couldn't interrogate.
     @ViewBuilder private var associationsCard: some View {
-        if !associations.isEmpty {
+        let top = Array(journalIntel.topPerFactor.prefix(6))
+        if !top.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
-                PremiumSectionHeader(title: "What your logs line up with")
+                HStack {
+                    PremiumSectionHeader(title: "What may be affecting you")
+                    Spacer()
+                    PremiumExplainer(
+                        title: String(localized: "What may be affecting you"),
+                        items: [
+                            .init(question: String(localized: "How is this list built?"),
+                                  answer: String(format: String(localized: "For every factor you've logged at least %1$d times, NOOP compares your averages on the days you logged it against the days you didn't — across recovery, HRV, resting heart rate, sleep, respiratory rate and blood oxygen. The strongest comparison per factor is shown here."), PremiumAnalysis.minBehaviorOccurrences)),
+                            .init(question: String(localized: "Why is it ranked this way?"),
+                                  answer: String(localized: "By effect size relative to how much that metric normally varies — not by percentage. A big percentage swing on a small or noisy baseline would otherwise crowd out a better-evidenced finding.")),
+                            .init(question: String(localized: "Does this mean these things caused the change?"),
+                                  answer: String(localized: "No. These are things that happened together in your own history. Something else may drive both sides — a stressful week could push both a late meal and poor sleep, with neither affecting the other.")),
+                        ],
+                        methodology: String(format: String(localized: "Each factor's logged days are split against the days without it, and the mean of each group compared, using the same with/without engine the rest of NOOP uses. Both the same-day and next-day framings are computed and the stronger is reported. A factor below %1$d logged days is never ranked here at all — it appears under “Still collecting” instead. Days missing either a journal entry or a metric value are excluded, never filled in."), PremiumAnalysis.minBehaviorOccurrences))
+                }
+                VStack(spacing: 10) {
+                    ForEach(top) { d in discoveryRow(d) }
+                }
+                Text("Associations from your own logged history — not proven causes. Tap any for the full comparison.", comment: "Journal discoveries disclaimer")
+                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// One ranked discovery: factor, the metric it moved with, the signed difference, and how many
+    /// days back it. The delta and sample size are on the row itself so the list is scannable
+    /// without opening anything.
+    private func discoveryRow(_ d: PremiumJournalIntel.Discovery) -> some View {
+        let def = PremiumMetricCatalog.def(d.outcome)
+        let tint: Color = d.isGood == nil
+            ? StrandPalette.textSecondary
+            : (d.isGood! ? StrandPalette.recoveryColor(85) : StrandPalette.metricRose)
+        return NavigationLink(value: PremiumRoute.journalFactor(d.factorCanonical)) {
+            StrandCard(padding: 14) {
+                HStack(spacing: 12) {
+                    PremiumIconTile(system: def.icon, tint: def.tint, size: 30)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(d.factorDisplay).font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(def.shortName).font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                            Text(d.deltaText).font(StrandFont.footnote).foregroundStyle(tint)
+                            if let p = d.pctText {
+                                Text("(\(p))").font(StrandFont.footnote)
+                                    .foregroundStyle(StrandPalette.textTertiary)
+                            }
+                        }
+                    }
+                    Spacer(minLength: 4)
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(String(format: String(localized: "%1$d days"), d.totalSamples))
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        Text(d.confidence.label).font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(d.confidence.tint)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Factors being logged that haven't cleared the honesty gate yet. Shown so logging feels like
+    /// progress, WITHOUT presenting a conclusion from two or three entries.
+    @ViewBuilder private var collectingCard: some View {
+        let pending = Array(journalIntel.collecting.prefix(5))
+        if !pending.isEmpty {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Still collecting")
                 StrandCard {
-                    VStack(alignment: .leading, spacing: 14) {
-                        ForEach(associations) { f in PremiumFindingRow(finding: f) }
-                        Text("These are associations from your own logged history — not proven causes. More logging sharpens them.", comment: "Journal associations disclaimer")
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(pending) { c in
+                            HStack(spacing: 10) {
+                                Text(c.factorDisplay).font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                                    .lineLimit(1)
+                                Spacer(minLength: 4)
+                                Text(String(format: String(localized: "%1$d more day(s)"), c.daysNeeded))
+                                    .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            }
+                        }
+                        Text(String(format: String(localized: "NOOP waits until a factor has %1$d logged days before comparing it against your metrics, so a couple of entries can never look like a finding."), PremiumAnalysis.minBehaviorOccurrences))
                             .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -417,38 +503,18 @@ struct PremiumJournalView: View {
         }
     }
 
-    /// Loads behaviour usage counts (for the quick row's ranking) and computes the associations.
+    /// Loads behaviour usage counts (for the quick row's ranking) and the ranked discoveries.
+    /// The statistics all come from `PremiumJournalIntel`, which in turn defers to the shipping
+    /// `BehaviorInsights` engine — this only feeds it the display-name mapping so a renamed factor
+    /// reads under its rename while every join still happens on the canonical key.
     private func loadAssociations() async {
         let entries = await repo.journalEntries()
         var counts: [String: Int] = [:]
-        var behaviorDays: [String: Set<String>] = [:]
         for e in entries where e.answeredYes {
             counts[e.question, default: 0] += 1
-            behaviorDays[e.question, default: []].insert(e.day)
         }
         usageCounts = counts
-
-        let outcomes: [(PremiumMetricID, Color)] = [
-            (.hrv, StrandPalette.metricCyan),
-            (.recovery, StrandPalette.recoveryColor(85)),
-            (.sleepDuration, StrandPalette.sleepDeep),
-        ]
-        var out: [PremiumFinding] = []
-        for (behavior, days) in behaviorDays {
-            for (id, tint) in outcomes {
-                let series = PremiumMetricCatalog.series(id, repo: repo)
-                let name = PremiumMetricCatalog.def(id).shortName
-                guard let assoc = PremiumAnalysis.behaviorAssociation(
-                    behaviorDays: days, behaviorName: behavior,
-                    outcome: series, outcomeName: name) else { continue }
-                if let f = PremiumAnalysis.behaviorFinding(effect: assoc.effect,
-                                                           lagDays: assoc.lagDays, tint: tint) {
-                    out.append(f)
-                }
-            }
-        }
-        out.sort { $0.confidence > $1.confidence }
-        associations = Array(out.prefix(5))
+        journalIntel = await PremiumJournalIntel.load(repo: repo) { catalog.displayName(for: $0) }
     }
 
     // MARK: - Log (real: JournalCatalogStore / repo.saveJournalAnswer / saveJournalNumeric / clearJournalAnswer)

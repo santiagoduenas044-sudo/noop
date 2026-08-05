@@ -87,6 +87,16 @@ enum PremiumConfidence: Int, Comparable, Hashable {
         case .consistent: return StrandPalette.recoveryColor(85)
         }
     }
+    /// A stable, deliberately NON-localized token for model prompts. `label` is display copy and
+    /// changes with the user's language; a prompt needs a fixed vocabulary the model can rely on,
+    /// so these two must not be conflated.
+    var promptWord: String {
+        switch self {
+        case .early:      return "early"
+        case .emerging:   return "emerging"
+        case .consistent: return "consistent"
+        }
+    }
     static func < (a: PremiumConfidence, b: PremiumConfidence) -> Bool { a.rawValue < b.rawValue }
 
     /// Confidence from sample count + statistical strength. Deliberately conservative: a large |r|

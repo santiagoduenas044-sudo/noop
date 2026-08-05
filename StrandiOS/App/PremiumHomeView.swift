@@ -29,6 +29,8 @@ struct PremiumHomeView: View {
     @State private var findings: [PremiumFinding] = []
     @State private var journalStreak: Int = 0
     @State private var journalLoggedToday = false
+    /// Distinct factors logged today — drives the "N factors recorded" line on the Journal card.
+    @State private var journalTodayCount = 0
 
     // MARK: Data helpers (real Repository data)
 
@@ -140,7 +142,12 @@ struct PremiumHomeView: View {
         let entries = await repo.journalEntries()
         let loggedDays = Set(entries.filter(\.answeredYes).map(\.day))
         let streak = PremiumCoachContext.streak(days: loggedDays)
-        let today = loggedDays.contains(Repository.localDayKey(Date()))
+        let todayKey = Repository.localDayKey(Date())
+        let today = loggedDays.contains(todayKey)
+        // Distinct factors recorded today — the card states what's actually logged rather than
+        // just "done", so a partially-filled day is visible at a glance.
+        let todayCount = Set(entries.filter { $0.day == todayKey && $0.answeredYes }
+                                    .map(\.question)).count
 
         // Baseline + relationship findings across the headline signals.
         var out: [PremiumFinding] = []
@@ -164,6 +171,7 @@ struct PremiumHomeView: View {
         findings = out
         journalStreak = streak
         journalLoggedToday = today
+        journalTodayCount = todayCount
     }
 
     // MARK: Ambient background (prototype's living glow)
@@ -347,8 +355,17 @@ struct PremiumHomeView: View {
     }
 
     private var journalSubtitle: String {
-        if journalStreak >= 2 { return "\(journalStreak)-day streak · a few taps" }
-        if journalLoggedToday { return "Add more any time" }
+        // State the concrete thing that's true today first — "3 factors recorded" is more useful
+        // than a generic nudge, and makes a half-finished check-in visible.
+        if journalTodayCount > 0 {
+            let recorded = String(format: String(localized: "%1$d factor(s) recorded"), journalTodayCount)
+            return journalStreak >= 2
+                ? recorded + " · " + String(format: String(localized: "%1$d-day streak"), journalStreak)
+                : recorded
+        }
+        if journalStreak >= 2 {
+            return String(format: String(localized: "%1$d-day streak · a few taps"), journalStreak)
+        }
         return "Takes a few taps — powers your personal patterns"
     }
 

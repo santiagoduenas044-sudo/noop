@@ -149,12 +149,49 @@ struct PremiumCoachContext {
     }
 
     /// What the user has logged, and what it has coincided with.
+    /// ONE already-computed factor↔outcome comparison, handed to the model as finished numbers.
+    ///
+    /// This is the concrete shape of the division of labour: the engine has already done the
+    /// with/without split, the means, the difference and the confidence banding. The model's only
+    /// job is to put it in plain language. It must never be asked to derive an association, and it
+    /// has no access to the raw rows that would let it try.
+    struct JournalFactorFinding {
+        let factor: String
+        let outcome: String
+        let withValue: Double
+        let withoutValue: Double
+        let difference: Double
+        let pctDifference: Double?
+        let sampleSize: Int
+        let confidence: PremiumConfidence
+        /// 0 = same day, 1 = following day.
+        let lagDays: Int
+
+        /// One prompt line. Matches the structure the brief asked for
+        /// (`withHRV = 48, withoutHRV = 55, difference = -7, sampleSize = 36, confidence = emerging`)
+        /// while staying readable, since this text is also what a debug view would show the user.
+        var brief: String {
+            var s = "\(factor) → \(outcome): with = \(fmt(withValue)), without = \(fmt(withoutValue))"
+            s += ", difference = \(difference >= 0 ? "+" : "")\(fmt(difference))"
+            if let p = pctDifference { s += " (\(PremiumAnalysis.signedPct(p)))" }
+            s += ", n = \(sampleSize), confidence = \(confidence.promptWord)"
+            if lagDays == 1 { s += ", measured next-day" }
+            return s
+        }
+        private func fmt(_ v: Double) -> String {
+            abs(v) >= 100 || v.rounded() == v ? String(Int(v.rounded())) : String(format: "%.1f", v)
+        }
+    }
+
     struct JournalState {
         /// Behaviour name → the days it was logged on.
         let behaviorDays: [String: Set<String>]
         let daysLogged: Int
         let currentStreak: Int
         let todayLogged: Bool
+        /// Ranked, already-computed factor comparisons. Empty until factors clear the
+        /// `minBehaviorOccurrences` gate — the model is never handed a thin comparison to explain.
+        let factorFindings: [JournalFactorFinding]
 
         var brief: String {
             guard daysLogged > 0 else { return "No journal entries logged yet." }
@@ -162,9 +199,15 @@ struct PremiumCoachContext {
                 .sorted { ($0.value.count, $0.key) > ($1.value.count, $1.key) }
                 .prefix(8)
                 .map { "\($0.key) (\($0.value.count)×)" }
-            return "Logged on \(daysLogged) days, current streak \(currentStreak). "
-                 + "Today logged: \(todayLogged ? "yes" : "no").\n"
-                 + "Most-logged behaviours: " + top.joined(separator: ", ")
+            var s = "Logged on \(daysLogged) days, current streak \(currentStreak). "
+                  + "Today logged: \(todayLogged ? "yes" : "no").\n"
+                  + "Most-logged behaviours: " + top.joined(separator: ", ")
+            if !factorFindings.isEmpty {
+                s += "\n\nComputed factor comparisons (already calculated — explain these, do not "
+                   + "re-derive or extrapolate beyond them):\n"
+                s += factorFindings.map { "- " + $0.brief }.joined(separator: "\n")
+            }
+            return s
         }
     }
 
@@ -255,12 +298,15 @@ extension PremiumCoachContext {
     /// install this returns quickly with an honest "not enough history" picture rather than a
     /// screenful of spurious correlations.
     @MainActor
+    /// `async` because the journal factor comparisons come from `PremiumJournalIntel`, which reads
+    /// journal rows from the store. Nothing here performs a network call — building the context is
+    /// entirely on-device, per the project's offline guarantee.
     static func build(repo: Repository,
                       sleepIntel: PremiumSleepIntel,
                       liveBpm: Int?,
                       dayHR: [Double],
                       minutesInZone: [String: Double],
-                      journalEntries: [JournalEntry]) -> PremiumCoachContext {
+                      journalEntries: [JournalEntry]) async -> PremiumCoachContext {
 
         // ---- Metric states ------------------------------------------------------------------
         // Only real, non-derived metrics with recorded history; derived ones are represented by
@@ -320,11 +366,31 @@ extension PremiumCoachContext {
         }
         let loggedDays = Set(journalEntries.filter(\.answeredYes).map(\.day))
         let todayKey = Repository.localDayKey(Date())
+
+        // Ranked factor comparisons, computed by the SAME `PremiumJournalIntel` the Journal screen
+        // renders — so the Coach can never state a number the user can't find in the UI, and can
+        // never be handed a comparison that failed the sample-size gate. Capped because a prompt
+        // wants the headline findings, not every factor×outcome pair the engine produced.
+        let intel = await PremiumJournalIntel.load(repo: repo) { $0 }
+        let factorFindings: [JournalFactorFinding] = intel.topPerFactor.prefix(8).map { d in
+            JournalFactorFinding(
+                factor: d.factorDisplay,
+                outcome: PremiumMetricCatalog.def(d.outcome).shortName,
+                withValue: d.effect.meanWith,
+                withoutValue: d.effect.meanWithout,
+                difference: d.effect.delta,
+                pctDifference: d.effect.pctChange,
+                sampleSize: d.totalSamples,
+                confidence: d.confidence,
+                lagDays: d.lagDays)
+        }
+
         let journalState = JournalState(
             behaviorDays: behaviorDays,
             daysLogged: loggedDays.count,
             currentStreak: streak(days: loggedDays),
-            todayLogged: loggedDays.contains(todayKey))
+            todayLogged: loggedDays.contains(todayKey),
+            factorFindings: factorFindings)
 
         // ---- Findings -----------------------------------------------------------------------
         var findings: [PremiumFinding] = []
