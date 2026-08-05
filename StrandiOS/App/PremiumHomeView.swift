@@ -31,6 +31,11 @@ struct PremiumHomeView: View {
     @State private var journalLoggedToday = false
     /// Distinct factors logged today — drives the "N factors recorded" line on the Journal card.
     @State private var journalTodayCount = 0
+    /// Hydration tracker opt-in (Settings). Default OFF; the Home card exists only when it's on.
+    @AppStorage(HydrationStore.enabledKey) private var hydrationEnabled = false
+    /// Today's real logged total, ml. `nil` until read — the card says "Log today's water" rather
+    /// than showing a 0 it hasn't actually confirmed.
+    @State private var hydrationTotalML: Double?
 
     // MARK: Data helpers (real Repository data)
 
@@ -79,6 +84,7 @@ struct PremiumHomeView: View {
                     quickStatsRow
                     storyCard
                     journalQuickCard
+                    hydrationQuickCard
                     insightsCard
                     weekOverviewCard
                     vitalsSection
@@ -151,6 +157,10 @@ struct PremiumHomeView: View {
         let todayCount = Set(entries.filter { $0.day == todayKey && $0.answeredYes }
                                     .map(\.question)).count
 
+        // Today's hydration total, read only when the opt-in feature is on so a user who never
+        // enabled it pays nothing for it.
+        let hydration: Double? = hydrationEnabled ? await repo.hydrationTotal(day: todayKey) : nil
+
         // Baseline + relationship findings across the headline signals.
         var out: [PremiumFinding] = []
         for id in [PremiumMetricID.hrv, .restingHr, .recovery, .sleepDuration] {
@@ -174,6 +184,7 @@ struct PremiumHomeView: View {
         journalStreak = streak
         journalLoggedToday = today
         journalTodayCount = todayCount
+        hydrationTotalML = hydration
     }
 
     // MARK: Ambient background (prototype's living glow)
@@ -356,6 +367,46 @@ struct PremiumHomeView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel(journalLoggedToday ? String(localized: "Journal, logged today") : String(localized: "Log today's journal check-in"))
+    }
+
+    // MARK: Hydration (opt-in) — the iOS entry point the feature never had
+
+    /// Shown ONLY when the user has switched the hydration tracker on in Settings. That opt-in is the
+    /// whole reason this is not a screen-lengthening card: it appears for people who asked for it and
+    /// is invisible to everyone else, and it exists because turning the toggle on previously did
+    /// nothing on iPhone — `HydrationView` was only ever routable from the macOS sidebar, so there was
+    /// no way to log a drink. States today's real total against the computed goal; it never guesses a
+    /// figure, and reads 0 ml honestly until something is logged.
+    @ViewBuilder private var hydrationQuickCard: some View {
+        if hydrationEnabled {
+            NavigationLink(value: PremiumRoute.hydration) {
+                StrandCard(tint: StrandPalette.accent) {
+                    HStack(spacing: 14) {
+                        iconTile("drop.fill", tint: StrandPalette.accent)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Hydration")
+                                .font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                            Text(hydrationSubtitle)
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(StrandPalette.textTertiary)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(String(localized: "Hydration, \(hydrationSubtitle)"))
+        }
+    }
+
+    private var hydrationSubtitle: String {
+        guard let total = hydrationTotalML else { return String(localized: "Log today's water") }
+        // The SAME fixed-locale string the dashboard card and the Android twin use, so the figure
+        // never differs by a decimal between surfaces.
+        return HydrationGoal.cardValueString(totalML: total,
+                                             goalML: repo.hydrationGoalML(profileSex: profile.sex))
     }
 
     private var journalSubtitle: String {

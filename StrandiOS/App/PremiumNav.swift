@@ -24,6 +24,11 @@ enum PremiumRoute: Hashable {
     /// One journal factor's WITH vs WITHOUT breakdown. Carries the CANONICAL key (never the
     /// display name) so a renamed factor still resolves to the same history.
     case journalFactor(String)
+    /// The shared `HydrationView` — a complete, Android-parity logging screen that iOS could not
+    /// reach. Settings has always offered the "Hydration tracker" opt-in toggle, but the only route
+    /// to the screen itself was the macOS `TabRoute.hydration`, so turning the feature on left
+    /// nowhere to log a drink. Same shape as the nap bug: working capability, no iOS entry point.
+    case hydration
 }
 
 extension View {
@@ -45,6 +50,7 @@ extension View {
                 case .bloodOxygen:        PremiumBloodOxygenView()
                 case .strain:             PremiumStrainView()
                 case .journalFactor(let canonical): PremiumFactorDetailView(factorCanonical: canonical)
+                case .hydration:          HydrationView()
                 }
             }
             .background(StrandPalette.surfaceBase.ignoresSafeArea())

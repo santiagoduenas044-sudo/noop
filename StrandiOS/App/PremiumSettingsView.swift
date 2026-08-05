@@ -281,7 +281,9 @@ struct PremiumSettingsView: View {
             toggleRow(title: "Auto-detect workouts", subtitle: "Offers to save a sustained-HR window",
                       isOn: $autoDetectWorkoutsEnabled)
             groupDivider
-            toggleRow(title: "Hydration tracker", subtitle: "Opt-in daily water logging",
+            // Says where the feature actually appears. Turning this on used to change nothing
+            // visible on iPhone — the logging screen had no iOS entry point at all.
+            toggleRow(title: "Hydration tracker", subtitle: "Adds a water-logging card to Home",
                       isOn: $hydrationEnabled)
         }
     }
