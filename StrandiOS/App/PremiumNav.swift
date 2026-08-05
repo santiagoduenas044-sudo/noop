@@ -31,6 +31,12 @@ extension View {
         navigationDestination(for: PremiumRoute.self) { route in
             Group {
                 switch route {
+                // SpO₂ has a purpose-built screen (real overnight samples, spot-check timeline,
+                // gap reporting) that the generic catalog detail can't express, because the catalog
+                // only sees ONE stored value per night. Route it there from EVERY entry point —
+                // Home already pushed `.bloodOxygen` directly, but Sleep's overnight-vitals row
+                // pushed `.catalogMetric(.spo2)`, so the same tile led to two different screens.
+                case .catalogMetric(.spo2): PremiumBloodOxygenView()
                 case .catalogMetric(let id): PremiumCatalogDetailView(metric: id)
                 case .energy:             PremiumEnergyView()
                 case .bloodOxygen:        PremiumBloodOxygenView()

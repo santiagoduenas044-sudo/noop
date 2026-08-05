@@ -83,6 +83,10 @@ struct PremiumMetricDef: Identifiable {
     /// typically within tenths of a degree of zero, and dividing by it produces absurd percentages
     /// (e.g. "+900%" for a perfectly normal 0.4 °C night).
     let usesAbsoluteDeviation: Bool
+    /// Unit to print on a signed DELTA when it differs from `unit`. SpO₂ is itself a percentage, so a
+    /// change of "-0.4 %" is ambiguous (0.4 percent *of* 97, or 0.4 percentage points?) — it reads as
+    /// "-0.4 pts". nil means deltas carry the metric's normal unit.
+    let deltaUnit: String?
     let explanation: String
     /// Pulls the per-day value out of a `DailyMetric`, already normalised (e.g. efficiency scaled
     /// to 0–100) and bounds-checked by the catalog's `series(...)`.
@@ -95,7 +99,7 @@ struct PremiumMetricDef: Identifiable {
     /// default to `false` and stay omittable at every existing call site.
     init(id: PremiumMetricID, name: String, shortName: String, unit: String, icon: String, tint: Color,
         group: PremiumMetricGroup, provenance: PremiumProvenance, decimals: Int, higherBetter: Bool?,
-        usesAbsoluteDeviation: Bool = false, explanation: String,
+        usesAbsoluteDeviation: Bool = false, deltaUnit: String? = nil, explanation: String,
         read: @escaping (DailyMetric) -> Double?, isDerived: Bool) {
         self.id = id
         self.name = name
@@ -108,6 +112,7 @@ struct PremiumMetricDef: Identifiable {
         self.decimals = decimals
         self.higherBetter = higherBetter
         self.usesAbsoluteDeviation = usesAbsoluteDeviation
+        self.deltaUnit = deltaUnit
         self.explanation = explanation
         self.read = read
         self.isDerived = isDerived
@@ -133,7 +138,11 @@ struct PremiumMetricDef: Identifiable {
     /// metric's own unit rather than as a percentage. `format` already prints a "-" for negative
     /// values, so only the "+" for non-negative ones needs adding here.
     func formatSigned(_ v: Double, withUnit: Bool = true) -> String {
-        (v >= 0 ? "+" : "") + format(v, withUnit: withUnit)
+        let sign = v >= 0 ? "+" : ""
+        guard let du = deltaUnit, withUnit else {
+            return sign + format(v, withUnit: withUnit)
+        }
+        return sign + format(v, withUnit: false) + " " + du
     }
 }
 
@@ -189,7 +198,12 @@ extension PremiumMetricCatalog {
         PremiumMetricDef(
             id: .spo2, name: String(localized: "Blood Oxygen"), shortName: String(localized: "Blood oxygen"), unit: "%",
             icon: "drop.fill", tint: StrandPalette.metricPurple, group: .heart,
-            provenance: .estimated, decimals: 0, higherBetter: true,
+            provenance: .estimated, decimals: 1, higherBetter: true,
+            // SpO₂ is itself a percentage, so a percent-OF-a-percent change is ambiguous; deltas read
+            // in percentage points ("-0.4 pts"), which is also how the measurement is normally
+            // discussed. Its baseline sits near 97, nowhere near zero, so this is a readability
+            // choice rather than the near-zero-baseline problem skinTemp has.
+            usesAbsoluteDeviation: true, deltaUnit: String(localized: "pts"),
             explanation: String(localized: "The share of oxygen carried in your blood, sampled overnight. Healthy readings typically sit between 95 and 100%."),
             read: { $0.spo2Pct }, isDerived: false),
         PremiumMetricDef(

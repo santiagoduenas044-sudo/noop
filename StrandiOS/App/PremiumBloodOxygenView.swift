@@ -11,26 +11,29 @@ import WhoopStore
 /// invents a measurement" is the whole point of this screen.
 struct PremiumBloodOxygenView: View {
     @EnvironmentObject var repo: Repository
+    @EnvironmentObject var health: HealthKitBridge
 
     /// Real nightly SpO₂ percentages, oldest→newest, nil-free.
     private var series: [Double] { repo.days.compactMap { $0.spo2Pct } }
     private var latest: Double? { series.last }
-    private var baseline: Double? {
-        let recent = series.suffix(30)
-        guard recent.count >= 3 else { return nil }
-        return recent.reduce(0, +) / Double(recent.count)
-    }
+    private var baseline: Double? { intel.baseline }
     private let tint = StrandPalette.metricPurple
+
+    @State private var intel = PremiumSpo2Intel.empty
+    private var analysis: PremiumMetricAnalysis { PremiumMetricCatalog.analysis(.spo2, repo: repo) }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 22) {
-                if series.isEmpty {
+                if series.isEmpty && !intel.hasOvernightSamples {
                     emptyState
                 } else {
                     hero
-                    statsRow
+                    overnightSection
+                    baselineSection
+                    trendSection
                     trendCard
+                    distributionSection
                     rangeCard
                     heatmapCard
                 }
@@ -42,6 +45,240 @@ struct PremiumBloodOxygenView: View {
         .background(ambient.ignoresSafeArea())
         .navigationTitle("Blood Oxygen")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: repo.refreshSeq) {
+            let sleep = await PremiumSleepIntel.load(repo: repo, window: 3)
+            intel = await PremiumSpo2Intel.load(repo: repo, health: health, sleepIntel: sleep)
+        }
+    }
+
+    // MARK: Overnight — from REAL individual samples, never derived from the daily mean
+
+    @ViewBuilder private var overnightSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                PremiumSectionHeader(title: "Overnight")
+                Spacer()
+                PremiumExplainer(
+                    title: String(localized: "Overnight SpO₂"),
+                    items: overnightExplainerItems,
+                    methodology: String(localized: "Statistics are computed over the individual oxygen-saturation samples Apple Health holds for last night's sleep window (your recorded bedtime to wake time). Average, lowest and highest are taken across those samples only — none of them is derived from the single stored nightly value, which is a daily average and cannot describe a minimum. Readings NOOP itself wrote back into Health are excluded so its own output is never re-read as an independent measurement. Values outside 70–100% are rejected as implausible before any statistic is computed."))
+            }
+            StrandCard {
+                if intel.hasOvernightSamples {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(spacing: 12) {
+                            overnightStat("AVERAGE", intel.overnightAverage, tint)
+                            overnightStat("LOWEST", intel.overnightLow, StrandPalette.metricAmber)
+                            overnightStat("HIGHEST", intel.overnightHigh, StrandPalette.recoveryColor(85))
+                        }
+                        if let r = intel.overnightRange {
+                            Text(String(format: String(localized: "Range %1$@–%2$@%%  ·  %3$d reading(s)"),
+                                        Self.pct(r.lo), Self.pct(r.hi), intel.sampleCount))
+                                .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        }
+                        if intel.sampleCount >= 2 {
+                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                            Text("READINGS ACROSS THE NIGHT", comment: "SpO2 overnight timeline label")
+                                .font(StrandFont.overline).tracking(1.2)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                            spotCheckTimeline
+                        }
+                        Text(intermittentNote)
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } else {
+                    MetricUnavailable(name: String(localized: "Overnight readings"),
+                                      reason: noOvernightReason)
+                }
+            }
+        }
+    }
+
+    private func overnightStat(_ label: String, _ v: Double?, _ c: Color) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                Text(v.map(Self.pct) ?? "—")
+                    .font(.system(size: 22, weight: .heavy)).monospacedDigit()
+                    .foregroundStyle(v == nil ? StrandPalette.textTertiary : c)
+                if v != nil {
+                    Text("%").font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+            Text(label).font(StrandFont.overline).tracking(1.0)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Each real reading as a dot on the night's timeline. Deliberately dots and NOT a connected
+    /// line: these are intermittent spot checks, and joining them would draw a continuous trace the
+    /// watch never measured.
+    private var spotCheckTimeline: some View {
+        let vals = intel.sampleValues
+        let lo = (vals.min() ?? 90) - 1, hi = (vals.max() ?? 100) + 1
+        let span = max(hi - lo, 0.0001)
+        let start = intel.windowStart ?? Date()
+        let total = max(1, (intel.windowEnd ?? Date()).timeIntervalSince(start))
+        return VStack(alignment: .leading, spacing: 6) {
+            GeometryReader { geo in
+                ZStack(alignment: .topLeading) {
+                    ForEach(Array(intel.samples.enumerated()), id: \.offset) { _, s in
+                        let x = geo.size.width * CGFloat(min(max(s.t.timeIntervalSince(start) / total, 0), 1))
+                        let y = geo.size.height * CGFloat(1 - (s.pct - lo) / span)
+                        Circle().fill(tint)
+                            .frame(width: 7, height: 7)
+                            .offset(x: max(0, min(geo.size.width - 7, x - 3.5)), y: max(0, y - 3.5))
+                    }
+                }
+            }
+            .frame(height: 70)
+            HStack {
+                Text(Self.clock(intel.windowStart))
+                Spacer()
+                Text(Self.clock(intel.windowEnd))
+            }
+            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+        }
+    }
+
+    /// States the sampling is intermittent, and quantifies the largest gap when one is measurable.
+    private var intermittentNote: String {
+        let base = String(localized: "Blood oxygen is sampled in occasional spot checks, not monitored continuously — each dot is one real reading.")
+        guard let gap = intel.longestGapMinutes, gap >= 30 else { return base }
+        return base + " " + String(format: String(localized: "The longest stretch with no reading was %@."),
+                                   PremiumAnalysis.durText(gap))
+    }
+
+    /// Distinguishes "we couldn't ask Health" from "we asked and your hardware recorded nothing" —
+    /// they call for completely different user action.
+    private var noOvernightReason: String {
+        if intel.healthUnavailable {
+            return String(localized: "Apple Health isn't connected, so NOOP can't read individual oxygen-saturation readings. Connect Health in Settings to see last night's readings.")
+        }
+        return String(localized: "No blood-oxygen readings were recorded for last night. Apple Watch takes these as occasional background spot checks, and only some models and regions support it — nights with no reading are normal.")
+    }
+
+    private var overnightExplainerItems: [PremiumExplainerItem] {
+        var items: [PremiumExplainerItem] = [
+            .init(question: String(localized: "What is SpO₂?"),
+                  answer: String(localized: "Blood oxygen saturation — the share of your blood's oxygen-carrying capacity currently in use. Readings in the mid-to-high 90s are typical for most people at rest.")),
+            .init(question: String(localized: "Where did this measurement come from?"),
+                  answer: String(localized: "Apple Health, which receives it from a device that measures blood oxygen optically — normally an Apple Watch. NOOP reads these samples; it never estimates or generates a value of its own.")),
+        ]
+        items.append(.init(
+            question: String(localized: "How many readings were recorded?"),
+            answer: intel.sampleCount == 0
+                ? String(localized: "None for last night.")
+                : String(format: String(localized: "%1$d reading(s) across last night's sleep window."), intel.sampleCount)))
+        items.append(.init(
+            question: String(localized: "Is this the latest, the average or the minimum?"),
+            answer: String(localized: "All three are shown separately: AVERAGE is the mean of last night's readings, LOWEST and HIGHEST are the single lowest and highest of those readings, and the big number at the top is your most recent stored nightly value.")))
+        if let d = intel.baselineDeltaPoints {
+            items.append(.init(
+                question: String(localized: "How does tonight compare with my history?"),
+                answer: String(format: String(localized: "About %1$@ percentage points versus your %2$d-night personal baseline. NOOP compares you against yourself rather than a population target."),
+                               Self.signedPoints(d), intel.baselineNightCount)))
+        }
+        items.append(.init(
+            question: String(localized: "Why are there missing periods?"),
+            answer: String(localized: "Blood oxygen is captured as occasional background spot checks rather than a continuous stream. Readings are skipped when the sensor can't get a reliable measurement — loose fit, movement, or the watch not being worn. Gaps are normal and are shown rather than filled in.")))
+        return items
+    }
+
+    // MARK: Personal baseline
+
+    @ViewBuilder private var baselineSection: some View {
+        if let b = intel.baseline {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Against your baseline")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 12) {
+                        MetricValueHeader(
+                            value: intel.latestNightly.map(Self.pct) ?? "—",
+                            unit: "%",
+                            deltaText: intel.baselineDeltaPoints.map { Self.signedPoints($0) + String(localized: " pts") },
+                            deltaGood: intel.baselineDeltaPoints.map { $0 >= 0 },
+                            caption: String(format: String(localized: "Your %1$d-night baseline is %2$@%%. Compared in percentage points, because SpO₂ is itself a percentage."),
+                                            intel.baselineNightCount, Self.pct(b)),
+                            tint: tint)
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: Trend
+
+    @ViewBuilder private var trendSection: some View {
+        let a = analysis
+        if a.change7Abs != nil || a.change30Abs != nil || a.change90Abs != nil {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "Change over time")
+                StrandCard {
+                    HStack(spacing: 14) {
+                        changePoints("7D", a.change7Abs)
+                        changePoints("30D", a.change30Abs)
+                        changePoints("90D", a.change90Abs)
+                    }
+                }
+            }
+        }
+    }
+
+    private func changePoints(_ label: String, _ delta: Double?) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(delta.map { Self.signedPoints($0) } ?? "—")
+                .font(.system(size: 17, weight: .heavy)).monospacedDigit()
+                .foregroundStyle(delta == nil ? StrandPalette.textTertiary
+                                 : (delta! >= 0 ? StrandPalette.recoveryColor(85) : StrandPalette.metricRose))
+            Text(label).font(StrandFont.overline).tracking(1.0)
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Distribution
+
+    @ViewBuilder private var distributionSection: some View {
+        let a = analysis
+        if a.series.count >= 10 {
+            VStack(alignment: .leading, spacing: 14) {
+                PremiumSectionHeader(title: "How unusual is last night?")
+                StrandCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        DistributionHistogram(values: a.series.map(\.value), buckets: 10,
+                                              tint: tint, highlight: a.latest, height: 100)
+                        Text(distributionCaption)
+                            .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+        }
+    }
+
+    private var distributionCaption: String {
+        let values = analysis.series.map(\.value)
+        guard let l = analysis.latest, values.count >= 10 else {
+            return String(localized: "Your recorded nights, bucketed.")
+        }
+        let below = values.filter { $0 < l }.count
+        let pct = Int((Double(below) / Double(values.count) * 100).rounded())
+        return String(format: String(localized: "Last night sits higher than %1$d%% of your %2$d recorded nights."),
+                      pct, values.count)
+    }
+
+    // MARK: Formatting
+
+    private static func pct(_ v: Double) -> String { String(format: "%.1f", v) }
+    private static func signedPoints(_ v: Double) -> String {
+        (v >= 0 ? "+" : "") + String(format: "%.1f", v)
+    }
+    private static func clock(_ d: Date?) -> String {
+        guard let d else { return "—" }
+        let f = DateFormatter(); f.dateFormat = "HH:mm"
+        return f.string(from: d)
     }
 
     private var ambient: some View {
@@ -182,17 +419,27 @@ struct PremiumBloodOxygenView: View {
         }
     }
 
+    /// Separates the three genuinely different reasons there is nothing to show, because each one
+    /// calls for different (or no) user action. Never a fabricated number in place of any of them.
     private var emptyState: some View {
         StrandCard {
             VStack(spacing: 12) {
                 iconTile("drop.fill", tint: tint)
-                Text("No calibrated SpO₂ yet").font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
-                Text("Your WHOOP 4.0 records raw optical signal overnight, but a blood-oxygen percentage needs a calibrated conversion NOOP doesn't have on-device. When a calibrated reading is available (e.g. from an import) it will appear here. NOOP won't show a number it can't stand behind.")
+                Text("No SpO₂ measurements available")
+                    .font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
+                Text(emptyReason)
                     .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
                     .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true).lineSpacing(3)
             }
             .frame(maxWidth: .infinity).padding(.vertical, 16)
         }
+    }
+
+    private var emptyReason: String {
+        if intel.healthUnavailable {
+            return String(localized: "NOOP reads blood oxygen from Apple Health, which isn't connected yet. Connect it in Settings and any readings your watch has recorded will appear here.\n\nYour WHOOP strap records a raw optical signal overnight, but turning that into a blood-oxygen percentage needs a calibrated conversion NOOP doesn't have on-device — so NOOP will not show a number it can't stand behind.")
+        }
+        return String(localized: "Apple Health is connected but holds no blood-oxygen readings for you.\n\nThese come from a device that measures blood oxygen optically — normally an Apple Watch, and only on models and regions where the feature is enabled. Your WHOOP strap records a raw optical signal overnight, but converting that into a percentage needs a calibrated conversion NOOP doesn't have on-device, so it is never presented as one.")
     }
 
     private func sectionLabel(_ t: String) -> some View {

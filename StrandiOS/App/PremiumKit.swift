@@ -113,6 +113,81 @@ struct PremiumInfoRow: View {
     }
 }
 
+// MARK: - Explanation (ⓘ)
+
+/// One question-and-answer pair in a `PremiumExplainer`.
+struct PremiumExplainerItem: Identifiable {
+    let question: String
+    let answer: String
+    var id: String { question }
+}
+
+/// The reusable ⓘ affordance: a small info button that opens a plain-language explanation of what a
+/// figure means, where it came from, and how it was derived.
+///
+/// Two deliberate rules:
+/// * **Plain language first, methodology last.** Raw derivation lives under a separate "How this was
+///   calculated" block so the everyday reading stays readable, per the product direction.
+/// * **Never diagnostic.** These explain what NOOP measured and how; they must not tell the user
+///   what a value means for their health.
+struct PremiumExplainer: View {
+    let title: String
+    let items: [PremiumExplainerItem]
+    /// Methodology / derivation. Shown under its own heading, below the plain-language items.
+    var methodology: String?
+
+    @State private var showing = false
+
+    var body: some View {
+        Button { showing = true } label: {
+            Image(systemName: "info.circle")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(StrandPalette.textTertiary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(format: String(localized: "About %1$@"), title))
+        .sheet(isPresented: $showing) {
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        ForEach(items) { item in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(item.question).font(StrandFont.headline)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                                Text(item.answer).font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .lineSpacing(3)
+                            }
+                        }
+                        if let m = methodology {
+                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("How this was calculated").font(StrandFont.headline)
+                                    .foregroundStyle(StrandPalette.textPrimary)
+                                Text(m).font(StrandFont.footnote)
+                                    .foregroundStyle(StrandPalette.textTertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .lineSpacing(2)
+                            }
+                        }
+                    }
+                    .padding(20)
+                }
+                .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                .navigationTitle(title)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { showing = false }
+                            .foregroundStyle(StrandPalette.accent)
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Chip selector
 
 /// A horizontal row of selectable chips. Exists so a screen can offer ONE high-information chart
