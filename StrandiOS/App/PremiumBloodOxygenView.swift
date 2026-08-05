@@ -164,7 +164,7 @@ struct PremiumBloodOxygenView: View {
             .init(question: String(localized: "What is SpO₂?"),
                   answer: String(localized: "Blood oxygen saturation — the share of your blood's oxygen-carrying capacity currently in use. Readings in the mid-to-high 90s are typical for most people at rest.")),
             .init(question: String(localized: "Where did this measurement come from?"),
-                  answer: String(localized: "Apple Health, which receives it from a device that measures blood oxygen optically — normally an Apple Watch. NOOP reads these samples; it never estimates or generates a value of its own.")),
+                  answer: String(localized: "Either your WHOOP data export (percentages WHOOP itself calculated) or a device that measures blood oxygen optically, such as an Apple Watch, read via Apple Health.\n\nIt does NOT come from your WHOOP strap over Bluetooth. The strap streams a raw optical signal, and converting that to a percentage needs WHOOP's own calibration, which NOOP doesn't have — so NOOP never estimates or generates a value of its own.")),
         ]
         items.append(.init(
             question: String(localized: "How many readings were recorded?"),
@@ -435,11 +435,25 @@ struct PremiumBloodOxygenView: View {
         }
     }
 
+    /// Leads with the WHOOP strap, because that is where most NOOP users' data comes from and it is
+    /// the reason this screen is usually empty — an Apple-Health-first explanation reads as "connect
+    /// Health and it'll work", which is false for a strap-only user.
+    ///
+    /// The honest position, traced end-to-end: the strap's historical stream carries only the RAW
+    /// red/IR PPG counts (`spo2_red`/`spo2_ir` in `HistoricalStreams`), which NOOP banks as
+    /// `DailyMetric.spo2Red`/`spo2Ir`. Turning those into a saturation percentage needs WHOOP's
+    /// proprietary calibration curve, which NOOP does not have and cannot honestly approximate.
+    /// There IS a decoded strap-computed candidate at offset 82 (#103), but its cross-device
+    /// evidence is contradictory and it is explicitly barred from backing a shipped metric — so it
+    /// stays instrumentation. The on-device engine therefore never writes `spo2Pct`; only a WHOOP
+    /// CSV import or Apple Health supplies a real percentage.
     private var emptyReason: String {
+        let strapNote = String(localized: "Your WHOOP strap does record a raw optical signal overnight, but turning that into a blood-oxygen percentage needs WHOOP's own calibration, which NOOP doesn't have and won't guess at. So NOOP shows nothing here rather than a number it can't stand behind.")
+        let howTo = String(localized: "Two things do work: importing your WHOOP data export, which carries the percentages WHOOP already calculated for past nights, or an Apple Watch that records blood oxygen, which NOOP reads through Apple Health.")
         if intel.healthUnavailable {
-            return String(localized: "NOOP reads blood oxygen from Apple Health, which isn't connected yet. Connect it in Settings and any readings your watch has recorded will appear here.\n\nYour WHOOP strap records a raw optical signal overnight, but turning that into a blood-oxygen percentage needs a calibrated conversion NOOP doesn't have on-device — so NOOP will not show a number it can't stand behind.")
+            return strapNote + "\n\n" + howTo + " " + String(localized: "Apple Health isn't connected yet — you can connect it in Settings.")
         }
-        return String(localized: "Apple Health is connected but holds no blood-oxygen readings for you.\n\nThese come from a device that measures blood oxygen optically — normally an Apple Watch, and only on models and regions where the feature is enabled. Your WHOOP strap records a raw optical signal overnight, but converting that into a percentage needs a calibrated conversion NOOP doesn't have on-device, so it is never presented as one.")
+        return strapNote + "\n\n" + howTo + " " + String(localized: "Apple Health is connected but currently holds no blood-oxygen readings for you.")
     }
 
     private func sectionLabel(_ t: String) -> some View {
