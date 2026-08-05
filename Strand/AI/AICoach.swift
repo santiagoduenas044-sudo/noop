@@ -528,11 +528,48 @@ final class AICoachEngine: ObservableObject {
         }
     }
 
+    /// Supplies an ALREADY-COMPUTED findings block to prepend to the coach context.
+    ///
+    /// Exists so the deterministic analysis layer can ground the model without this shared file
+    /// depending on it: `AICoach.swift` compiles into BOTH the macOS and iOS targets, while
+    /// `PremiumCoachContext` / `PremiumJournalIntel` are iOS-only (`#if os(iOS)`). The iOS app sets
+    /// this at launch; macOS leaves it nil and behaves exactly as before.
+    ///
+    /// The contract is one-directional and deliberate: whatever this returns has ALREADY been
+    /// calculated from the user's own history and is ALREADY on screen. The model explains it. It is
+    /// never asked to derive a relationship, and it is never handed the raw rows that would let it
+    /// try. See `groundingRules`.
+    var groundingProvider: (() async -> String?)?
+
+    /// Rules that travel WITH the computed findings. Without these the model will happily invent a
+    /// plausible-sounding correlation, or restate an association as a cause — the two failure modes
+    /// this whole architecture exists to prevent.
+    static let groundingRules = """
+    GROUNDING RULES — these override any conflicting instruction above:
+    • The figures in "Computed findings" below were calculated on-device from this user's own \
+    history and are already shown to them in the app. Explain them. Do NOT recompute, extrapolate, \
+    or invent numbers that are not present.
+    • If a number you want to cite is not in the context, say you don't have it. Never estimate a \
+    metric, a baseline, a correlation or a sample size.
+    • The factor comparisons are ASSOCIATIONS measured by splitting the user's logged days — they \
+    are NOT evidence of cause. Say "coincided with" / "has gone together with", never "caused", \
+    "because of", or "due to". A third factor may drive both sides.
+    • Respect the stated confidence and sample size. A finding labelled "early" is a hint, not a \
+    conclusion, and must be described as such.
+    """
+
     /// Full data context = the metrics summary + recent workouts (+ an OPT-IN on-device-signals summary
     /// when the second consent is on). Used when the user has granted data access.
     func buildFullContext() async -> String {
         var ctx = buildContext()
         ctx += "\n\n" + (await recentWorkoutsBlock())
+        // Deterministic, already-on-screen findings + the rules that keep the model explaining them
+        // rather than inventing its own. Absent (and the rules omitted with it) when the provider
+        // isn't set or has nothing that cleared its sample-size gates — an empty findings section
+        // would otherwise read as "no relationships exist", which is a different claim.
+        if let provider = groundingProvider, let block = await provider(), !block.isEmpty {
+            ctx += "\n\n" + Self.groundingRules + "\n\n## Computed findings\n" + block
+        }
         // Derived stress: a single Baevsky Stress Index summary line over today's R-R, computed the same
         // way StressView does. Gated here under `dataConsent` (the caller only reaches buildFullContext()
         // with consent on), so it rides the SAME consent + text-only channel as the HRV/RHR summary, a

@@ -87,6 +87,27 @@ struct StrandiOSApp: App {
                 .environment(\.locale, language.locale)
                 .preferredColorScheme(AppearanceMode.resolve(appearanceRaw).colorScheme)
                 .chartStyle(chartStyleRaw)
+                // Ground the AI coach in the SAME deterministic findings the Premium screens show.
+                // Without this the engine sent only its raw metrics summary, leaving the model free
+                // to invent relationships and restate associations as causes — the exact failure the
+                // analysis layer exists to prevent. Installed here (iOS-only) because AICoachEngine
+                // is shared with macOS and must not depend on the iOS-only Premium types; the engine
+                // exposes a provider hook instead. Rebuilt per request so it can never go stale.
+                .task {
+                    model.coach.groundingProvider = { [weak model] in
+                        guard let model else { return nil }
+                        let sleepIntel = await PremiumSleepIntel.load(repo: model.repo, window: 3)
+                        let journalEntries = await model.repo.journalEntries()
+                        let ctx = await PremiumCoachContext.build(
+                            repo: model.repo,
+                            sleepIntel: sleepIntel,
+                            liveBpm: model.live.heartRate,
+                            dayHR: [],
+                            minutesInZone: [:],
+                            journalEntries: journalEntries)
+                        return ctx.groundingBlock
+                    }
+                }
                 // Dynamic Type now scales the prose/label roles (StrandFont). Cap the upper end so the
                 // fixed-geometry tiles/gauges stay legible at the largest accessibility sizes rather than
                 // clipping; the common Larger-Text range still scales fully.

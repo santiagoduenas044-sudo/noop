@@ -268,6 +268,38 @@ struct PremiumCoachContext {
         return out.joined(separator: "\n")
     }
 
+    /// The findings-only block fed to `AICoachEngine.groundingProvider`.
+    ///
+    /// Deliberately NOT `promptBrief`: the coach engine already builds and sends its own metrics
+    /// summary (charge/effort/rest, HRV, resting HR, recent workouts), so sending the full brief
+    /// would duplicate all of that in every request — more tokens, and two independently-formatted
+    /// copies of the same numbers for the model to potentially disagree with itself about. This
+    /// carries only what the engine does NOT already have: the deterministic findings and the
+    /// journal with/without comparisons.
+    ///
+    /// Returns nil when there is nothing that cleared a threshold, so the caller can omit the
+    /// section entirely — an empty "Computed findings" heading would read as "no relationships
+    /// exist in your data", which is a different and unsupported claim.
+    var groundingBlock: String? {
+        var out: [String] = []
+        if !findings.isEmpty {
+            for f in findings {
+                var line = "- [\(f.confidence.promptWord)] \(f.text)"
+                if let d = f.detail { line += " (\(d))" }
+                out.append(line)
+            }
+        }
+        if !journal.factorFindings.isEmpty {
+            if !out.isEmpty { out.append("") }
+            out.append("Journal factor comparisons (with vs without, already computed):")
+            out.append(contentsOf: journal.factorFindings.map { "- " + $0.brief })
+        }
+        guard !out.isEmpty else { return nil }
+        out.append("")
+        out.append("Data coverage: " + dataQuality.summary)
+        return out.joined(separator: "\n")
+    }
+
     /// The instructions that travel with every context. They exist to make fabrication a rule
     /// violation rather than a stylistic preference.
     static let groundingRules: String = """
