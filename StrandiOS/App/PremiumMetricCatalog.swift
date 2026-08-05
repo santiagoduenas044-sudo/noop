@@ -166,6 +166,29 @@ extension PremiumMetricCatalog {
         d.efficiency.map { $0 <= 1.0 ? $0 * 100 : $0 }
     }
 
+    // MARK: Effort / strain scale
+
+    /// `DailyMetric.strain` is STORED on NOOP's native 0–100 Effort axis (`StrainScorer.maxStrain`
+    /// = 100). WHOOP's Day Strain axis is 0–21, and the user picks which one they see
+    /// (`UnitFormatter.effortScaleKey`, default 0–100).
+    ///
+    /// **This conversion was missing from every Premium surface**, which read `$0.strain` raw and
+    /// then divided by 21 / labelled it "OF 21". A perfectly valid stored strain of 27 therefore
+    /// rendered as the impossible "27 / 21". The classic UI has always converted via
+    /// `UnitFormatter.effortValue`; Premium never did. Route EVERY Premium strain read through here.
+    static func strainDisplay(_ stored: Double) -> Double {
+        UnitFormatter.effortValue(stored, scale: effortScale)
+    }
+
+    /// The user's chosen Effort axis, read fresh so a Settings change applies without a relaunch.
+    static var effortScale: EffortScale {
+        UnitFormatter.resolveEffortScale(UserDefaults.standard.string(forKey: UnitFormatter.effortScaleKey) ?? "")
+    }
+
+    /// The top of the user's chosen Effort axis — 21 or 100. Use for gauge denominators and "of N"
+    /// labels so the number and its scale can never disagree again.
+    static var strainScaleMax: Double { effortScale == .whoop ? 21 : 100 }
+
     /// The full registry, in a sensible default display order.
     static let all: [PremiumMetricDef] = [
         // ---- Heart -------------------------------------------------------------------
@@ -225,8 +248,11 @@ extension PremiumMetricCatalog {
             id: .strain, name: String(localized: "Day Strain"), shortName: String(localized: "Strain"), unit: "",
             icon: "flame.fill", tint: StrandPalette.effortColor, group: .recovery,
             provenance: .calculated, decimals: 1, higherBetter: nil,
-            explanation: String(localized: "Cardiovascular load accumulated across the day on a 0–21 scale, weighted by time spent in each heart-rate zone."),
-            read: { $0.strain }, isDerived: false),
+            explanation: String(localized: "Cardiovascular load accumulated across the day, weighted by time spent in each heart-rate zone. Shown on whichever Effort scale you've chosen in Settings."),
+            // Converted to the user's chosen axis HERE, at the single read boundary, so every
+            // surface that enumerates the catalog (Home cards, Trends, detail screens, the Coach
+            // context) inherits the same number. Reading `$0.strain` raw is what produced "27 / 21".
+            read: { $0.strain.map { PremiumMetricCatalog.strainDisplay($0) } }, isDerived: false),
         PremiumMetricDef(
             id: .stressLoad, name: String(localized: "Physiological Load"), shortName: String(localized: "Load"), unit: "",
             icon: "waveform.path", tint: StrandPalette.metricAmber, group: .recovery,

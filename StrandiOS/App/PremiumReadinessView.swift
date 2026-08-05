@@ -25,8 +25,10 @@ struct PremiumReadinessView: View {
     private var eff: Double?  { latest { $0.efficiency }.map { $0 <= 1.0 ? $0 * 100 : $0 } }
     private var resp: Double? { latest { $0.respRateBpm } }
     private var skin: Double? { latest { $0.skinTempDevC } }
+    /// Yesterday's effort on the user's chosen axis — `DailyMetric.strain` is stored 0–100 (see
+    /// `PremiumMetricCatalog.strainDisplay`).
     private var priorStrain: Double? {
-        let s = repo.days.suffix(90).compactMap { $0.strain }
+        let s = repo.days.suffix(90).compactMap { $0.strain.map { PremiumMetricCatalog.strainDisplay($0) } }
         return s.count >= 2 ? s[s.count - 2] : s.last
     }
 
@@ -62,9 +64,9 @@ struct PremiumReadinessView: View {
         if let s = skin { d.append(.init(name: "Skin temp", value: String(format: "%+.1f°C", s),
             frac: max(0, min(1, 1 - abs(s)/1.5)), tint: StrandPalette.gold,
             note: "Deviation from your baseline skin temperature.", history: skinHistory)) }
-        let strainHistory = repo.days.suffix(30).compactMap { $0.strain }
+        let strainHistory = repo.days.suffix(30).compactMap { $0.strain.map { PremiumMetricCatalog.strainDisplay($0) } }
         if let ps = priorStrain { d.append(.init(name: "Prior strain", value: String(format: "%.1f", ps),
-            frac: max(0, min(1, 1 - ps/21)), tint: StrandPalette.effortColor,
+            frac: max(0, min(1, 1 - ps / PremiumMetricCatalog.strainScaleMax)), tint: StrandPalette.effortColor,
             note: "Yesterday's effort — high strain needs more recovery.", history: strainHistory)) }
         return d
     }

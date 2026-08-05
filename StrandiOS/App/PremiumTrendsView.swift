@@ -23,7 +23,8 @@ struct PremiumTrendsView: View {
          Metric(name: "HRV", unit: "ms", tint: StrandPalette.metricCyan, higherBetter: true,
                 key: { $0.avgHrv }, fmt: { "\(Int($0.rounded()))" }),
          Metric(name: "Strain", unit: "", tint: StrandPalette.effortColor, higherBetter: true,
-                key: { $0.strain }, fmt: { String(format: "%.1f", $0) }),
+                key: { $0.strain.map { PremiumMetricCatalog.strainDisplay($0) } },
+                fmt: { String(format: "%.1f", $0) }),
          // efficiency is a FRACTION in [0,1] (see SleepStageTotals.DailySleep's doc), not a 0-100
          // percentage — normalized here (same defensive `<= 1.0 ? *100 : as-is` guard SleepView.
          // efficiencyPct uses) so the "%" unit reads "92%", not "1%".
@@ -267,7 +268,7 @@ struct PremiumTrendsView: View {
                     StrandCard {
                         VStack(spacing: 0) {
                             dayRow("Recovery", day.recovery.map { "\(Int($0.rounded()))%" })
-                            dayRow("Strain", day.strain.map { String(format: "%.1f", $0) })
+                            dayRow("Strain", day.strain.map { String(format: "%.1f", PremiumMetricCatalog.strainDisplay($0)) })
                             dayRow("HRV", day.avgHrv.map { "\(Int($0.rounded())) ms" })
                             dayRow("Resting HR", day.restingHr.map { "\($0) bpm" })
                             dayRow("Sleep", day.totalSleepMin.map { PremiumAnalysis.durText($0) })

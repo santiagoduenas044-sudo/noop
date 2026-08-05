@@ -20,19 +20,27 @@ struct PremiumStrainView: View {
         for d in repo.days.reversed() { if let v = key(d) { return v } }
         return repo.today.flatMap(key)
     }
-    private var strain: Double? { latest { $0.strain } }
+    /// On the user's chosen Effort axis. `DailyMetric.strain` is STORED 0–100; reading it raw and
+    /// rendering it against a 0–21 gauge is what produced the impossible "27 / 21".
+    private var strain: Double? { latest { $0.strain }.map { PremiumMetricCatalog.strainDisplay($0) } }
+    /// The top of that axis — 21 (WHOOP) or 100 (NOOP native). Every denominator, gauge fraction and
+    /// "of N" label below reads this, so the number and its scale can never disagree again.
+    private var scaleMax: Double { PremiumMetricCatalog.strainScaleMax }
     private var recovery: Double? { latest { $0.recovery } }
     private var activeKcal: Double? { latest { $0.activeKcalEst } }
     private var steps: Int? { latest { $0.steps } }
     private var workouts: Int? { latest { $0.exerciseCount } }
     private var bpmValues: [Double] { dayHR.map(\.bpm).filter { $0 > 0 } }
 
-    /// Suggested strain ceiling from today's recovery: greener → more room to push (WHOOP's own idea, our
-    /// own simple mapping). A range around that target, clamped to the 0–21 scale.
+    /// Suggested strain ceiling from today's recovery: greener → more room to push (WHOOP's own idea,
+    /// our own simple mapping). Expressed as a FRACTION of the axis and then scaled, so the guidance
+    /// stays correct whichever Effort axis the user has chosen rather than being hardcoded to 0–21.
     private var suggested: (lo: Double, hi: Double)? {
         guard let r = recovery else { return nil }
-        let target = 6 + (r / 100) * 12       // 6 at 0% recovery → 18 at 100%
-        return (max(0, target - 2), min(21, target + 2))
+        let targetFraction = (6 + (r / 100) * 12) / 21    // 6/21 at 0% recovery → 18/21 at 100%
+        let target = targetFraction * scaleMax
+        let pad = (2.0 / 21.0) * scaleMax                 // the old ±2 band, axis-relative
+        return (max(0, target - pad), min(scaleMax, target + pad))
     }
 
     var body: some View {
@@ -84,7 +92,7 @@ struct PremiumStrainView: View {
     // MARK: Hero ring
 
     private var heroRing: some View {
-        let frac = min(1, max(0, (strain ?? 0) / 21))
+        let frac = min(1, max(0, (strain ?? 0) / scaleMax))
         return ZStack {
             Circle().stroke(StrandPalette.surfaceInset, lineWidth: 14)
             Circle().trim(from: 0, to: frac)
@@ -97,7 +105,8 @@ struct PremiumStrainView: View {
                 CountUpText(value: strain ?? 0, format: { strain == nil ? "—" : String(format: "%.1f", $0) },
                             font: .system(size: 44, weight: .heavy), color: StrandPalette.textPrimary)
                     .monospacedDigit()
-                Text("OF 21").font(.system(size: 9, weight: .bold)).tracking(1)
+                Text(String(format: String(localized: "OF %d"), Int(scaleMax)))
+                    .font(.system(size: 9, weight: .bold)).tracking(1)
                     .foregroundStyle(StrandPalette.textTertiary)
             }
         }
@@ -117,12 +126,12 @@ struct PremiumStrainView: View {
                         ZStack(alignment: .leading) {
                             Capsule().fill(StrandPalette.surfaceInset).frame(height: 10)
                             Capsule().fill(StrandPalette.effortColor.opacity(0.35))
-                                .frame(width: w * CGFloat((s.hi - s.lo) / 21), height: 10)
-                                .offset(x: w * CGFloat(s.lo / 21))
+                                .frame(width: w * CGFloat((s.hi - s.lo) / scaleMax), height: 10)
+                                .offset(x: w * CGFloat(s.lo / scaleMax))
                             if let st = strain {
                                 Circle().fill(StrandPalette.effortColor).frame(width: 16, height: 16)
                                     .overlay(Circle().strokeBorder(StrandPalette.surfaceBase, lineWidth: 2))
-                                    .offset(x: max(0, min(w - 16, w * CGFloat(st / 21) - 8)))
+                                    .offset(x: max(0, min(w - 16, w * CGFloat(st / scaleMax) - 8)))
                             }
                         }
                     }
@@ -230,7 +239,8 @@ struct PremiumStrainView: View {
     // MARK: Weekly strain
 
     @ViewBuilder private var weeklyStrainCard: some View {
-        let recent = Array(repo.days.suffix(90).compactMap { $0.strain }.suffix(7))
+        // Converted to the user's axis like every other strain read on this screen.
+        let recent = Array(repo.days.suffix(90).compactMap { $0.strain.map { PremiumMetricCatalog.strainDisplay($0) } }.suffix(7))
         if recent.count >= 2 {
             let maxV = max(1, recent.max() ?? 1)
             StrandCard {
@@ -263,7 +273,7 @@ struct PremiumStrainView: View {
     /// cell rather than a guessed shade.
     @ViewBuilder private var heatmapCard: some View {
         let days = Array(repo.days.suffix(30))
-        let values = days.map { $0.strain }
+        let values = days.map { $0.strain.map { PremiumMetricCatalog.strainDisplay($0) } }
         let present = values.compactMap { $0 }
         if present.count >= 7 {
             let lo = present.min() ?? 0, hi = present.max() ?? 1

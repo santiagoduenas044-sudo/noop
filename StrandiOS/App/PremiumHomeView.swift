@@ -46,7 +46,9 @@ struct PremiumHomeView: View {
     }
 
     private var recovery: Double? { latest { $0.recovery } }
-    private var strain: Double?   { latest { $0.strain } }
+    /// On the user's chosen Effort axis — `DailyMetric.strain` is stored 0–100 (see
+    /// `PremiumMetricCatalog.strainDisplay`).
+    private var strain: Double?   { latest { $0.strain }.map { PremiumMetricCatalog.strainDisplay($0) } }
     private var hrv: Double?      { latest { $0.avgHrv } }
     private var rhr: Int?         { latest { $0.restingHr } }
     private var resp: Double?     { latest { $0.respRateBpm } }
@@ -230,8 +232,10 @@ struct PremiumHomeView: View {
                 NavigationLink(value: PremiumRoute.strain) {
                     heroStat(label: "Day Strain", value: strain,
                              format: { strain == nil ? "—" : String(format: "%.1f", $0) },
-                             fraction: (strain ?? 0) / 21.0,
-                             tint: StrandPalette.effortColor, sub: "of 21", showsChevron: true)
+                             fraction: (strain ?? 0) / PremiumMetricCatalog.strainScaleMax,
+                             tint: StrandPalette.effortColor,
+                             sub: String(format: String(localized: "of %d"), Int(PremiumMetricCatalog.strainScaleMax)),
+                             showsChevron: true)
                 }
                 .buttonStyle(.plain)
                 heroStat(label: "Sleep", value: efficiency,
@@ -407,7 +411,8 @@ struct PremiumHomeView: View {
                     weekRow("Recovery", tint: StrandPalette.recoveryColor(80), days: days,
                             key: { $0.recovery }, span: 100)
                     weekRow("Strain", tint: StrandPalette.effortColor, days: days,
-                            key: { $0.strain }, span: 21)
+                            key: { $0.strain.map { PremiumMetricCatalog.strainDisplay($0) } },
+                            span: PremiumMetricCatalog.strainScaleMax)
                     weekRow("Sleep", tint: StrandPalette.sleepDeep, days: days,
                             key: { $0.efficiency.map { $0 <= 1.0 ? $0 * 100 : $0 } }, span: 100)
                     weekDayLabels(days)

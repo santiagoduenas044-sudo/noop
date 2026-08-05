@@ -152,7 +152,13 @@ enum PremiumBounds {
         "spo2":         70...100,     // %
         "skinTemp":     -8...8,       // °C deviation
         "recovery":     0...100,      // %
-        "strain":       0...21,       // WHOOP scale
+        // Effort/strain arrives here ALREADY converted to the user's chosen display axis by
+        // `PremiumMetricCatalog.strainDisplay`, which is 0–21 (WHOOP) or 0–100 (NOOP native). The
+        // bound must therefore cover the WIDER axis: it previously read 0...21 while the catalog
+        // handed it the raw 0–100 stored value, so `PremiumBounds.clean` silently DISCARDED every
+        // day above 21 — truncating strain history, baselines, trends and correlations to only the
+        // lightest days, with no empty state to signal it.
+        "strain":       0...100,
         "sleepEfficiency": 0...100,   // %
         "sleepDuration": 1...1200,    // minutes (20h ceiling)
         "steps":        0...200_000,
