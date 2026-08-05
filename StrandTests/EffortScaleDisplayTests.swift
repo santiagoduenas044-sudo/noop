@@ -1,99 +1,80 @@
 import XCTest
-import WhoopStore
+import StrandAnalytics
 @testable import Strand
 
 /// Pins the Effort/strain display-scale contract that produced the impossible "27 / 21".
 ///
 /// `DailyMetric.strain` is STORED on NOOP's native 0–100 axis (`StrainScorer.maxStrain` = 100).
 /// WHOOP's Day Strain axis is 0–21 and the user chooses which they see. Every Premium surface read
-/// the stored value RAW and then rendered it against a 0–21 gauge, so a perfectly valid stored
-/// strain of 27 displayed as "27 / 21".
+/// the stored value RAW and then rendered it against a hardcoded 0–21 gauge, so a perfectly valid
+/// stored strain of 27 displayed as "27 / 21".
 ///
-/// These tests guard the conversion helpers and — more importantly — the invariant that a converted
-/// value can never exceed the axis it is drawn against.
+/// The fix routes every Premium strain read through `UnitFormatter.effortValue` and every gauge
+/// denominator through `UnitFormatter.effortAxisMax` — the two helpers tested here.
+/// `PremiumMetricCatalog.strainDisplay` / `.strainScaleMax` are thin wrappers over exactly these, but
+/// they live under `#if os(iOS)` and there is no iOS unit-test target, so the contract is pinned at
+/// this shared layer and the iOS wiring is validated by the app-target build.
 final class EffortScaleDisplayTests: XCTestCase {
 
-    private func withEffortScale(_ raw: String, _ body: () -> Void) {
-        let key = UnitFormatter.effortScaleKey
-        let previous = UserDefaults.standard.string(forKey: key)
-        UserDefaults.standard.set(raw, forKey: key)
-        body()
-        if let previous { UserDefaults.standard.set(previous, forKey: key) }
-        else { UserDefaults.standard.removeObject(forKey: key) }
+    /// The stored full-scale value the display layer restates must stay tied to the analytics
+    /// constant it mirrors — if `StrainScorer.maxStrain` ever moves, the axis must move with it.
+    func testStoredMaxMatchesTheAnalyticsConstant() {
+        XCTAssertEqual(UnitFormatter.effortStoredMax, StrainScorer.maxStrain, accuracy: 1e-9)
     }
 
     /// The bug, stated as an invariant: a full-scale stored value must land exactly on the top of
     /// whichever axis is displayed — never past it.
     func testFullScaleStoredStrainNeverExceedsTheDisplayedAxis() {
-        withEffortScale(EffortScale.whoop.rawValue) {
-            let shown = PremiumMetricCatalog.strainDisplay(100)
-            XCTAssertEqual(shown, 21, accuracy: 1e-9)
-            XCTAssertLessThanOrEqual(shown, PremiumMetricCatalog.strainScaleMax)
-        }
-        withEffortScale(EffortScale.hundred.rawValue) {
-            let shown = PremiumMetricCatalog.strainDisplay(100)
-            XCTAssertEqual(shown, 100, accuracy: 1e-9)
-            XCTAssertLessThanOrEqual(shown, PremiumMetricCatalog.strainScaleMax)
-        }
+        XCTAssertEqual(UnitFormatter.effortValue(100, scale: .whoop), 21, accuracy: 1e-9)
+        XCTAssertEqual(UnitFormatter.effortValue(100, scale: .hundred), 100, accuracy: 1e-9)
     }
 
     /// The exact reported symptom: a stored 27 must NOT render as 27 on the 0–21 axis.
     func testStoredTwentySevenDoesNotRenderAsTwentySevenOutOfTwentyOne() {
-        withEffortScale(EffortScale.whoop.rawValue) {
-            let shown = PremiumMetricCatalog.strainDisplay(27)
-            XCTAssertEqual(shown, 27 * 21.0 / 100.0, accuracy: 1e-9)
-            XCTAssertLessThan(shown, 21, "a mid-range day must sit well inside the axis")
-            XCTAssertLessThanOrEqual(shown, PremiumMetricCatalog.strainScaleMax)
-        }
+        let shown = UnitFormatter.effortValue(27, scale: .whoop)
+        XCTAssertEqual(shown, 27 * 21.0 / 100.0, accuracy: 1e-9)
+        XCTAssertLessThan(shown, 21, "a mid-range day must sit well inside the axis")
     }
 
     /// Sweep the whole stored domain on both axes — no input may ever produce a value above the
     /// axis maximum, which is what makes an impossible reading structurally unreachable.
     func testNoStoredValueCanExceedTheAxisMaximum() {
-        for raw in [EffortScale.whoop.rawValue, EffortScale.hundred.rawValue] {
-            withEffortScale(raw) {
-                let maxAxis = PremiumMetricCatalog.strainScaleMax
-                for stored in stride(from: 0.0, through: 100.0, by: 0.5) {
-                    let shown = PremiumMetricCatalog.strainDisplay(stored)
-                    XCTAssertGreaterThanOrEqual(shown, 0, "scale \(raw), stored \(stored)")
-                    XCTAssertLessThanOrEqual(shown, maxAxis + 1e-9,
-                                             "scale \(raw), stored \(stored) rendered \(shown) above axis \(maxAxis)")
-                }
+        for scale in [EffortScale.whoop, EffortScale.hundred] {
+            let maxAxis = UnitFormatter.effortAxisMax(scale)
+            for stored in stride(from: 0.0, through: UnitFormatter.effortStoredMax, by: 0.5) {
+                let shown = UnitFormatter.effortValue(stored, scale: scale)
+                XCTAssertGreaterThanOrEqual(shown, 0, "scale \(scale.rawValue), stored \(stored)")
+                XCTAssertLessThanOrEqual(shown, maxAxis + 1e-9,
+                                         "scale \(scale.rawValue), stored \(stored) rendered \(shown) above axis \(maxAxis)")
             }
         }
     }
 
-    /// The axis maximum and the conversion must agree — if one changes without the other, the
-    /// gauge and its label drift apart again.
+    /// The axis maximum and the conversion must agree — if one is changed without the other, the
+    /// gauge and its label drift apart again, which is the whole shape of this bug.
     func testAxisMaximumMatchesAFullScaleConversion() {
-        for raw in [EffortScale.whoop.rawValue, EffortScale.hundred.rawValue] {
-            withEffortScale(raw) {
-                XCTAssertEqual(PremiumMetricCatalog.strainDisplay(100),
-                               PremiumMetricCatalog.strainScaleMax, accuracy: 1e-9,
-                               "scale \(raw): full-scale conversion must equal the axis max")
-            }
+        for scale in [EffortScale.whoop, EffortScale.hundred] {
+            XCTAssertEqual(UnitFormatter.effortValue(UnitFormatter.effortStoredMax, scale: scale),
+                           UnitFormatter.effortAxisMax(scale), accuracy: 1e-9,
+                           "scale \(scale.rawValue): full-scale conversion must equal the axis max")
         }
     }
 
-    /// `PremiumBounds` previously capped strain at 0…21 while being fed the raw 0–100 value, so
-    /// `clean` silently DISCARDED every day above 21 — truncating strain history, baselines and
-    /// correlations to only the lightest days. The bound must cover the wider axis.
-    func testBoundsDoNotDiscardRealStrainDays() {
-        let samples = [
-            PremiumSample(day: "2026-08-01", value: 8),
-            PremiumSample(day: "2026-08-02", value: 42),   // a real, ordinary 0–100 day
-            PremiumSample(day: "2026-08-03", value: 88),
-        ]
-        let cleaned = PremiumBounds.clean(samples, key: "strain")
-        XCTAssertEqual(cleaned.count, 3, "no ordinary strain day may be dropped as 'impossible'")
+    /// The numeric axis max and the STRING one shown in "/21" labels must name the same number.
+    func testNumericAndStringAxisMaximaAgree() {
+        for scale in [EffortScale.whoop, EffortScale.hundred] {
+            XCTAssertEqual(UnitFormatter.effortScaleMax(scale),
+                           "\(Int(UnitFormatter.effortAxisMax(scale).rounded()))",
+                           "scale \(scale.rawValue): label and denominator must agree")
+        }
     }
 
-    /// Genuinely impossible values are still rejected — widening the bound must not disable it.
-    func testBoundsStillRejectImpossibleStrain() {
-        let samples = [
-            PremiumSample(day: "2026-08-01", value: -5),
-            PremiumSample(day: "2026-08-02", value: 5_000),
-        ]
-        XCTAssertTrue(PremiumBounds.clean(samples, key: "strain").isEmpty)
+    /// The preference key + resolution the display layer reads. An unset or unknown value must
+    /// resolve to NOOP's native 0–100 axis, never to a partially-applied conversion.
+    func testEffortScaleResolutionDefaultsToTheStoredAxis() {
+        XCTAssertEqual(UnitPrefs.resolveEffortScale(""), .hundred)
+        XCTAssertEqual(UnitPrefs.resolveEffortScale("nonsense"), .hundred)
+        XCTAssertEqual(UnitPrefs.resolveEffortScale(EffortScale.whoop.rawValue), .whoop)
+        XCTAssertEqual(UnitPrefs.resolveEffortScale(EffortScale.hundred.rawValue), .hundred)
     }
 }

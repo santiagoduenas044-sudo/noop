@@ -170,7 +170,7 @@ extension PremiumMetricCatalog {
 
     /// `DailyMetric.strain` is STORED on NOOP's native 0–100 Effort axis (`StrainScorer.maxStrain`
     /// = 100). WHOOP's Day Strain axis is 0–21, and the user picks which one they see
-    /// (`UnitFormatter.effortScaleKey`, default 0–100).
+    /// (`UnitPrefs.effortScaleKey`, default 0–100).
     ///
     /// **This conversion was missing from every Premium surface**, which read `$0.strain` raw and
     /// then divided by 21 / labelled it "OF 21". A perfectly valid stored strain of 27 therefore
@@ -182,12 +182,14 @@ extension PremiumMetricCatalog {
 
     /// The user's chosen Effort axis, read fresh so a Settings change applies without a relaunch.
     static var effortScale: EffortScale {
-        UnitFormatter.resolveEffortScale(UserDefaults.standard.string(forKey: UnitFormatter.effortScaleKey) ?? "")
+        UnitPrefs.resolveEffortScale(UserDefaults.standard.string(forKey: UnitPrefs.effortScaleKey) ?? "")
     }
 
     /// The top of the user's chosen Effort axis — 21 or 100. Use for gauge denominators and "of N"
-    /// labels so the number and its scale can never disagree again.
-    static var strainScaleMax: Double { effortScale == .whoop ? 21 : 100 }
+    /// labels so the number and its scale can never disagree again. Delegates to the shared
+    /// `UnitFormatter.effortAxisMax`, which derives the axis from the SAME conversion `strainDisplay`
+    /// applies, so the two cannot drift (pinned by `EffortScaleDisplayTests`).
+    static var strainScaleMax: Double { UnitFormatter.effortAxisMax(effortScale) }
 
     /// The full registry, in a sensible default display order.
     static let all: [PremiumMetricDef] = [

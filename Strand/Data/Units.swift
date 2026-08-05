@@ -269,6 +269,20 @@ enum UnitFormatter {
         scale == .whoop ? "21" : "100"
     }
 
+    /// The top of the STORED Effort axis — `StrainScorer.maxStrain`, restated here so this file stays
+    /// dependency-free (the 100 in `effortScaleFactor`'s denominator is the same number). The tie to
+    /// `StrainScorer.maxStrain` is pinned by `EffortScaleDisplayTests`, which imports both.
+    static let effortStoredMax = 100.0
+
+    /// The NUMERIC top of the displayed Effort axis — the denominator a gauge, ring or "of N" label
+    /// must use. Derived from `effortValue` at full scale rather than hardcoded, so the axis and the
+    /// conversion can never drift apart: that drift is exactly what rendered a stored strain of 27 as
+    /// the impossible "27 / 21" on every Premium surface, which read the stored 0–100 value raw and
+    /// then drew it against a hardcoded 21.
+    static func effortAxisMax(_ scale: EffortScale) -> Double {
+        effortValue(effortStoredMax, scale: scale)
+    }
+
     // MARK: Helpers
 
     private static func oneDecimal(_ v: Double) -> String { String(format: "%.1f", v) }
