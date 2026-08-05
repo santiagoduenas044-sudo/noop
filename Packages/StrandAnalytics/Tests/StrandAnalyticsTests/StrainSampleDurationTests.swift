@@ -1,5 +1,6 @@
 import XCTest
 @testable import StrandAnalytics
+import WhoopProtocol   // HRSample lives here, not in StrandAnalytics
 
 /// Pins the per-sample TRIMP integration that fixed "strain starts the day unrealistically high".
 ///
