@@ -723,7 +723,8 @@ final class Repository: ObservableObject {
             return MergedCaches(
                 importedSleep: fig,
                 days: Self.mergeActivityFileSteps(
-                    into: Self.mergeDaily(imported: imported, computed: computed, userEditedDays: editedDays),
+                    into: Self.mergeDaily(imported: imported, computed: computed, apple: apple,
+                                          userEditedDays: editedDays),
                     activityFile
                 ),
                 sleeps: Self.mergeSleep(imported: impSleep, computed: compSleep),
@@ -786,6 +787,7 @@ final class Repository: ObservableObject {
     /// the user's correction. Non-sleep fields (recovery/strain/HRV/RHR/activity…) still follow the
     /// normal imports-win merge, and every NON-edited day is unchanged.
     nonisolated static func mergeDaily(imported: [DailyMetric], computed: [DailyMetric],
+                                       apple: [DailyMetric] = [],
                                        userEditedDays: Set<String> = []) -> [DailyMetric] {
         var byDay: [String: DailyMetric] = [:]
         for d in computed { byDay[d.day] = d }
@@ -795,6 +797,25 @@ final class Repository: ObservableObject {
                 byDay[d.day] = userEditedDays.contains(d.day)
                     ? merged.takingSleepFields(from: existing)   // edited night: computed sleep wins
                     : merged
+            } else {
+                byDay[d.day] = d
+            }
+        }
+        // Apple Health LAST and gap-filling ONLY. `apple` was previously read by `refresh()` but fed
+        // only to `sourceRows`/`computeFreshness`, never into `days` — so any signal Apple Health was
+        // the sole source of never reached the UI at all. SpO₂ is the visible casualty: the on-device
+        // engine banks raw `spo2Red`/`spo2Ir` and writes `spo2Pct = nil` (see
+        // `WhoopStore.lastSpo2Day`), so for a strap user whose only real percentage comes from an
+        // Apple Watch, every SpO₂ surface rendered empty.
+        //
+        // Direction matters: `existing.fillingNilFields(from: d)` keeps the higher-priority row's
+        // values and lets Apple fill only its nils, which matches the established ranking in
+        // `DailyMetricSource.vitalPriority` (whoopImport 0 < noopComputed 1 < appleHealth 2). Apple
+        // can therefore never overwrite a strap measurement or a NOOP-computed value — it only fills
+        // gaps, and supplies the whole row on a day no other source covered.
+        for d in apple {
+            if let existing = byDay[d.day] {
+                byDay[d.day] = existing.fillingNilFields(from: d)
             } else {
                 byDay[d.day] = d
             }
