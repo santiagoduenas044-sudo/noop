@@ -166,11 +166,52 @@ object StrainScorer {
     /**
      * Infer per-sample duration (minutes) from the first two timestamps. Falls
      * back to 1 s when fewer than two samples or coincident timestamps.
+     *
+     * ONLY valid for a UNIFORMLY sampled stream. Kept for the testable surface, but the TRIMP
+     * integrators no longer use it — see [sampleDurationsMinutes].
      */
     fun sampleDurationMinutes(hr: List<HrSample>): Double {
         if (hr.size < 2) return fallbackSampleMin
         val deltaS = abs((hr[1].ts - hr[0].ts).toDouble())
         return if (deltaS > 0) deltaS / 60.0 else fallbackSampleMin
+    }
+
+    /**
+     * Longest gap (seconds) a single sample may be credited with. A WHOOP 4.0 streams ~1 Hz and a
+     * 5/MG drops to ~30 s at rest, so 120 s covers every legitimate cadence while stopping a real
+     * GAP — strap removed, BLE dropout, an overnight sparse stretch — from being integrated as if
+     * the wearer held that heart rate continuously through it.
+     *
+     * Swift twin: `StrainScorer.maxSampleGapSeconds`.
+     */
+    const val maxSampleGapSeconds: Double = 120.0
+
+    /**
+     * Per-sample durations in minutes, from each sample's ACTUAL gap to the next.
+     *
+     * Fixes "strain starts the day unrealistically high": the integrators previously derived ONE
+     * duration from `hr[1].ts - hr[0].ts` and multiplied every sample by it, so a single
+     * unrepresentative first gap rescaled the whole day. Early morning — when the stream is sparse
+     * and irregular — that inferred a huge per-sample duration and credited every later reading
+     * with it, inflating TRIMP and therefore strain; as the stream densified the number "settled".
+     *
+     * A uniformly sampled stream yields the same value for every element, so a healthy 1 Hz day
+     * scores identically to before. The last sample has no successor and inherits the MEDIAN of the
+     * observed gaps (one outlier can't skew it).
+     *
+     * Byte-identical twin of Swift `StrainScorer.sampleDurationsMinutes`.
+     */
+    fun sampleDurationsMinutes(hr: List<HrSample>): List<Double> {
+        if (hr.size < 2) return List(hr.size) { fallbackSampleMin }
+        val gaps = ArrayList<Double>(hr.size - 1)
+        for (i in 0 until hr.size - 1) {
+            val raw = abs((hr[i + 1].ts - hr[i].ts).toDouble())
+            val capped = if (raw <= 0) fallbackSampleMin * 60.0 else minOf(raw, maxSampleGapSeconds)
+            gaps.add(capped / 60.0)
+        }
+        val sorted = gaps.sorted()
+        val median = if (sorted.isEmpty()) fallbackSampleMin else sorted[sorted.size / 2]
+        return gaps + median
     }
 
     fun edwardsTRIMP(
@@ -186,6 +227,25 @@ object StrainScorer {
         return weighted.toDouble() * sampleDurationMin
     }
 
+    /**
+     * Edwards TRIMP integrated with PER-SAMPLE durations. Byte-identical twin of the Swift
+     * `edwardsTRIMP(_:restingHR:hrReserve:durations:)` overload.
+     */
+    fun edwardsTRIMP(
+        hr: List<HrSample>,
+        restingHR: Double,
+        hrReserve: Double,
+        durations: List<Double>,
+    ): Double {
+        var acc = 0.0
+        for ((i, s) in hr.withIndex()) {
+            if (i >= durations.size) break
+            val w = zoneWeight(s.bpm.toDouble(), restingHR, hrReserve)
+            if (w > 0) acc += w.toDouble() * durations[i]
+        }
+        return acc
+    }
+
     fun banisterTRIMP(
         hr: List<HrSample>,
         restingHR: Double,
@@ -197,6 +257,26 @@ object StrainScorer {
         for (s in hr) {
             val x = pctHRR(s.bpm.toDouble(), restingHR, hrReserve) / 100.0
             if (x > 0) acc += sampleDurationMin * x * banisterScale * exp(b * x)
+        }
+        return acc
+    }
+
+    /**
+     * Banister TRIMP with PER-SAMPLE durations. Byte-identical twin of the Swift
+     * `banisterTRIMP(_:restingHR:hrReserve:durations:b:)` overload.
+     */
+    fun banisterTRIMP(
+        hr: List<HrSample>,
+        restingHR: Double,
+        hrReserve: Double,
+        durations: List<Double>,
+        b: Double,
+    ): Double {
+        var acc = 0.0
+        for ((i, s) in hr.withIndex()) {
+            if (i >= durations.size) break
+            val x = pctHRR(s.bpm.toDouble(), restingHR, hrReserve) / 100.0
+            if (x > 0) acc += durations[i] * x * banisterScale * exp(b * x)
         }
         return acc
     }
@@ -272,16 +352,18 @@ object StrainScorer {
         }
         if (!enoughData || effMax <= restingHR) return null
 
-        val sampleDur = sampleDurationMinutes(hr)
+        // Per-sample durations, NOT one duration inferred from the first two timestamps — see
+        // sampleDurationsMinutes for why that inflated early-day strain.
+        val durations = sampleDurationsMinutes(hr)
         val hrReserve = effMax - restingHR
 
         val trimp: Double = when (method) {
             Method.BANISTER -> {
                 val b = if (sex.lowercase().startsWith("f")) banisterBWomen else banisterBMen
-                banisterTRIMP(hr, restingHR, hrReserve, sampleDur, b)
+                banisterTRIMP(hr, restingHR, hrReserve, durations, b)
             }
             Method.EDWARDS -> {
-                edwardsTRIMP(hr, restingHR, hrReserve, sampleDur)
+                edwardsTRIMP(hr, restingHR, hrReserve, durations)
             }
         }
         return trimpToStrain(trimp, denominator)

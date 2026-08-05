@@ -134,10 +134,51 @@ public enum StrainScorer {
 
     /// Infer per-sample duration (minutes) from the first two timestamps. Falls
     /// back to 1 s when fewer than two samples or coincident timestamps.
+    ///
+    /// **Only valid for a UNIFORMLY sampled stream.** Kept for the public/testable surface and for
+    /// callers that genuinely have a fixed cadence, but the TRIMP integrators no longer use it —
+    /// see `sampleDurationsMinutes(_:)` and the note on `maxSampleGapSeconds`.
     static func sampleDurationMinutes(_ hr: [HRSample]) -> Double {
         guard hr.count >= 2 else { return fallbackSampleMin }
         let deltaS = abs(Double(hr[1].ts - hr[0].ts))
         return deltaS > 0 ? deltaS / 60.0 : fallbackSampleMin
+    }
+
+    /// Longest gap (seconds) a single sample may be credited with. A WHOOP 4.0 streams ~1 Hz and a
+    /// 5/MG drops to ~30 s at rest, so 120 s comfortably covers every legitimate cadence while
+    /// stopping a real GAP — strap removed, BLE dropout, an overnight sparse stretch — from being
+    /// integrated as if the wearer held that heart rate continuously through it.
+    static let maxSampleGapSeconds: Double = 120.0
+
+    /// Per-sample durations in minutes, taken from each sample's ACTUAL gap to the next one.
+    ///
+    /// Fixes the "strain starts the day unrealistically high" bug. The previous integrators derived
+    /// ONE duration from `hr[1].ts - hr[0].ts` and multiplied every sample by it, so a single
+    /// unrepresentative first gap rescaled the entire day: early morning, when the stream is sparse
+    /// and irregular (e.g. one sample at 00:01 and the next at 00:31 while asleep), that inferred a
+    /// ~30-minute per-sample duration and credited every later reading with half an hour of
+    /// time-in-zone, inflating TRIMP — and therefore strain — from the first hours of the day. As
+    /// the stream densified later on, the inferred duration shrank and the number "settled",
+    /// producing exactly the reported symptom.
+    ///
+    /// For a uniformly sampled stream this returns the same value for every element, so a healthy
+    /// 1 Hz day scores identically to before — the change only bites on the irregular streams that
+    /// were being mis-integrated. The final sample has no successor, so it inherits the median of
+    /// the observed gaps (a robust stand-in that one outlier can't skew) rather than the mean.
+    static func sampleDurationsMinutes(_ hr: [HRSample]) -> [Double] {
+        guard hr.count >= 2 else { return Array(repeating: fallbackSampleMin, count: hr.count) }
+        var gaps: [Double] = []
+        gaps.reserveCapacity(hr.count - 1)
+        for i in 0..<(hr.count - 1) {
+            let raw = abs(Double(hr[i + 1].ts - hr[i].ts))
+            // A zero/duplicate timestamp contributes the 1 s floor rather than nothing, matching
+            // the long-standing `fallbackSampleMin` behaviour for coincident samples.
+            let capped = raw <= 0 ? fallbackSampleMin * 60.0 : min(raw, maxSampleGapSeconds)
+            gaps.append(capped / 60.0)
+        }
+        let sorted = gaps.sorted()
+        let median = sorted.isEmpty ? fallbackSampleMin : sorted[sorted.count / 2]
+        return gaps + [median]
     }
 
     static func edwardsTRIMP(_ hr: [HRSample], restingHR: Double, hrReserve: Double,
@@ -147,12 +188,37 @@ public enum StrainScorer {
         return Double(weighted) * sampleDurationMin
     }
 
+    /// Edwards TRIMP integrated with PER-SAMPLE durations. Each reading contributes its own zone
+    /// weight × its own elapsed time, so a mixed-cadence day (dense during a workout, sparse at
+    /// rest — normal for a 5/MG) integrates correctly instead of being rescaled by whatever the
+    /// first gap happened to be.
+    static func edwardsTRIMP(_ hr: [HRSample], restingHR: Double, hrReserve: Double,
+                             durations: [Double]) -> Double {
+        var acc = 0.0
+        for (i, s) in hr.enumerated() where i < durations.count {
+            let w = zoneWeight(Double(s.bpm), restingHR: restingHR, hrReserve: hrReserve)
+            if w > 0 { acc += Double(w) * durations[i] }
+        }
+        return acc
+    }
+
     static func banisterTRIMP(_ hr: [HRSample], restingHR: Double, hrReserve: Double,
                               sampleDurationMin: Double, b: Double) -> Double {
         var acc = 0.0
         for s in hr {
             let x = pctHRR(Double(s.bpm), restingHR: restingHR, hrReserve: hrReserve) / 100.0
             if x > 0 { acc += sampleDurationMin * x * banisterScale * exp(b * x) }
+        }
+        return acc
+    }
+
+    /// Banister TRIMP with PER-SAMPLE durations — same rationale as the Edwards variant above.
+    static func banisterTRIMP(_ hr: [HRSample], restingHR: Double, hrReserve: Double,
+                              durations: [Double], b: Double) -> Double {
+        var acc = 0.0
+        for (i, s) in hr.enumerated() where i < durations.count {
+            let x = pctHRR(Double(s.bpm), restingHR: restingHR, hrReserve: hrReserve) / 100.0
+            if x > 0 { acc += durations[i] * x * banisterScale * exp(b * x) }
         }
         return acc
     }
@@ -249,7 +315,9 @@ public enum StrainScorer {
         }
         if !enoughData || effMax <= restingHR { return nil }
 
-        let sampleDur = sampleDurationMinutes(hr)
+        // Per-sample durations, NOT one duration inferred from the first two timestamps — see
+        // `sampleDurationsMinutes` for why that inflated early-day strain.
+        let durations = sampleDurationsMinutes(hr)
         let hrReserve = effMax - restingHR
 
         let trimp: Double
@@ -257,10 +325,10 @@ public enum StrainScorer {
         case .banister:
             let b = sex.lowercased().hasPrefix("f") ? banisterBWomen : banisterBMen
             trimp = banisterTRIMP(hr, restingHR: restingHR, hrReserve: hrReserve,
-                                  sampleDurationMin: sampleDur, b: b)
+                                  durations: durations, b: b)
         case .edwards:
             trimp = edwardsTRIMP(hr, restingHR: restingHR, hrReserve: hrReserve,
-                                 sampleDurationMin: sampleDur)
+                                 durations: durations)
         }
         return trimpToStrain(trimp, denominator: denominator)
     }
