@@ -85,4 +85,40 @@ object SleepEditGuard {
         if (cappedEnd <= start) return null
         return start to cappedEnd
     }
+
+    /** Default length of the window the "Add a nap" picker opens on, seconds. */
+    const val NAP_SEED_DURATION_SEC = 30 * 60L
+
+    /**
+     * How long after the night's wake the nap seed is anchored, seconds — the natural place to look
+     * for a missed late-morning/afternoon nap.
+     */
+    const val NAP_SEED_AFTER_WAKE_SEC = 60 * 60L
+
+    /**
+     * How old the last recorded wake may be and still drive the seed, seconds. Beyond this the night
+     * is a STALE anchor (an unsynced strap leaves the newest recorded night a day or more behind), and
+     * seeding a picker in the middle of a past day is worse than seeding the half-hour just gone.
+     */
+    const val NAP_SEED_MAX_WAKE_AGE_SEC = 18 * 3600L
+
+    /**
+     * Rule 4: the window the "Add a nap" picker should OPEN on, given the day's last recorded wake
+     * ([lastWakeTs], null when the day has no main night yet) and the current time.
+     *
+     * The seed must always be a window that is already in the PAST, because [clampedEditWindow]
+     * refuses a window lying entirely in the future — a picker seeded ahead of the clock therefore
+     * opens on a window that saves to nothing at all. The wake+1h anchor is used only when its full
+     * half-hour has already elapsed; right after a morning sync it has not, so the seed falls back to
+     * the half-hour that just ended, which is valid at any time of day.
+     *
+     * Twin of `SleepEditGuard.napSeedWindow` (Swift). Returns (start, end), `start < end <= nowTs`.
+     */
+    fun napSeedWindow(lastWakeTs: Long?, nowTs: Long): Pair<Long, Long> {
+        if (lastWakeTs != null && nowTs - lastWakeTs <= NAP_SEED_MAX_WAKE_AGE_SEC) {
+            val start = lastWakeTs + NAP_SEED_AFTER_WAKE_SEC
+            if (start + NAP_SEED_DURATION_SEC <= nowTs) return start to (start + NAP_SEED_DURATION_SEC)
+        }
+        return (nowTs - NAP_SEED_DURATION_SEC) to nowTs
+    }
 }

@@ -2890,7 +2890,10 @@ private struct AddNapSeed: Identifiable {
 /// A small sheet to hand-correct a night's bed (onset) and wake (end) times. Seeds both pickers with the
 /// current values; the wake picker is bounded to after the chosen bedtime. Hands the chosen unix-second
 /// (bed, wake) back via `onSave`. Pure presentation + a single async save — persistence lives in the repo.
-private struct SleepTimeEditor: View {
+/// Internal (not `private`) so the iOS Premium Sleep tab reuses the EXACT same picker — including the
+/// #940 future-bed / disjoint-window guards and the #68 delete confirm — instead of growing a second,
+/// subtly-different sleep editor. `PremiumSleepView` presents it for both the main night and naps.
+struct SleepTimeEditor: View {
     let onSave: (Int, Int) async -> Void
     /// Optional destructive delete (#68). Non-nil for an existing main-sleep / nap edit (the editor then
     /// shows a "Delete this sleep" button gated behind a confirmation); nil for the "Add a nap" sheet,

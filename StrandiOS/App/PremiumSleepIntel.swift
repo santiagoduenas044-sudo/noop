@@ -52,6 +52,22 @@ struct PremiumSleepIntel {
     /// Real overnight heart-rate buckets across last night's window.
     let overnightHR: [(t: Date, bpm: Double)]
 
+    /// The newest recorded day's MAIN sleep block — the real stored row a main-sleep time edit writes
+    /// against (`editSleepTimes` keys on its immutable detected `startTs`). Resolved with the SAME
+    /// `SleepView.mainNightSession` selector the classic tab's pencil uses, so the two can never target
+    /// different rows. nil when no day has any session.
+    let latestMainBlock: CachedSleepSession?
+    /// The newest recorded day's NAPS: every block on that day OUTSIDE the bridged main-night group
+    /// (`SleepView.mainNightGroup`, #561), ascending by effective onset. A briefly-interrupted night's
+    /// bridged fragments are part of the night, NOT naps — the same split the classic naps card makes,
+    /// so a biphasic night never renders as phantom naps (#555).
+    let latestDayNaps: [CachedSleepSession]
+
+    /// Total nap minutes on the newest recorded day.
+    var napMinutes: Double {
+        latestDayNaps.reduce(0.0) { $0 + Double($1.endTs - $1.effectiveStartTs) / 60.0 }
+    }
+
     // MARK: - Clock helpers
 
     /// Minutes since the PRECEDING noon (0..<1440). Anchors an evening bedtime and the following
@@ -144,7 +160,8 @@ struct PremiumSleepIntel {
         let sessions = await repo.allSleepSessions()
         guard !sessions.isEmpty else {
             return PremiumSleepIntel(nights: [], latestIntervals: [], latestBed: nil,
-                                     latestWake: nil, overnightHR: [])
+                                     latestWake: nil, overnightHR: [],
+                                     latestMainBlock: nil, latestDayNaps: [])
         }
         let habitual = await repo.habitualMidsleepSec()
         let cal = Calendar.current
@@ -178,6 +195,21 @@ struct PremiumSleepIntel {
         var latestIntervals: [SleepInterval] = []
         var latestBed: Date?, latestWake: Date?
         var hr: [(t: Date, bpm: Double)] = []
+        var latestMainBlock: CachedSleepSession?
+        var latestDayNaps: [CachedSleepSession] = []
+
+        // The newest day's block split (main-night group vs naps). Derived from the RAW day blocks, NOT
+        // from `nights` — a day whose main night was rejected as an impossible window (or that has only a
+        // nap recorded) must still surface and be able to add its naps.
+        if let newest = orderedDays.last {
+            let blocks = groups[newest] ?? []
+            latestMainBlock = SleepView.mainNightSession(blocks, habitualMidsleepSec: habitual)
+            let groupStarts = Set(SleepView.mainNightGroup(blocks, habitualMidsleepSec: habitual)
+                                    .map { $0.startTs })
+            latestDayNaps = blocks.filter { !groupStarts.contains($0.startTs) }
+                .sorted { $0.effectiveStartTs < $1.effectiveStartTs }
+        }
+
         if let newest = orderedDays.last,
            let main = SleepView.mainNightSession(groups[newest] ?? [], habitualMidsleepSec: habitual) {
             latestIntervals = SleepView.decodedIntervals(main.stagesJSON,
@@ -193,7 +225,8 @@ struct PremiumSleepIntel {
         }
 
         return PremiumSleepIntel(nights: nights, latestIntervals: latestIntervals,
-                                 latestBed: latestBed, latestWake: latestWake, overnightHR: hr)
+                                 latestBed: latestBed, latestWake: latestWake, overnightHR: hr,
+                                 latestMainBlock: latestMainBlock, latestDayNaps: latestDayNaps)
     }
 }
 #endif

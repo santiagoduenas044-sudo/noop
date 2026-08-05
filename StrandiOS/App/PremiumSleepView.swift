@@ -23,10 +23,14 @@ import StrandAnalytics
 /// are rejected upstream, and any section without enough history says so instead of estimating.
 struct PremiumSleepView: View {
     @EnvironmentObject var repo: Repository
+    /// Needed to re-score the day after a sleep-window edit / nap add, so the dashboard aggregates
+    /// (Rest, recovery) honour the change rather than only this screen's session view.
+    @EnvironmentObject var intelligence: IntelligenceEngine
     @Environment(\.scrollToTopSignal) private var scrollToTopSignal
 
     @State private var intel = PremiumSleepIntel(nights: [], latestIntervals: [], latestBed: nil,
-                                                 latestWake: nil, overnightHR: [])
+                                                 latestWake: nil, overnightHR: [],
+                                                 latestMainBlock: nil, latestDayNaps: [])
     @State private var selectedStage: SleepStage?
     @State private var findings: [PremiumFinding] = []
     /// Sleep-duration relationships, strongest first (computed in `load()`).
@@ -68,6 +72,7 @@ struct PremiumSleepView: View {
                     header
                     scoreHero
                     nightPanelSection
+                    napsSection
                     findingsSection
                     continuitySection
                     scheduleSection
@@ -88,6 +93,196 @@ struct PremiumSleepView: View {
             }
         }
         .task(id: repo.refreshSeq) { await load() }
+        // Manually add a missed nap (#508). Presents the SAME `SleepTimeEditor` the classic tab uses, so
+        // every guard (future bed clamp, wake-date derived from bed) applies identically here.
+        .sheet(item: $addNapSeed) { seed in
+            SleepTimeEditor(bedTs: seed.bedTs, wakeTs: seed.wakeTs,
+                            title: "Add a nap",
+                            blurb: "Pick when the nap started and ended. NOOP stages it from your data as its own session, separate from the night's sleep.",
+                            bedLabel: "Nap started", wakeLabel: "Nap ended") { startTs, endTs in
+                await repo.addManualNap(startTs: startTs, endTs: endTs)
+                // Re-score so the day's aggregates (Rest, recovery) pick up the new session, then refresh
+                // the read cache — exactly the classic tab's order.
+                await intelligence.analyzeRecent()
+                await repo.refresh()
+            }
+        }
+        // Correct or delete an existing block — a nap row, or the night's main sleep.
+        .sheet(item: $sleepEdit) { edit in
+            let coverageLo = min(edit.detectedStartTs, edit.bedTs)
+            SleepTimeEditor(bedTs: edit.bedTs, wakeTs: edit.wakeTs,
+                            title: edit.isNap ? "Edit nap times" : "Edit sleep times",
+                            bedLabel: edit.isNap ? "Nap started" : "Asleep",
+                            wakeLabel: edit.isNap ? "Nap ended" : "Woke",
+                            deleteLabel: edit.isNap ? "Delete this nap" : "Delete this sleep",
+                            coverage: coverageLo...max(edit.wakeTs, coverageLo + 1),
+                            // A nap row is always manually added / hand-edited, so its delete writes NO
+                            // re-detection tombstone — the confirm copy must not promise suppression (#65).
+                            suppressesReDetection: !edit.userEdited,
+                            onSave: { newBedTs, newWakeTs in
+                await repo.editSleepTimes(detectedStartTs: edit.detectedStartTs, oldEndTs: edit.wakeTs,
+                                          storedStagesJSON: edit.stagesJSON,
+                                          newStartTs: newBedTs, newEndTs: newWakeTs)
+                await intelligence.analyzeRecent()
+                await repo.refresh()
+            }, onDelete: {
+                _ = await repo.deleteSleepSession(detectedStartTs: edit.detectedStartTs, endTs: edit.wakeTs)
+                await intelligence.analyzeRecent()
+                await repo.refresh()
+            })
+        }
+    }
+
+    // MARK: Naps + sleep-window corrections (#508 on iOS)
+
+    /// Non-nil while the "Add a nap" picker is open; carries the seeded window.
+    @State private var addNapSeed: PremiumNapSeed?
+    /// Non-nil while an existing block's editor is open.
+    @State private var sleepEdit: PremiumSleepEdit?
+
+    /// The window the "Add a nap" picker opens on. Anchors an hour after the night's wake — the natural
+    /// place to look for a missed afternoon nap — but only when that half-hour has already PASSED;
+    /// otherwise it seeds the half-hour that just ended, which is always a valid, in-the-past window.
+    /// (`SleepEditGuard` rejects a future end outright, so a seed must never be ahead of the clock.)
+    private var napSeed: PremiumNapSeed {
+        let w = SleepEditGuard.napSeedWindow(lastWakeTs: intel.latestMainBlock?.endTs,
+                                             now: Int(Date().timeIntervalSince1970))
+        return PremiumNapSeed(bedTs: w.start, wakeTs: w.end)
+    }
+
+    /// Naps — the day's sleep OUTSIDE the main night, each editable and deletable, plus the "Add nap"
+    /// affordance that had no iOS home at all: it lives on the classic `SleepView`, which the iOS tab
+    /// shell never presents (the Sleep tab is this screen), so there was no way to record a nap on
+    /// iPhone. The split and the write path are the shared ones (`SleepView.mainNightGroup`,
+    /// `Repository.addManualNap`), so a nap logged here reads identically everywhere else.
+    ///
+    /// The card is ALWAYS present, even with nothing recorded — an empty naps list is exactly when the
+    /// user needs the add button, and the previous screen's silence is what made the feature look absent.
+    @ViewBuilder private var napsSection: some View {
+        let naps = intel.latestDayNaps
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                PremiumSectionHeader(title: "Naps")
+                Spacer()
+                PremiumExplainer(
+                    title: String(localized: "Naps"),
+                    items: [
+                        PremiumExplainerItem(question: String(localized: "What counts as a nap?"),
+                                             answer: String(localized: "Any sleep recorded on this day other than your main night. A night briefly interrupted by a wake-up stays one night — its fragments are bridged, not split into naps.")),
+                        PremiumExplainerItem(question: String(localized: "Why add one by hand?"),
+                                             answer: String(localized: "If you slept without the strap, or it did not detect a short daytime sleep, adding the window lets NOOP count that rest toward the day.")),
+                    ],
+                    methodology: String(localized: "A nap you add is staged from your own recorded data over the window you pick and stored as its own session — never folded into the night's sleep. If the strap has no dense data there yet, it is stored as a single unstaged block and re-staged automatically once the raw data syncs."))
+            }
+            StrandCard {
+                VStack(alignment: .leading, spacing: 14) {
+                    if naps.isEmpty {
+                        Text("No naps recorded for this day.")
+                            .font(StrandFont.subhead).foregroundStyle(StrandPalette.textTertiary)
+                    } else {
+                        napSummaryRow(naps)
+                        ForEach(naps, id: \.startTs) { nap in
+                            Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                            napRow(nap)
+                        }
+                    }
+                    Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                    HStack(spacing: 12) {
+                        Button { addNapSeed = napSeed } label: {
+                            Label("Add nap", systemImage: "plus.circle.fill")
+                                .font(StrandFont.subhead)
+                                .foregroundStyle(StrandPalette.restColor)
+                                .frame(minHeight: 44)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Add a nap")
+                        Spacer(minLength: 8)
+                        // Correcting the night's own window has the same problem as adding a nap: the
+                        // affordance only existed on a screen iOS never shows.
+                        if let main = intel.latestMainBlock {
+                            Button {
+                                sleepEdit = PremiumSleepEdit(detectedStartTs: main.startTs,
+                                                             bedTs: main.effectiveStartTs,
+                                                             wakeTs: main.endTs,
+                                                             stagesJSON: main.stagesJSON,
+                                                             userEdited: main.userEdited,
+                                                             isNap: false)
+                            } label: {
+                                Label("Edit sleep times", systemImage: "pencil.circle")
+                                    .font(StrandFont.subhead)
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                                    .frame(minHeight: 44)
+                                    .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Edit last night's sleep times")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Main / Naps / Total for a day that has at least one nap, so what drives the day's rest total stays
+    /// explainable. Main is the bridged main-night group's real recorded span.
+    @ViewBuilder private func napSummaryRow(_ naps: [CachedSleepSession]) -> some View {
+        // Main comes from `latestMainBlock`, which is the SAME day as the naps by construction — reading
+        // `nights.last` instead could straddle two days when the newest night was rejected as impossible.
+        let mainMin = intel.latestMainBlock.map { Double($0.endTs - $0.effectiveStartTs) / 60.0 } ?? 0
+        let napMin = naps.reduce(0.0) { $0 + Double($1.endTs - $1.effectiveStartTs) / 60.0 }
+        HStack(spacing: 14) {
+            if mainMin > 0 {
+                statBlock("Main sleep", PremiumAnalysis.durText(mainMin), StrandPalette.sleepDeep)
+            }
+            statBlock("Naps", PremiumAnalysis.durText(napMin), StrandPalette.sleepREM)
+            statBlock("Total", PremiumAnalysis.durText(mainMin + napMin), StrandPalette.restColor)
+        }
+    }
+
+    private func napRow(_ nap: CachedSleepSession) -> some View {
+        Button {
+            sleepEdit = PremiumSleepEdit(detectedStartTs: nap.startTs,
+                                         bedTs: nap.effectiveStartTs,
+                                         wakeTs: nap.endTs,
+                                         stagesJSON: nap.stagesJSON,
+                                         // A nap row is manually added / hand-edited: never re-detected,
+                                         // so its delete writes no tombstone.
+                                         userEdited: true,
+                                         isNap: true)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "powersleep")
+                    .font(StrandFont.headline).foregroundStyle(StrandPalette.restColor)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Self.napWindowText(nap))
+                        .font(StrandFont.body).foregroundStyle(StrandPalette.textPrimary)
+                    Text(PremiumAnalysis.durText(Double(nap.endTs - nap.effectiveStartTs) / 60.0))
+                        .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "pencil.circle")
+                    .font(StrandFont.headline).foregroundStyle(StrandPalette.restColor)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(String(format: String(localized: "Edit nap %@"), Self.napWindowText(nap)))
+    }
+
+    /// "9:20 PM – 9:55 PM" for a nap row, in the device's own 12-/24-hour setting.
+    private static let napClockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .none
+        f.timeStyle = .short
+        return f
+    }()
+    private static func napWindowText(_ nap: CachedSleepSession) -> String {
+        let start = napClockFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(nap.effectiveStartTs)))
+        let end = napClockFormatter.string(from: Date(timeIntervalSince1970: TimeInterval(nap.endTs)))
+        return "\(start) – \(end)"
     }
 
     private func load() async {
@@ -1122,5 +1317,30 @@ private struct SleepTimingMap: View {
             .foregroundStyle(StrandPalette.textTertiary)
         }
     }
+}
+
+// MARK: - Sleep-editing sheet payloads
+
+/// Seeds the "Add a nap" picker. Identity is the seed start so `.sheet(item:)` presents once per request.
+struct PremiumNapSeed: Identifiable {
+    let bedTs: Int
+    let wakeTs: Int
+    var id: Int { bedTs }
+}
+
+/// One in-flight sleep-window edit. `detectedStartTs` is the IMMUTABLE detected key the write targets
+/// (`Repository.editSleepTimes` / `deleteSleepSession` match on it), while `bedTs` is the currently
+/// EFFECTIVE onset shown to the user — they differ once an onset has been hand-corrected, and conflating
+/// them is what spawns duplicate rows.
+struct PremiumSleepEdit: Identifiable {
+    let detectedStartTs: Int
+    let bedTs: Int
+    let wakeTs: Int
+    let stagesJSON: String?
+    /// True for a hand-edited / manually-added block: deleting it writes no re-detection tombstone, so
+    /// the confirm copy must not promise suppression.
+    let userEdited: Bool
+    let isNap: Bool
+    var id: Int { detectedStartTs }
 }
 #endif
