@@ -3,8 +3,16 @@ import SwiftUI
 import StrandDesign
 
 /// iOS navigation shell. macOS uses a `NavigationSplitView` sidebar (`RootView`); on iPhone the
-/// natural analogue is a `TabView` with the most-used screens as tabs and everything else under a
-/// "More" list. Every screen is the same `StrandDesign`-built view the macOS app uses.
+/// natural analogue is a `TabView` with the most-used screens as tabs and everything else behind an
+/// index. Every screen is the same `StrandDesign`-built view the macOS app uses.
+///
+/// The bar carries five daily screens — **Home · Sleep · Journal · Heart · Coach**. Journal is a tab
+/// because logging what you ate and did happens several times a day and previously had no permanent
+/// home in the shell at all: it was a card on Home and a row inside a quick-action sheet. It took the
+/// slot Trends held, and the sixth "More" item was dropped outright. Neither screen was lost —
+/// `MoreIndexView` and `PremiumTrendsView` are pushed from Home's browse row
+/// (`PremiumRoute.more`/`.trends`), one tap deeper than before, which is the right depth for screens
+/// you browse rather than check.
 struct RootTabView: View {
     @EnvironmentObject private var repo: Repository
     /// Cross-screen navigation requests (e.g. Live → "Manage devices"). Devices isn't a tab — it lives
@@ -26,19 +34,12 @@ struct RootTabView: View {
     /// root view alive, so an at-root re-tap keeps scroll position and never re-runs `.task`
     /// (#198; the #197 resetID/`.id()` rebuild reset both). Requires the tab roots' first-hop
     /// links to push `TabRoute`/`MoreDestination` VALUES — closure-destination links bypass the path.
-    @State private var tabPaths: [NavigationPath] = Array(repeating: NavigationPath(), count: 6)
+    @State private var tabPaths: [NavigationPath] = Array(repeating: NavigationPath(), count: 5)
     /// One scroll-to-top token per tab. Bumped when the user re-taps the active tab while it's ALREADY
     /// at its root — the other half of the iOS convention #197/#198 left unserved (an at-root re-tap was
     /// a no-op). Threaded into each tab's root via `\.scrollToTopSignal`; ScreenScaffold / LiquidTodayView
     /// scroll to their top anchor when their tab's token changes.
-    @State private var scrollTop: [Int] = Array(repeating: 0, count: 6)
-    /// Which More-tab groups are expanded (S2). Insights + Body stay open at rest; Data + App collapse to
-    /// just their header until tapped. Persisted (#860 item 2): the user's open/closed choice must SURVIVE
-    /// leaving and re-entering the More tab (and relaunch), not reset to the seed every visit. Backed by an
-    /// `@AppStorage` CSV string (keyed identically to the Android `MoreSectionPrefs`), bridged to a
-    /// `Set<String>` through `MoreSectionPrefs` so the section logic below is unchanged.
-    @AppStorage(MoreSectionPrefs.storageKey) private var expandedMoreSectionsCSV = MoreSectionPrefs.defaultCSV
-    private var expandedMoreSections: Set<String> { MoreSectionPrefs.decode(expandedMoreSectionsCSV) }
+    @State private var scrollTop: [Int] = Array(repeating: 0, count: 5)
 
     /// The Home tab root. On iOS the Premium Home (the native rebuild of the approved prototype) is now
     /// the ONLY Home — it is no longer gated behind the legacy `noop.liquidTodayEnabled` toggle. That
@@ -69,12 +70,16 @@ struct RootTabView: View {
         // each screen's own header, not in this bar (see FloatingTabBar's doc comment).
         ZStack(alignment: .bottom) {
             TabView(selection: $selectedTab) {
+                // Five daily screens. Journal takes the slot Trends held and the "More" catch-all is
+                // gone entirely: logging what you ate and did is a several-times-a-day action, and it
+                // had NO permanent home in the shell — it was a card on Home and a row in a sheet.
+                // Trends and the More index moved to pushes from Home (`PremiumRoute.trends`/`.more`),
+                // which costs them one tap and buys the bar back its breathing room.
                 tab(todayTabRoot, "Home", "square.grid.2x2", path: $tabPaths[0], scrollSignal: scrollTop[0]).tag(0)
                 tab(PremiumSleepView(), "Sleep", "bed.double", path: $tabPaths[1], scrollSignal: scrollTop[1]).tag(1)
-                tab(PremiumHeartView(), "Heart", "heart.fill", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
-                tab(PremiumCoachView(), "Coach", "sparkles", path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
-                tab(PremiumTrendsView(), "Trends", "chart.line.uptrend.xyaxis", path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
-                moreTab(path: $tabPaths[5], scrollSignal: scrollTop[5]).tag(5)
+                tab(PremiumJournalView(), "Journal", "book.closed", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
+                tab(PremiumHeartView(), "Heart", "heart.fill", path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
+                tab(PremiumCoachView(), "Coach", "sparkles", path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
             }
             .tint(StrandPalette.accent)
             .toolbar(.hidden, for: .tabBar)
@@ -134,8 +139,11 @@ struct RootTabView: View {
                 routedPillar = dest
                 router.requestedDestination = nil
             case .trends:
-                // Trends is a primary tab on iPhone (not a pillar sheet) — switch to it.
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 4 }
+                // Trends is no longer a tab: it's a push on the Home stack. Land on Home and append
+                // the route (skipping the append if it's already the top, so a repeated deep-link
+                // doesn't stack two identical Trends screens).
+                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 0 }
+                if tabPaths[0].isEmpty { tabPaths[0].append(PremiumRoute.trends) }
                 router.requestedDestination = nil
             case .activeWorkout:
                 // The Today active-workout indicator opens Live through the quick-action Live sheet; once
@@ -149,9 +157,14 @@ struct RootTabView: View {
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 0 }
                 router.requestedDestination = nil
             case .journal:
-                // The #627 Today journal widget opens the journal through the quick-action Journal sheet
-                // (InsightsView), matching the FAB's "Log journal" action. Calm sheet easing.
-                withAnimation(Self.sheetEase) { quickAction = .journal }
+                // Journal is a primary tab now, so every deep-link into it (the #627 Today widget,
+                // Home's check-in card, the journal reminder) switches to that tab instead of
+                // presenting a sheet on top of whatever screen you were on. Pop its stack first so a
+                // link always lands on the log itself, not on a factor detail left open last visit.
+                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) {
+                    tabPaths[2] = NavigationPath()
+                    selectedTab = 2
+                }
                 router.requestedDestination = nil
             case nil:
                 break
@@ -177,9 +190,9 @@ struct RootTabView: View {
                 case .fusedRecord: FusedRecordHost()
                 case .rhythm: RhythmHost(onClose: { routedPillar = nil })
                 case .devices: DevicesView()
-                // .trends is never presented as a pillar sheet on iPhone (it's a primary tab — the
-                // requestedDestination handler switches `selectedTab` instead), but the switch must stay
-                // exhaustive. Fall back to Trends inside the sheet host if it ever arrives here.
+                // .trends is never presented as a pillar sheet on iPhone (the requestedDestination
+                // handler pushes `PremiumRoute.trends` on the Home stack instead), but the switch must
+                // stay exhaustive. Fall back to Trends inside the sheet host if it ever arrives here.
                 case .trends: TrendsView()
                 // .activeWorkout routes through the quick-action Live sheet (handled above); this keeps the
                 // switch exhaustive and falls back to Live if it ever reaches the pillar host.
@@ -187,8 +200,8 @@ struct RootTabView: View {
                 // .liveSession routes to the Today tab (handled above — its Start entry owns the cover);
                 // this keeps the switch exhaustive and falls back to Today if it ever reaches the host.
                 case .liveSession: LiquidTodayView()
-                // .journal opens through the quick-action Journal sheet (handled above); this keeps the
-                // switch exhaustive and falls back to the native Journal screen if it ever reaches here.
+                // .journal selects the Journal tab (handled above); this keeps the switch exhaustive
+                // and falls back to the same Journal screen if it ever reaches here.
                 case .journal: PremiumJournalView()
                 }
             }
@@ -227,14 +240,12 @@ struct RootTabView: View {
                     withAnimation(Self.sheetEase) { quickAction = picked }
                 }
             }
-            .presentationDetents([.height(344)])
+            .presentationDetents([.height(278)])
             .presentationDragIndicator(.hidden)
         case .live:
             quickScreen(LiveView())
         case .workout:
             quickScreen(WorkoutsView())
-        case .journal:
-            quickScreen(PremiumJournalView())
         case .breathe:
             quickScreen(BreathingView())
         }
@@ -307,88 +318,84 @@ struct RootTabView: View {
         .tabItem { Label(title, systemImage: icon) }
     }
 
-    // The "More" tab is the app's catch-all index. It was a plain SwiftUI `List` with system large-title
-    // + system title-case section headers, so it didn't match any other page (which all use ScreenScaffold
-    // + SectionHeader's UPPERCASE overline + the 28pt section rhythm). Rebuilt on the shared page chrome:
-    // ScreenScaffold for the title1 "More" + subtitle, a `SectionHeader` overline per group, and the group's
-    // rows in a single grouped NoopCard with hairline dividers — the same row idiom Settings/Health use.
-    private func moreTab(path: Binding<NavigationPath>, scrollSignal: Int) -> some View {
-        NavigationStack(path: path) {
-            ScreenScaffold(title: "More", subtitle: "Everything else, one tap away",
-                           onRefresh: { await repo.refresh() },
-                           topBackground: liquidScaffoldSky()) {
-                moreSection("Insights") {
-                    // Coach is now a primary tab (Home·Sleep·Heart·Coach·Trends); no More row needed.
-                    MoreRow("What Moves You", "wand.and.sparkles", .insightsHub)
-                    MoreRow("Intelligence", "brain.head.profile", .intelligence)
-                    MoreRow("Insights", "lightbulb.fill", .insights)
-                    MoreRow("Behaviour Log", "list.bullet.clipboard.fill", .behaviourLog)
-                    MoreRow("Explore", "square.grid.2x2.fill", .explore)
-                    MoreRow("Compare", "rectangle.split.2x1.fill", .compare)
-                }
-                moreSection("Body") {
-                    // Heart is now a primary tab (Home·Sleep·Heart·Coach·Trends); no More row needed.
-                    MoreRow("Live", "waveform.path.ecg", .live)
-                    MoreRow("Workouts", "figure.run", .workouts)
-                    MoreRow("Lab Book", "books.vertical.fill", .labBook)
-                    MoreRow("Stress", "bolt.heart.fill", .stress)
-                    MoreRow("Breathe", "wind", .breathe)
-                    MoreRow("Intervals", "timer", .intervals)
-                    // Experimental beat-to-beat regularity visualization — self-gates on its own consent.
-                    MoreRow("Rhythm", "waveform.path", .rhythm)
-                }
-                moreSection("Data") {
-                    MoreRow("Your Data, Fused", "square.stack.3d.up.fill", .fusedRecord)
-                    MoreRow("Apple Health", "heart.fill", .appleHealth)
-                    MoreRow("Mi Band", "figure.walk.motion", .miBand)
-                    MoreRow("Data Sources", "externaldrive.fill", .dataSources)
-                    MoreRow("Backup & Sync", "externaldrive.fill.badge.icloud", .backupSync)
-                    // #155: HealthKit-free Apple Health path for sideloaded installs (Siri Shortcut
-                    // reads the opt-in Documents/noop_sync.txt drop file).
-                    MoreRow("Shortcuts Export", "square.and.arrow.up.fill", .shortcutsExport)
-                }
-                moreSection("App") {
-                    MoreRow("What’s New", "sparkles", .whatsNew)
-                    // #805/#811: the v7.3.1 #766 alarm consolidation moved Smart Alarm under a single
-                    // "Alarms" sidebar entry (RootView .smartAlarm) but the regression dropped the row
-                    // from the iPhone More list, leaving Alarms unreachable on iPhone. Restore it here
-                    // (route to SmartAlarmView, the cross-platform iOS/macOS surface).
-                    //
-                    // Notifications (RootView .notifications) is deliberately NOT added: that screen is
-                    // macOS-only (it picks which Mac apps tap your wrist via NSWorkspace, imports AppKit,
-                    // and project.yml excludes Screens/NotificationSettingsView.swift from the iOS target),
-                    // so it can't compile or apply on iPhone. iPhone's wrist-alert controls live on the
-                    // Automations screen instead. Its absence from the iPhone More list is correct.
-                    MoreRow("Alarms", "alarm.fill", .alarms)
-                    MoreRow("Automations", "wand.and.stars", .automations)
-                    // The Test Centre (the diagnostics + bug-report hub) gets a first-class home here, not
-                    // just buried in Settings, so the feedback loop is one tap from the More tab.
-                    MoreRow("Test Centre", "stethoscope", .testCentre)
-                    MoreRow("Siri & Shortcuts", "mic.fill", .siriShortcuts)
-                    MoreRow("Settings", "gearshape.fill", .settings)
-                }
+}
+
+/// The app's catch-all index — every screen that isn't one of the five daily tabs.
+///
+/// This WAS the sixth tab. It is now a screen pushed from Home (`PremiumRoute.more`), which is why
+/// it's a standalone `View` rather than a method on the shell: the same index has to render inside
+/// whichever tab's `NavigationStack` pushed it. Nothing was dropped in the move — every row below is
+/// the row that was there before, and `MoreDestination` resolves on the host stack through
+/// `.premiumRouteDestinations()`, so it brings no `NavigationStack` of its own.
+///
+/// The page chrome is unchanged: `ScreenScaffold` for the title1 "More" + subtitle, a `SectionHeader`
+/// overline per group, and each group's rows in a single grouped `NoopCard` with hairline dividers —
+/// the same row idiom Settings/Health use.
+struct MoreIndexView: View {
+    @EnvironmentObject private var repo: Repository
+    /// Which groups are expanded (S2). Insights + Body stay open at rest; Data + App collapse to just
+    /// their header until tapped. Persisted (#860 item 2): the user's open/closed choice must SURVIVE
+    /// leaving and re-entering the index (and relaunch), not reset to the seed every visit. Backed by an
+    /// `@AppStorage` CSV string (keyed identically to the Android `MoreSectionPrefs`), bridged to a
+    /// `Set<String>` through `MoreSectionPrefs` so the section logic below is unchanged.
+    @AppStorage(MoreSectionPrefs.storageKey) private var expandedMoreSectionsCSV = MoreSectionPrefs.defaultCSV
+    private var expandedMoreSections: Set<String> { MoreSectionPrefs.decode(expandedMoreSectionsCSV) }
+
+    var body: some View {
+        ScreenScaffold(title: "More", subtitle: "Everything else, one tap away",
+                       onRefresh: { await repo.refresh() },
+                       topBackground: liquidScaffoldSky()) {
+            moreSection("Insights") {
+                // Coach is a primary tab (Home·Sleep·Journal·Heart·Coach); no More row needed.
+                MoreRow("What Moves You", "wand.and.sparkles", .insightsHub)
+                MoreRow("Intelligence", "brain.head.profile", .intelligence)
+                MoreRow("Insights", "lightbulb.fill", .insights)
+                MoreRow("Behaviour Log", "list.bullet.clipboard.fill", .behaviourLog)
+                MoreRow("Explore", "square.grid.2x2.fill", .explore)
+                MoreRow("Compare", "rectangle.split.2x1.fill", .compare)
             }
-            .toolbar(.hidden, for: .tabBar)   // we draw our own FloatingTabBar
-            // The rows push MoreDestination VALUES so a re-tap of the More tab can pop them off the
-            // bound path (#135/#198). Each destination keeps the per-screen wrapper the rows used to
-            // apply inline (surfaceBase background, inline title bar, hidden bar background):
-            // #1027 — a pushed sky-scaffold screen (Live, Workouts, Health, …) draws a full-bleed liquid
-            // sky; an opaque surfaceBase nav-bar band sat over it and clipped the top on scroll. A hidden
-            // bar background keeps the sky edge-to-edge. On the flat (no-sky) screens this is visually
-            // identical at rest — the destination's own surfaceBase background shows through the bar.
-            .navigationDestination(for: MoreDestination.self) { route in
-                route.destination
-                    .background(StrandPalette.surfaceBase.ignoresSafeArea())
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbarBackground(.hidden, for: .navigationBar)
+            moreSection("Body") {
+                // Heart is a primary tab (Home·Sleep·Journal·Heart·Coach); no More row needed.
+                MoreRow("Live", "waveform.path.ecg", .live)
+                MoreRow("Workouts", "figure.run", .workouts)
+                MoreRow("Lab Book", "books.vertical.fill", .labBook)
+                MoreRow("Stress", "bolt.heart.fill", .stress)
+                MoreRow("Breathe", "wind", .breathe)
+                MoreRow("Intervals", "timer", .intervals)
+                // Experimental beat-to-beat regularity visualization — self-gates on its own consent.
+                MoreRow("Rhythm", "waveform.path", .rhythm)
             }
-            // The More index also reaches the iOS-only Premium deep screens (e.g. a metric row deep-links
-            // into a detail); register the same destinations on its stack.
-            .premiumRouteDestinations()
+            moreSection("Data") {
+                MoreRow("Your Data, Fused", "square.stack.3d.up.fill", .fusedRecord)
+                MoreRow("Apple Health", "heart.fill", .appleHealth)
+                MoreRow("Mi Band", "figure.walk.motion", .miBand)
+                MoreRow("Data Sources", "externaldrive.fill", .dataSources)
+                MoreRow("Backup & Sync", "externaldrive.fill.badge.icloud", .backupSync)
+                // #155: HealthKit-free Apple Health path for sideloaded installs (Siri Shortcut
+                // reads the opt-in Documents/noop_sync.txt drop file).
+                MoreRow("Shortcuts Export", "square.and.arrow.up.fill", .shortcutsExport)
+            }
+            moreSection("App") {
+                MoreRow("What’s New", "sparkles", .whatsNew)
+                // #805/#811: the v7.3.1 #766 alarm consolidation moved Smart Alarm under a single
+                // "Alarms" sidebar entry (RootView .smartAlarm) but the regression dropped the row
+                // from the iPhone More list, leaving Alarms unreachable on iPhone. Restore it here
+                // (route to SmartAlarmView, the cross-platform iOS/macOS surface).
+                //
+                // Notifications (RootView .notifications) is deliberately NOT added: that screen is
+                // macOS-only (it picks which Mac apps tap your wrist via NSWorkspace, imports AppKit,
+                // and project.yml excludes Screens/NotificationSettingsView.swift from the iOS target),
+                // so it can't compile or apply on iPhone. iPhone's wrist-alert controls live on the
+                // Automations screen instead. Its absence from the iPhone More list is correct.
+                MoreRow("Alarms", "alarm.fill", .alarms)
+                MoreRow("Automations", "wand.and.stars", .automations)
+                // The Test Centre (the diagnostics + bug-report hub) gets a first-class home here, not
+                // just buried in Settings, so the feedback loop stays close to the surface.
+                MoreRow("Test Centre", "stethoscope", .testCentre)
+                MoreRow("Siri & Shortcuts", "mic.fill", .siriShortcuts)
+                MoreRow("Settings", "gearshape.fill", .settings)
+            }
         }
-        // Scroll the More index to the top on an at-root re-tap (#198 follow-up); read by its ScreenScaffold.
-        .environment(\.scrollToTopSignal, scrollSignal)
-        .tabItem { Label("More", systemImage: "ellipsis.circle.fill") }
     }
 
     /// One titled, COLLAPSIBLE group in the More index (S2): the app's overline (UPPERCASE) becomes a
@@ -408,7 +415,7 @@ struct RootTabView: View {
             Button {
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) {
                     // Persist the toggle via the CSV-backed @AppStorage so the choice survives leaving and
-                    // re-entering the More tab and relaunch (#860 item 2). MoreSectionPrefs owns encode/decode.
+                    // re-entering the index and relaunch (#860 item 2). MoreSectionPrefs owns encode/decode.
                     var open = expandedMoreSections
                     if isOpen { open.remove(title) } else { open.insert(title) }
                     expandedMoreSectionsCSV = MoreSectionPrefs.encode(open)
@@ -446,16 +453,15 @@ struct RootTabView: View {
     }
 }
 
-/// Every screen the More index links to, as a `Hashable` value the tab's `NavigationPath` can carry
-/// (#198): a closure-destination push would bypass the path and be un-poppable on tab re-tap. The
-/// per-screen chrome the old inline links applied lives at the single `navigationDestination(for:)`
-/// registration in `moreTab`.
-/// Not `private`: `PremiumSettingsView` (a separate file) pushes its own rows onto the SAME More-tab
-/// NavigationStack via `NavigationLink(value: MoreDestination.xxx)`, resolved by this enum's
-/// `.navigationDestination(for:)` registration in `moreTab()` below — that registration covers the
-/// whole stack, including views pushed deeper (like a Settings row pushing Apple Health).
+/// Every screen the More index links to, as a `Hashable` value the host tab's `NavigationPath` can
+/// carry (#198): a closure-destination push would bypass the path and be un-poppable on tab re-tap.
+/// The per-screen chrome the old inline links applied lives at the single
+/// `navigationDestination(for:)` registration inside `premiumRouteDestinations()`.
+/// Not `private`: `PremiumSettingsView` and `MoreIndexView` both push these values onto whatever
+/// stack they were presented in, resolved by that one registration — which covers the whole stack,
+/// including views pushed deeper (like a Settings row pushing Apple Health).
 enum MoreDestination: Hashable {
-    // Coach and Heart are primary tabs (Home·Sleep·Heart·Coach·Trends), not More destinations.
+    // Coach and Heart are primary tabs (Home·Sleep·Journal·Heart·Coach), not More destinations.
     case insightsHub, intelligence, insights, behaviourLog, explore, compare
     case live, workouts, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport
@@ -552,8 +558,10 @@ private struct MoreRow: View {
 
 /// The destinations the centre FAB can present. `.menu` is the action sheet itself; the rest
 /// route to existing screens. `Identifiable` so it drives `.sheet(item:)`.
+/// `.journal` is deliberately absent: the journal is a permanent tab, so a quick action that opened
+/// a second copy of it in a sheet would be a duplicate surface, not a shortcut.
 private enum QuickAction: Int, Identifiable {
-    case menu, live, workout, journal, breathe
+    case menu, live, workout, breathe
     var id: Int { rawValue }
 }
 
@@ -583,7 +591,8 @@ private struct QuickActionSheet: View {
             VStack(spacing: 8) {
                 row("Live HR", icon: "waveform.path.ecg", tint: StrandPalette.metricRose) { onPick(.live) }
                 row("Start workout", icon: "figure.run", tint: StrandPalette.effortColor) { onPick(.workout) }
-                row("Log journal", icon: "square.and.pencil", tint: StrandPalette.accent) { onPick(.journal) }
+                // "Log journal" was removed from this menu when the Journal became a tab — it is one
+                // tap away in the bar from every screen, which is strictly better than a sheet.
                 row("Breathe", icon: "wind", tint: StrandPalette.restColor) { onPick(.breathe) }
             }
             .padding(.horizontal, 16)
@@ -632,48 +641,78 @@ private struct QuickActionSheet: View {
 
 // MARK: - Floating tab bar
 
-/// The signature bottom bar: one frosted "glass" capsule with the prototype's 5 primary tabs
-/// (Home·Sleep·Heart·Coach·Trends) plus a 6th "More" tab for the rest of NOOP's real screens, which
-/// the prototype's smaller mock never needed to represent. Real iOS 26 Liquid Glass where available,
-/// a `.ultraThinMaterial` fallback below. Replaces the hidden native tab bar. The quick-action "+"
+/// The signature bottom bar: one frosted "glass" capsule holding the five daily screens
+/// (Home·Sleep·Journal·Heart·Coach). Real iOS 26 Liquid Glass where available, a
+/// `.ultraThinMaterial` fallback below. Replaces the hidden native tab bar. The quick-action "+"
 /// lives in the top-right of each screen's header (balancing the profile avatar on the left), not in
 /// this bar.
+///
+/// **Why five and not six.** The bar used to carry a sixth "More" item. At six slots on a 390pt
+/// phone each label had to shrink below its design size to fit, and the item that paid for it was a
+/// menu — a list of other screens rather than a screen. Dropping it to five gives every remaining
+/// item a real tap target and lets the selection read as a moving object instead of a colour change:
+///
+/// * the highlight is ONE capsule that slides between slots via `matchedGeometryEffect`, so changing
+///   tabs animates a single element travelling the bar rather than two backgrounds crossfading;
+/// * icons carry a filled variant when active, so selection survives at a glance without relying on
+///   the accent hue alone (which is also what keeps it legible under Reduce Transparency);
+/// * a soft-impact haptic fires on a real tab CHANGE only — never on the re-tap, which already has
+///   its own refresh/pop behaviour and would otherwise buzz twice for one gesture.
 private struct FloatingTabBar: View {
     @Binding var selection: Int
     /// Fires when the user taps the ALREADY-active tab (2026-07-02: re-tap should refresh).
     var onReselect: (Int) -> Void = { _ in }
 
-    private struct Item: Identifiable { let title: LocalizedStringKey; let icon: String; let tag: Int; var id: Int { tag } }
-    private let nav = [Item(title: "Home", icon: "square.grid.2x2", tag: 0),
-                       Item(title: "Sleep", icon: "bed.double", tag: 1),
-                       Item(title: "Heart", icon: "heart.fill", tag: 2),
-                       Item(title: "Coach", icon: "sparkles", tag: 3),
-                       Item(title: "Trends", icon: "chart.line.uptrend.xyaxis", tag: 4),
-                       Item(title: "More", icon: "ellipsis", tag: 5)]
+    /// Geometry namespace for the sliding selection capsule. One highlight view exists at a time and
+    /// carries the same id, which is what makes SwiftUI interpolate its frame between slots.
+    @Namespace private var selectionPill
+
+    private struct Item: Identifiable {
+        let title: LocalizedStringKey
+        /// Resting glyph.
+        let icon: String
+        /// Selected glyph — the filled twin where SF Symbols has one, so the active tab is legible by
+        /// SHAPE and not by tint alone.
+        let activeIcon: String
+        let tag: Int
+        var id: Int { tag }
+    }
+    private let nav = [Item(title: "Home", icon: "square.grid.2x2", activeIcon: "square.grid.2x2.fill", tag: 0),
+                       Item(title: "Sleep", icon: "bed.double", activeIcon: "bed.double.fill", tag: 1),
+                       Item(title: "Journal", icon: "book.closed", activeIcon: "book.closed.fill", tag: 2),
+                       Item(title: "Heart", icon: "heart", activeIcon: "heart.fill", tag: 3),
+                       // `sparkles` has no filled variant; the weight bump below carries its state.
+                       Item(title: "Coach", icon: "sparkles", activeIcon: "sparkles", tag: 4)]
 
     var body: some View {
-        // One frosted glass bar, six evenly-spaced tabs.
         HStack(spacing: 2) {
             ForEach(nav) { tabButton($0) }
         }
-        .padding(.vertical, 7)
-        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .padding(.horizontal, 6)
         .liquidGlass(in: Capsule())
         // Over the liquid Today the sky ends at ~340pt, so the bar floats on flat opaque surfaceBase —
         // a blur material has nothing to dissolve and hardens into a solid lozenge (2026-07-02:
         // "clips into a solid shape"). A faint translucent scrim INSIDE the same Capsule keeps the pill
-        // reading as tinted glass, not a slab, even against dead-flat colour.
-        .background(.white.opacity(0.06), in: Capsule())
+        // reading as tinted glass, not a slab, even against dead-flat colour. Now a vertical gradient
+        // rather than a flat 6% wash, so the glass has a top-lit falloff instead of one even film.
+        .background(
+            LinearGradient(colors: [.white.opacity(0.10), .white.opacity(0.03)],
+                           startPoint: .top, endPoint: .bottom),
+            in: Capsule()
+        )
         // Soft top-lit rim instead of one hard hairline, so there's no crisp cut-out edge.
         .overlay(
             Capsule().strokeBorder(
-                LinearGradient(colors: [.white.opacity(0.22), .white.opacity(0.04)],
+                LinearGradient(colors: [.white.opacity(0.26), .white.opacity(0.04)],
                                startPoint: .top, endPoint: .bottom),
                 lineWidth: 0.75)
         )
-        // Lighter, wider shadow: real elevation without stamping a dark halo on the flat canvas.
-        .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 8)
-        .padding(.horizontal, 14)
+        // Two shadows, not one: a wide neutral drop for real elevation, plus a faint accent bloom that
+        // ties the bar to the app's own light. A single black halo on flat canvas reads as a sticker.
+        .shadow(color: .black.opacity(0.28), radius: 20, x: 0, y: 9)
+        .shadow(color: StrandPalette.accent.opacity(0.10), radius: 14, x: 0, y: 4)
+        .padding(.horizontal, 16)
         .padding(.bottom, 4)
     }
 
@@ -683,12 +722,18 @@ private struct FloatingTabBar: View {
             if active {
                 onReselect(item.tag)
             } else {
-                withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selection = item.tag }
+                // Soft impact on the CHANGE only — the re-tap path above already refreshes/pops, and
+                // firing here too would double up on a single gesture.
+                UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+                withAnimation(.spring(response: 0.34, dampingFraction: 0.82)) { selection = item.tag }
             }
         } label: {
             VStack(spacing: 3) {
-                Image(systemName: item.icon)
-                    .font(.system(size: 17, weight: active ? .semibold : .regular))
+                Image(systemName: active ? item.activeIcon : item.icon)
+                    .font(.system(size: 16, weight: active ? .semibold : .regular))
+                    // Pin the glyph box so swapping outline↔filled (whose metrics differ slightly)
+                    // doesn't nudge the label a fraction of a point on every selection.
+                    .frame(height: 19)
                 Text(item.title)
                     .font(.system(size: 9.5, weight: active ? .semibold : .medium))
                     .lineLimit(1)
@@ -696,14 +741,25 @@ private struct FloatingTabBar: View {
             }
             .foregroundStyle(active ? StrandPalette.accent : StrandPalette.textSecondary)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 3)
+            .padding(.vertical, 7)
+            .background {
+                if active {
+                    // The travelling highlight. Built from the accent at low alpha + its own hairline
+                    // so it reads as lit glass sitting IN the bar, not a solid chip stamped on top.
+                    Capsule()
+                        .fill(LinearGradient(colors: [StrandPalette.accent.opacity(0.22),
+                                                      StrandPalette.accent.opacity(0.08)],
+                                             startPoint: .top, endPoint: .bottom))
+                        .overlay(Capsule().strokeBorder(StrandPalette.accent.opacity(0.30), lineWidth: 0.75))
+                        .matchedGeometryEffect(id: "selection", in: selectionPill)
+                }
+            }
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(item.title)
         .accessibilityAddTraits(active ? [.isButton, .isSelected] : .isButton)
     }
-
 }
 
 // MARK: - Liquid Glass (iOS 26) with a Material fallback

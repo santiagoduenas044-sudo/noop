@@ -29,6 +29,15 @@ enum PremiumRoute: Hashable {
     /// to the screen itself was the macOS `TabRoute.hydration`, so turning the feature on left
     /// nowhere to log a drink. Same shape as the nap bug: working capability, no iOS entry point.
     case hydration
+    /// Trends — no longer a bottom-bar tab. The bar was carrying six items (five screens plus a
+    /// "More" catch-all), one more than it can render before the labels start shrinking, and it
+    /// spent one of those slots on a screen that is browsed occasionally rather than daily. Trends
+    /// now pushes from Home, directly beside the week overview it expands on.
+    case trends
+    /// The full index of every remaining screen. This WAS the sixth tab ("More"); it is now a
+    /// destination pushed from Home. The tab is gone, the index is not — every row it lists stays
+    /// exactly as reachable as before, one level deeper.
+    case more
 }
 
 extension View {
@@ -51,11 +60,31 @@ extension View {
                 case .strain:             PremiumStrainView()
                 case .journalFactor(let canonical): PremiumFactorDetailView(factorCanonical: canonical)
                 case .hydration:          HydrationView()
+                case .trends:             PremiumTrendsView()
+                case .more:               MoreIndexView()
                 }
             }
             .background(StrandPalette.surfaceBase.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
+        }
+        // The More index's rows — and `PremiumSettingsView`'s, which push the same values — carry
+        // `MoreDestination`. That registration used to live on the More TAB's stack alone, so it was
+        // only ever present on the one stack the index could appear in. Now that the index is pushed
+        // from Home (and Settings is presented as a sheet from Home with its own stack), the two
+        // registrations belong together: applying `.premiumRouteDestinations()` to a stack makes
+        // BOTH the Premium deep screens and the More rows resolvable there.
+        //
+        // Side effect worth naming: the Settings sheet opened from Home's avatar never registered
+        // `MoreDestination` at all, so its nav rows (Apple Health, Backup & Sync, …) pushed nothing.
+        // They work now.
+        .navigationDestination(for: MoreDestination.self) { route in
+            route.destination
+                .background(StrandPalette.surfaceBase.ignoresSafeArea())
+                .navigationBarTitleDisplayMode(.inline)
+                // #1027: a pushed sky-scaffold screen draws a full-bleed liquid sky; an opaque
+                // surfaceBase nav-bar band sat over it and clipped the top on scroll.
+                .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 }

@@ -88,6 +88,7 @@ struct PremiumHomeView: View {
                     storyCard
                     journalQuickCard
                     hydrationQuickCard
+                    browseRow
                     insightsCard
                     weekOverviewCard
                     vitalsSection
@@ -120,6 +121,12 @@ struct PremiumHomeView: View {
             .sheet(isPresented: $showSettings) {
                 NavigationStack {
                     PremiumSettingsView()
+                        // Settings' nav rows push `MoreDestination` values (Apple Health, Backup &
+                        // Sync, Advanced Settings, …). That registration only ever existed on the old
+                        // More TAB's stack, so opening Settings from Home's avatar gave those rows a
+                        // stack with nothing to resolve against and every one of them pushed nothing.
+                        // `.premiumRouteDestinations()` now carries both registrations.
+                        .premiumRouteDestinations()
                         .navigationTitle("Settings")
                         .navigationBarTitleDisplayMode(.inline)
                         .toolbar {
@@ -425,6 +432,43 @@ struct PremiumHomeView: View {
             return String(format: String(localized: "%1$d-day streak · a few taps"), journalStreak)
         }
         return "Takes a few taps — powers your personal patterns"
+    }
+
+    // MARK: Browse — the two screens the bottom bar no longer carries
+
+    /// Trends and the full screen index used to be the fifth and sixth items in the floating tab bar.
+    /// Six items forced every label below its design size, and the two that paid for it were the ones
+    /// you browse rather than check — so they moved here, where Home can give them a real name and a
+    /// line of context instead of a 9pt label. This row is the ONLY entry point to either, which is
+    /// why it is not gated on anything and sits above the analysis cards rather than at the bottom.
+    private var browseRow: some View {
+        HStack(spacing: 12) {
+            browseTile(route: .trends, icon: "chart.line.uptrend.xyaxis", tint: StrandPalette.accent,
+                       title: "Trends", sub: String(localized: "History & patterns"))
+            browseTile(route: .more, icon: "square.grid.2x2.fill", tint: StrandPalette.gold,
+                       title: "More", sub: String(localized: "Every screen"))
+        }
+    }
+
+    private func browseTile(route: PremiumRoute, icon: String, tint: Color,
+                            title: LocalizedStringKey, sub: String) -> some View {
+        NavigationLink(value: route) {
+            StrandCard(tint: tint) {
+                HStack(spacing: 11) {
+                    iconTile(icon, tint: tint)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title).font(StrandFont.headline)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                        Text(sub).font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: Personal insights (deterministic — computed, never model-generated)

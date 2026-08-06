@@ -29,8 +29,8 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after the strain-scale, nap-affordance, Journal-expansion and hydration fixes
-**Current commit:** `36f8820` (build 216). **`f762426` is VERIFIED GREEN on BOTH app-build legs**
+**Last updated:** after the tab-bar restructure (Journal became a tab; More/Trends moved to Home)
+**Current commit:** build 217. **`f762426` is VERIFIED GREEN on BOTH app-build legs**
 (macOS build + StrandTests, iOS build) — that covers the nap card, the shared `SleepTimeEditor`
 change, `PremiumSleepIntel`, the strain-scale fix, `effortAxisMax`, and the 350-factor Journal.
 **IPA hold LIFTED** — the owner authorised the cut.
@@ -49,6 +49,44 @@ Two rules follow, and they are not optional:
 - **A StrandTests test can only reference macOS-visible types.** There is no iOS unit-test target.
   If a contract worth pinning lives behind `#if os(iOS)`, push the contract down to a shared or pure
   layer and test it there — that is what `UnitFormatter.effortAxisMax` now exists for.
+
+### iOS SHELL — the bottom bar is five tabs now (build 217)
+
+Owner request: drop the "More" button from the bar, put **Journal** in it, reach **Trends** from
+Home, and make the floating bar look more premium.
+
+**The bar:** `Home · Sleep · Journal · Heart · Coach`. Journal earned a permanent slot because
+logging food/activity is a several-times-a-day action that had *no* home in the shell — it was a card
+on Home plus a row inside the quick-action sheet. It took the slot Trends held; the sixth "More" item
+was dropped outright (at six slots on a 390pt phone every label had to shrink below its design size).
+
+**Nothing became unreachable — verify this claim before changing it again:**
+- The More index was `RootTabView.moreTab()`, a private method. It is now `MoreIndexView`, a
+  standalone `View` with every row unchanged, pushed from Home via `PremiumRoute.more`.
+- Trends pushes from Home via `PremiumRoute.trends`.
+- Both entry points live in `PremiumHomeView.browseRow` — a two-tile row under the journal/hydration
+  cards. **That row is the only route to either screen**, so it is not gated on any toggle and must
+  not be moved below the analysis cards.
+- `NavRouter.Destination.trends` no longer selects a tab; it lands on Home and appends the route.
+  `.journal` selects tab 2 and pops that tab's stack first.
+
+**Two registrations now travel together.** `.premiumRouteDestinations()` registers `PremiumRoute`
+*and* `MoreDestination`. It used to be the case that `MoreDestination` was registered only on the More
+tab's own stack — which meant the Settings sheet opened from Home's avatar had no registration at all
+and **every nav row inside it pushed nothing** (Apple Health, Backup & Sync, Advanced Settings…).
+That was a live bug, fixed as a side effect; the sheet in `PremiumHomeView` now applies the modifier.
+
+**`PremiumJournalView` is a tab root, not a sheet.** It stays alive between visits, so the
+`pendingJournalDayOffset` deep-link (the #656 widget "open at THIS day" path) can no longer rely on
+`.onAppear` alone — it also watches the value with `.onChange`. Keep both.
+
+**FloatingTabBar redesign:** one sliding selection capsule via `matchedGeometryEffect` (not five
+crossfading backgrounds), filled SF Symbol variants when active so selection survives without the
+accent hue, a gradient glass scrim + accent bloom shadow, and a soft-impact haptic on a tab *change*
+only — never on the re-tap, which already refreshes/pops and would otherwise buzz twice.
+
+This is app-target Swift under `StrandiOS/`: **`swift-packages.yml` does not compile it.** Dispatch
+`app-build.yml`.
 
 ### STRAIN SCALE — the impossible "27 / 21" (`23a5772`, fixed up in `b6a4109`)
 

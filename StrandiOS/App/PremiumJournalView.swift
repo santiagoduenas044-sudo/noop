@@ -111,6 +111,16 @@ struct PremiumJournalView: View {
                 router.pendingJournalDayOffset = nil
             }
         }
+        // `.onAppear` alone was enough while the journal was presented as a SHEET — each deep-link
+        // built a fresh copy. It is a tab root now, so it stays alive between visits and a second
+        // deep-link would arrive with the view already on screen and nothing to trigger the read.
+        // Watch the value itself so the day lands whether the screen is being built or is already up.
+        .onChange(of: router.pendingJournalDayOffset) { _, day in
+            if let day {
+                dayOffset = day
+                router.pendingJournalDayOffset = nil
+            }
+        }
     }
 
     // MARK: - Header
