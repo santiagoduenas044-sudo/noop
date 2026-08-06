@@ -87,11 +87,11 @@ struct SensorDiagnosticsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 cardTitle("CONNECTION")
                 kv("State", live.connectionStatusLabel,
-                   tint: live.connected ? StrandPalette.recovery : StrandPalette.textTertiary)
+                   tint: live.connected ? StrandPalette.recovery100 : StrandPalette.textTertiary)
                 kv("Bond", bondLabel)
                 kv("Worn", live.worn ? "on wrist" : "off wrist")
                 kv("Live HR", live.heartRate.map { "\($0) bpm" } ?? "—",
-                   tint: (live.heartRate ?? 0) > 0 ? StrandPalette.recovery : StrandPalette.textTertiary)
+                   tint: (live.heartRate ?? 0) > 0 ? StrandPalette.recovery100 : StrandPalette.textTertiary)
                 kv("Last frame", agoLabel(live.lastFrameAtUnix))
                 kv("Device id", deviceId)
                 strapClockRow
@@ -122,7 +122,7 @@ struct SensorDiagnosticsView: View {
         } else if behind < -3 * 86400 {
             return kv("Strap clock", "\(-behind / 86400)d AHEAD — records misdated (#67)", tint: StrandPalette.recovery000)
         }
-        return kv("Strap clock", "OK", tint: StrandPalette.recovery)
+        return kv("Strap clock", "OK", tint: StrandPalette.recovery100)
     }
 
     // MARK: - Write health
@@ -137,7 +137,7 @@ struct SensorDiagnosticsView: View {
             VStack(alignment: .leading, spacing: 10) {
                 cardTitle("PERSISTENCE")
                 kv("Rows last landed", okAt > 0 ? relTime(now - okAt) : "never",
-                   tint: okAt > 0 ? StrandPalette.recovery : StrandPalette.signalYellow)
+                   tint: okAt > 0 ? StrandPalette.recovery100 : StrandPalette.signalYellow)
                 if stalledAt > 0 && stalledAt >= okAt {
                     kv("⚠ Write stalled", relTime(now - stalledAt) + " — history NOT persisting",
                        tint: StrandPalette.recovery000)
@@ -249,7 +249,7 @@ struct SensorDiagnosticsView: View {
 
     private func healthTint(_ h: Health) -> Color {
         switch h {
-        case .ok:    return StrandPalette.recovery
+        case .ok:    return StrandPalette.recovery100
         case .stale: return StrandPalette.signalYellow
         case .never: return StrandPalette.textTertiary
         }
