@@ -392,6 +392,9 @@ struct MoreIndexView: View {
                 // The Test Centre (the diagnostics + bug-report hub) gets a first-class home here, not
                 // just buried in Settings, so the feedback loop stays close to the surface.
                 MoreRow("Test Centre", "stethoscope", .testCentre)
+                // Developer instrument for the data-pipeline audit: per-stream live-vs-persisted counts,
+                // strap-clock skew, and the exact reason a metric reads unavailable.
+                MoreRow("Sensor Diagnostics", "waveform.badge.magnifyingglass", .sensorDiagnostics)
                 MoreRow("Siri & Shortcuts", "mic.fill", .siriShortcuts)
                 MoreRow("Settings", "gearshape.fill", .settings)
             }
@@ -465,7 +468,7 @@ enum MoreDestination: Hashable {
     case insightsHub, intelligence, insights, behaviourLog, explore, compare
     case live, workouts, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport
-    case alarms, automations, testCentre, siriShortcuts, settings, advancedSettings, whatsNew
+    case alarms, automations, testCentre, sensorDiagnostics, siriShortcuts, settings, advancedSettings, whatsNew
 
     @ViewBuilder var destination: some View {
         switch self {
@@ -494,6 +497,10 @@ enum MoreDestination: Hashable {
         case .alarms:          SmartAlarmView()
         case .automations:     AutomationsView()
         case .testCentre:      TestCentreView()
+        // Developer → Sensor Diagnostics (#pipeline audit): live radio counters vs. persisted-on-disk
+        // counts per stream, so a "live HR but empty today" report resolves to persist-path-or-clock at a
+        // glance. Read-only; can't perturb the data path it inspects.
+        case .sensorDiagnostics: SensorDiagnosticsView()
         case .siriShortcuts:   SiriShortcutsSettingsView()
         // The prototype-migrated native Settings home (profile, appearance, notifications, health
         // sources, data & privacy, experimental, about) — real toggles/nav rows throughout.

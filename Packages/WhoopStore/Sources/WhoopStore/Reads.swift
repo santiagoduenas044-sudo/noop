@@ -221,6 +221,67 @@ extension WhoopStore {
         }
     }
 
+    /// Per-stream PERSISTED sample counts over `[from, to]` for one device, plus the newest HR ts —
+    /// the honest "what actually landed on disk" numbers the Sensor Diagnostics screen shows beside the
+    /// LIVE packet counters. This is exactly what resolves a "live HR reads 55 but today's history is
+    /// empty" report: it says, per stream, whether rows for the window exist on disk at all (persisted vs.
+    /// not) rather than what a chart happened to load. `COUNT(*)` over each table's `(deviceId, ts)` index —
+    /// no rows are materialized. `maxHrTs` coalesces measured `hrSample` with the PPG-derived `ppgHrSample`
+    /// (same frontier as `latestHRSampleTs`) and is `0` when the window holds no HR, so the caller can render
+    /// "—" without unwrapping an Optional. Device-scoped: a decoy device's rows never fold in.
+    public struct StreamPersistCounts: Sendable, Equatable {
+        public let hr: Int
+        public let ppgHr: Int
+        public let rr: Int
+        public let spo2: Int
+        public let skinTemp: Int
+        public let resp: Int
+        public let gravity: Int
+        public let steps: Int
+        public let battery: Int
+        public let events: Int
+        /// Newest measured-or-PPG HR ts in the window; `0` when the window has no HR at all.
+        public let maxHrTs: Int
+        public init(hr: Int, ppgHr: Int, rr: Int, spo2: Int, skinTemp: Int, resp: Int,
+                    gravity: Int, steps: Int, battery: Int, events: Int, maxHrTs: Int) {
+            self.hr = hr; self.ppgHr = ppgHr; self.rr = rr; self.spo2 = spo2
+            self.skinTemp = skinTemp; self.resp = resp; self.gravity = gravity
+            self.steps = steps; self.battery = battery; self.events = events; self.maxHrTs = maxHrTs
+        }
+    }
+
+    public func streamPersistCounts(deviceId: String, from: Int, to: Int) async throws -> StreamPersistCounts {
+        try syncRead { db in
+            // Table names are compile-time constants (never user input), so interpolating them into the
+            // COUNT(*) is safe; the bound `?` args carry the device + window. Each table is indexed on
+            // (deviceId, ts), so this is an index-only scan with no row materialization.
+            func count(_ table: String) throws -> Int {
+                try Int.fetchOne(db, sql:
+                    "SELECT COUNT(*) FROM \(table) WHERE deviceId = ? AND ts >= ? AND ts <= ?",
+                    arguments: [deviceId, from, to]) ?? 0
+            }
+            let maxHr = try Int.fetchOne(db, sql: """
+                SELECT COALESCE(MAX(ts), 0) FROM (
+                    SELECT ts FROM hrSample    WHERE deviceId = ? AND ts >= ? AND ts <= ?
+                    UNION ALL
+                    SELECT ts FROM ppgHrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?
+                )
+                """, arguments: [deviceId, from, to, deviceId, from, to]) ?? 0
+            return StreamPersistCounts(
+                hr:       try count("hrSample"),
+                ppgHr:    try count("ppgHrSample"),
+                rr:       try count("rrInterval"),
+                spo2:     try count("spo2Sample"),
+                skinTemp: try count("skinTempSample"),
+                resp:     try count("respSample"),
+                gravity:  try count("gravitySample"),
+                steps:    try count("stepSample"),
+                battery:  try count("battery"),
+                events:   try count("event"),
+                maxHrTs:  maxHr)
+        }
+    }
+
     /// Aggregate storage footprint: total decoded rows, raw batch count, total raw byteSize.
     public func storageStats() async throws -> (decodedRows: Int, rawBatches: Int, rawBytes: Int) {
         try syncRead { db in

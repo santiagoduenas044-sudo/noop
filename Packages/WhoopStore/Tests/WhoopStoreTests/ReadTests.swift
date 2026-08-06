@@ -84,6 +84,47 @@ final class ReadTests: XCTestCase {
         XCTAssertEqual(bat, [BatterySample(ts: 120, soc: 88.0, mv: 3900)])
     }
 
+    // The Sensor Diagnostics "persisted on disk" counts: per-stream COUNT(*), device-scoped + windowed,
+    // with the HR frontier coalescing measured + PPG. This is the read that resolves "live HR but empty
+    // today" — it reports whether rows exist on disk at all, independent of what any chart loaded.
+    func testStreamPersistCountsScopedWindowedAndHrFrontier() async throws {
+        let store = try await seeded()
+        // Add one of every other biometric stream at ts 400 so each table's count is exercised.
+        _ = try await store.insert(
+            Streams(spo2: [SpO2Sample(ts: 400, red: 1, ir: 2)],
+                    skinTemp: [SkinTempSample(ts: 400, raw: 930)],
+                    resp: [RespSample(ts: 400, raw: 3073)],
+                    gravity: [GravitySample(ts: 400, x: 0.1, y: 0.2, z: 0.3)]),
+            deviceId: "dev1")
+        // dev1 full window: hr 3 (ts 100/200/300), rr 2 (both ts 100), 1 each spo2/skin/resp/gravity,
+        // 1 event (ts 150), 1 battery (ts 120). maxHrTs = 300.
+        let full = try await store.streamPersistCounts(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(full.hr, 3)
+        XCTAssertEqual(full.rr, 2)
+        XCTAssertEqual(full.spo2, 1)
+        XCTAssertEqual(full.skinTemp, 1)
+        XCTAssertEqual(full.resp, 1)
+        XCTAssertEqual(full.gravity, 1)
+        XCTAssertEqual(full.events, 1)
+        XCTAssertEqual(full.battery, 1)
+        XCTAssertEqual(full.maxHrTs, 300)
+        // Inclusive sub-window [150, 250] sees only HR ts 200 and the event ts 150.
+        let windowed = try await store.streamPersistCounts(deviceId: "dev1", from: 150, to: 250)
+        XCTAssertEqual(windowed.hr, 1)
+        XCTAssertEqual(windowed.events, 1)
+        XCTAssertEqual(windowed.spo2, 0)
+        XCTAssertEqual(windowed.maxHrTs, 200)
+        // The decoy on "other" (single hr ts 200) is device-scoped, never folded into dev1.
+        let other = try await store.streamPersistCounts(deviceId: "other", from: 0, to: 1000)
+        XCTAssertEqual(other.hr, 1)
+        XCTAssertEqual(other.spo2, 0)
+        XCTAssertEqual(other.maxHrTs, 200)
+        // Empty window: every count 0, maxHrTs COALESCEs to 0 (never nil).
+        let empty = try await store.streamPersistCounts(deviceId: "dev1", from: 5000, to: 6000)
+        XCTAssertEqual(empty.hr, 0)
+        XCTAssertEqual(empty.maxHrTs, 0)
+    }
+
     func testStorageStats() async throws {
         let store = try await seeded()
         // Add one of each biometric stream so the count proves all 8 tables are summed.

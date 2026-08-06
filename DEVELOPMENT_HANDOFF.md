@@ -29,7 +29,46 @@ parity, design-system-only UI).
 
 ## CURRENT IMPLEMENTATION STATUS
 
-**Last updated:** after the tab-bar restructure (Journal became a tab; More/Trends moved to Home)
+**Last updated:** DATA-PIPELINE RELIABILITY pass, milestone 1 — Sensor Diagnostics screen (build 218)
+
+### DATA-PIPELINE RELIABILITY — the owner's standing directive (supersedes UI work)
+
+The owner has PAUSED UI expansion. Priority is making the real data pipeline reliable, historical,
+transferable and explainable. Reported bugs to chase (do NOT fabricate data to paper over any of them):
+live HR shows a value while "no readings today"; sleep invents a false 13:00–14:17 100%-Awake window;
+overnight HR/HRV/SpO₂ missing; strain ~17/21 early morning (day-boundary suspect). The fix ORDER the
+owner set: (1) continuous HR history/persistence, (2) sleep detection/overnight, (3) SpO₂, (4) resp,
+(5) temp, (6) strain/activity accumulation, (7) any other supported stream. Then export/import
+(NOOP→NOOP backup), import validation, cloud-ready architecture, and a data-quality model.
+
+**Working hypothesis from the audit (unproven — needs on-device confirmation):** most of the HR/sleep/
+strain cluster is one root cause — a stale/future **strap RTC misdating offloaded records** (#67), so a
+night lands on the wrong day and "today" queries slice an empty/greedy window. `DebugDataDiagnostics`
+already DETECTS this (`strap.newestRecordTs` skew) but nothing GUARDS the reads/writes against it yet.
+
+**Milestone 1 (build 218) — Sensor Diagnostics screen (Priority 2 first, on purpose).** It is the
+instrument that lets the owner (who has the hardware; CI/Linux cannot drive BLE) confirm, per stream,
+whether data is not-arriving vs. not-decoded vs. not-persisted vs. mis-timestamped — which decides how
+Priority 1 gets fixed. Files:
+- `Packages/WhoopStore/…/Reads.swift` — new `WhoopStore.streamPersistCounts(deviceId:from:to:)` →
+  per-stream `COUNT(*)` (hr/ppgHr/rr/spo2/skinTemp/resp/gravity/steps/battery/events) + coalesced HR
+  frontier `maxHrTs`, index-only, device-scoped. Pinned by `ReadTests.testStreamPersistCounts…`
+  (runs on `swift-packages.yml`). This is the honest "what actually landed on disk" read.
+- `StrandiOS/App/SensorDiagnosticsView.swift` — NEW read-only screen: live connection/bond/worn/last-frame
+  (from `LiveState`), strap-clock skew (#67), persist-write health (`sync.lastWriteOkAt/StalledAt`),
+  and per-stream **persisted today / all-time** with a derived, never-asserted "why unavailable" line.
+- `StrandiOS/App/RootTabView.swift` — `MoreDestination.sensorDiagnostics` + row under More → App.
+- App-target Swift: `swift-packages.yml` does NOT compile the screen. `app-build.yml` was dispatched.
+
+**Next task (milestone 2):** with the diagnostics screen in the owner's hands, use it to confirm the
+HR persist path. If "live HR but 0 persisted today" reproduces, trace `Collector.ingestStandardHR/
+flushStandardHR` (no-clock path) vs. the clock-gated custom path, AND the logical-day read boundary,
+and fix whichever is provably wrong. Then sleep/overnight, then SpO₂. Keep each a committed milestone.
+
+---
+
+_(prior status below)_
+**Tab-bar restructure:** Journal became a tab; More/Trends moved to Home
 **Current commit:** build 217. **`f762426` is VERIFIED GREEN on BOTH app-build legs**
 (macOS build + StrandTests, iOS build) — that covers the nap card, the shared `SleepTimeEditor`
 change, `PremiumSleepIntel`, the strain-scale fix, `effortAxisMax`, and the 350-factor Journal.
