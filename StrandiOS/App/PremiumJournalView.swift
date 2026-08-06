@@ -53,22 +53,7 @@ struct PremiumJournalView: View {
     }
 
     private var resolved: [JournalCatalogItem] {
-        var items = catalog.resolvedItems(imported: importedQuestions, includeHidden: editing)
-        var seen = Set(items.map { $0.canonical.lowercased() })
-        for template in JournalFactorLibrary.all {
-            guard !seen.contains(template.canonical.lowercased()) else { continue }
-            items.append(JournalCatalogItem(
-                canonical: template.canonical,
-                displayName: nil,
-                kind: template.kind,
-                group: template.group,
-                sortIndex: items.count,
-                hidden: false,
-                custom: false
-            ))
-            seen.insert(template.canonical.lowercased())
-        }
-        return items
+        catalog.resolvedItems(imported: importedQuestions, includeHidden: editing)
     }
 
     private func items(in group: JournalGroup) -> [JournalCatalogItem] {
@@ -95,6 +80,10 @@ struct PremiumJournalView: View {
                     dayPicker
                     quickLogCard
                     moodCard
+                    // The library entry point sits DIRECTLY under the log, not below three analysis
+                    // cards. Buried at position seven it read as absent — the 300+ factors were
+                    // reachable the whole time and still felt like nothing had changed.
+                    addFactorCard
                     logSection
                     addCustomCard
                     associationsCard
