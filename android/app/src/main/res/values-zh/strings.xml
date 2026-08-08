@@ -294,6 +294,7 @@
     <string name="l10n_coach_screen_custom_dce04fd3">自定义…</string>
     <string name="l10n_coach_screen_custom_model_2e3bedea">自定义模型</string>
     <string name="l10n_coach_screen_custom_model_id_6ffe2740">自定义模型 ID</string>
+    <string name="l10n_coach_screen_coach_settings_5b8d3a2e">教练设置</string>
     <string name="l10n_coach_screen_disconnect_ed28e068">断开连接</string>
     <string name="l10n_coach_screen_disconnect_provider_fa13625c">断开提供商连接</string>
     <string name="l10n_coach_screen_e_g_gpt_4o_1da2e4d2">例如：gpt-4o</string>

@@ -12,6 +12,13 @@ import StrandDesign
 /// This screen compiles against `AICoachEngine`'s public API (the macos-core agent's
 /// contract): `hasKey`, `provider` / `provider.modelOptions`, `model`, `messages`,
 /// `sending`, `errorText`, `setKey(_:)`, `clearKey()`, and `send(_:)`.
+///
+/// Layout: once configured, Coach is a **full-screen chat** — a compact top bar, a
+/// transcript that fills the whole screen, and a composer docked to the bottom (via
+/// `.safeAreaInset`, so it rides above the keyboard and clears the floating tab bar).
+/// The account plumbing that used to stack above the conversation (data consent, the
+/// on-device-signals opt-in, the editable instructions, disconnect) now lives behind a
+/// gear in a settings sheet, so entering Coach lands you in a conversation, not a page.
 struct CoachView: View {
     @EnvironmentObject var coach: AICoachEngine
 
@@ -23,12 +30,14 @@ struct CoachView: View {
     @State private var customModel: Bool = false
     /// The id typed in the "Custom…" field.
     @State private var customModelDraft: String = ""
-    /// Whether the editable-system-prompt section is expanded. Collapsed by default so the settings
-    /// stay compact; most users never touch the prompt.
+    /// Whether the editable-system-prompt section is expanded (inside the settings sheet). Collapsed by
+    /// default so the sheet stays compact; most users never touch the prompt.
     @State private var promptExpanded: Bool = false
     /// Working copy of the system prompt while editing, committed to the engine on change so an edit
     /// takes effect on the next send. Seeded from the engine when the editor opens.
     @State private var promptDraft: String = ""
+    /// Whether the settings sheet (consent, signals, instructions, disconnect) is showing.
+    @State private var showSettings: Bool = false
     @FocusState private var composerFocused: Bool
 
     /// Sentinel tag for the "Custom…" entry in the model Picker.
@@ -41,46 +50,377 @@ struct CoachView: View {
         String(localized: "Why am I run down?"),
     ]
 
+    /// Screen-edge inset — matches the liquid home (16pt) on iOS, the classic 28 on macOS.
+    #if os(iOS)
+    private let edgePad: CGFloat = 16
+    #else
+    private let edgePad: CGFloat = 28
+    #endif
+
+    /// Bottom room under the docked composer: on iOS the floating tab bar overlays the bottom of the
+    /// screen, so reserve the same clearance the scroll scaffolds use; macOS just needs a little breathing room.
+    private var dockBottomPad: CGFloat {
+        #if os(iOS)
+        return NoopMetrics.tabBarClearance
+        #else
+        return 20
+        #endif
+    }
+
     var body: some View {
-        ScreenScaffold(title: "Coach",
-                       subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.",
-                       // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid
-                       // tabs carry, so Coach sits in one atmosphere. Static + non-interactive; the frosted
-                       // message/setup cards below sit on the opaque canvas and stay legible.
-                       topBackground: liquidScaffoldSky()) {
+        Group {
             if coach.isConfigured {
-                connectedHeader
-                consentBar
-                // v5: a SECOND opt-in, only meaningful once data access is on, folds a summary of the
-                // new on-device signals (your strongest patterns + Lab Book) into the coach context.
-                if coach.dataConsent { onDeviceSignalsBar }
-                systemPromptBar
-                transcript
-                if let error = coach.errorText, !error.isEmpty {
-                    errorBanner(error)
-                }
-                suggestionChips
-                composer
-                privacyFootnote
+                chatSurface
             } else {
-                setupCard
-            }
-        }
-        .toolbar {
-            if coach.isConfigured {
-                ToolbarItem {
-                    Button(role: .destructive) {
-                        coach.disconnect()
-                        keyDraft = ""
-                    } label: {
-                        Label("Disconnect", systemImage: "gearshape")
-                    }
-                    .help("Forget the saved key and disconnect")
-                    .accessibilityLabel("Disconnect provider")
+                ScreenScaffold(title: "Coach",
+                               subtitle: "Ask about your charge, effort, rest and workouts, grounded in your own numbers.",
+                               topBackground: liquidScaffoldSky()) {
+                    setupCard
                 }
             }
         }
         .task(id: coach.dataConsent) { await coach.startBriefIfNeeded() }
+    }
+
+    // MARK: - Chat surface (configured)
+
+    /// The full-screen chat: a compact bar, a transcript that fills the screen, and a docked composer.
+    /// No `ScreenScaffold` here — a scroll-everything page can't host a full-height transcript with a
+    /// pinned input, which is exactly what makes a chat read as a chat.
+    private var chatSurface: some View {
+        VStack(spacing: 0) {
+            chatBar
+            if coach.messages.isEmpty {
+                emptyChat
+            } else {
+                transcript
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        // Liquid finish: the same full-bleed day-of-sky backdrop Today + the other liquid tabs carry,
+        // so Coach sits in one atmosphere. Static + non-interactive; the chat sits on the opaque canvas.
+        .background(alignment: .top) {
+            ZStack(alignment: .top) {
+                StrandPalette.surfaceBase
+                liquidScaffoldSky()
+            }
+            .ignoresSafeArea()
+        }
+        // The composer is a real dock: `.safeAreaInset` reserves its height (so the last bubble never
+        // hides behind it), lifts it above the keyboard, and keeps it pinned while the transcript scrolls.
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomDock }
+        .sheet(isPresented: $showSettings) { settingsSheet }
+    }
+
+    /// Compact chat header: the title, the live provider·model status, a "thinking" pill while a reply
+    /// streams, and the gear that opens settings. Sits in the dark sky band, so it uses the on-dark tokens.
+    private var chatBar: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Coach")
+                    .font(StrandFont.rounded(24, weight: .bold))
+                    .foregroundStyle(StrandPalette.onDarkPrimary)
+                Text("\(coach.provider.displayName) · \(coach.model)")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.onDarkSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            if coach.sending {
+                StatePill("Thinking", tone: .accent, pulsing: true)
+            }
+            Button {
+                promptDraft = coach.customSystemPrompt
+                showSettings = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(StrandPalette.onDarkPrimary)
+                    .frame(width: 38, height: 38)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Coach settings, data access and privacy")
+            .accessibilityLabel("Coach settings")
+        }
+        .padding(.horizontal, edgePad)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+    }
+
+    // MARK: - Transcript
+
+    private var transcript: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                // Lazy so off-screen bubbles aren't all resident/laid-out at once; with the
+                // `maxStoredMessages` cap the transcript is already bounded, this keeps render cost flat.
+                LazyVStack(alignment: .leading, spacing: 12) {
+                    ForEach(coach.messages) { message in
+                        bubble(message).id(message.id)
+                    }
+                    if coach.sending {
+                        typingIndicator.id("typing")
+                    }
+                }
+                .padding(.horizontal, edgePad)
+                .padding(.top, 4)
+                .padding(.bottom, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .onChangeCompat(of: coach.messages.count) { _ in scrollToEnd(proxy) }
+            .onChangeCompat(of: coach.sending) { _ in scrollToEnd(proxy) }
+        }
+    }
+
+    /// Empty conversation: a warm welcome centred over the canvas, with tappable starter prompts — the
+    /// "what do I say first" state a real chat opens on, not a settings wall.
+    private var emptyChat: some View {
+        VStack(spacing: 16) {
+            Spacer(minLength: 0)
+            Image(systemName: "sparkles")
+                .font(.system(size: 34, weight: .regular))
+                .foregroundStyle(StrandPalette.accent)
+                .accessibilityHidden(true)
+            VStack(spacing: 6) {
+                Text("Ask your first question")
+                    .font(StrandFont.headline)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                Text("Coach reads a summary of your last two weeks plus 30-day averages and recent workouts, then answers in plain language.")
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: 420)
+
+            VStack(spacing: 8) {
+                ForEach(suggestions, id: \.self) { prompt in
+                    Button {
+                        send(prompt)
+                    } label: {
+                        Text(prompt)
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
+                            .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
+                    }
+                    .buttonStyle(LiquidPressStyle())
+                    .disabled(coach.sending)
+                    .accessibilityLabel("Suggested prompt: \(prompt)")
+                }
+            }
+            .frame(maxWidth: 420)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, edgePad)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func bubble(_ message: ChatMessage) -> some View {
+        switch message.role {
+        case .user:
+            HStack {
+                Spacer(minLength: 48)
+                Text(message.text)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.surfaceBase)
+                    .textSelection(.enabled)
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(maxWidth: 520, alignment: .trailing)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("You said: \(message.text)")
+        case .assistant:
+            // LLM replies arrive as Markdown (bold, lists, headings, tables),             // rendered with the chat-bubble-sized Strand theme. User bubbles stay
+            // verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
+            // The reply sits on a frosted Charge-tinted surface, a card, not a flat box.
+            HStack {
+                Markdown(message.text)
+                    .markdownTheme(.strand)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
+                    .frame(maxWidth: 560, alignment: .leading)
+                Spacer(minLength: 48)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Coach said: \(message.text)")
+        }
+    }
+
+    private var typingIndicator: some View {
+        HStack(spacing: 8) {
+            ProgressView().controlSize(.small).tint(StrandPalette.accent)
+            Text("Coach is thinking…")
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.textSecondary)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
+        .frame(maxWidth: 320, alignment: .leading)
+        .accessibilityLabel("Coach is thinking")
+    }
+
+    private func errorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(StrandPalette.statusCritical)
+                .accessibilityHidden(true)
+            Text(message)
+                .font(StrandFont.subhead)
+                .foregroundStyle(StrandPalette.statusCritical)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 11)
+        .frostedCardSurface(tint: StrandPalette.statusCritical, cornerRadius: 16)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Error: \(message)")
+    }
+
+    // MARK: - Docked composer
+
+    /// The bottom dock: the composer on a frosted bar with a hairline lip, sitting on the opaque canvas so
+    /// transcript bubbles never bleed under it. `.safeAreaInset` handles the keyboard + tab-bar clearance.
+    private var bottomDock: some View {
+        VStack(spacing: 8) {
+            if let error = coach.errorText, !error.isEmpty {
+                errorBanner(error)
+            }
+            composer
+        }
+            .padding(.horizontal, edgePad)
+            .padding(.top, 8)
+            .padding(.bottom, dockBottomPad)
+            .background {
+                StrandPalette.surfaceBase.opacity(0.92)
+                    .background(.ultraThinMaterial)
+                    .overlay(alignment: .top) {
+                        Rectangle().fill(StrandPalette.hairline).frame(height: 1)
+                    }
+                    .ignoresSafeArea(edges: .bottom)
+            }
+    }
+
+    /// The input bar itself: field + Send, a frosted overlay surface so the composer reads as a distinct
+    /// docked surface rather than two floating controls.
+    private var composer: some View {
+        HStack(alignment: .bottom, spacing: 10) {
+            TextField("Ask Coach about your data…", text: $draft, axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(StrandFont.body)
+                .foregroundStyle(StrandPalette.textPrimary)
+                .lineLimit(1...5)
+                .focused($composerFocused)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
+                .onSubmit { send(draft) }
+                .accessibilityLabel("Question")
+
+            // Docked icon-only send affordance: a crisp accent-filled square sized to the
+            // composer row (not the full 48pt control height), so it routes through the same
+            // token fill/label colours as the button system without overpowering the field.
+            Button {
+                send(draft)
+            } label: {
+                Group {
+                    if coach.sending {
+                        ProgressView().controlSize(.small).tint(StrandPalette.goldDeepText)
+                    } else {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                }
+                .frame(width: 44, height: 38)
+                .foregroundStyle(StrandPalette.goldDeepText)
+                .background(StrandPalette.accent,
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .disabled(coach.sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .accessibilityLabel("Send")
+        }
+        .padding(8)
+        .background(StrandPalette.surfaceOverlay, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+    }
+
+    // MARK: - Settings sheet (configured)
+
+    /// Everything that used to stack above the conversation, now behind the gear: the data-access consent,
+    /// the on-device-signals opt-in, the editable instructions, the privacy note, and Disconnect. Presented
+    /// as a sheet so the chat itself stays uncluttered.
+    private var settingsSheet: some View {
+        let sheet = ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                settingsSheetBody
+            }
+            .padding(20)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(StrandPalette.surfaceBase)
+
+        #if os(macOS)
+        return AnyView(sheet.frame(minWidth: 460, minHeight: 520))
+        #else
+        return AnyView(sheet)
+        #endif
+    }
+
+    @ViewBuilder private var settingsSheetBody: some View {
+        HStack {
+            Text("Coach settings")
+                .font(StrandFont.headline)
+                .foregroundStyle(StrandPalette.textPrimary)
+            Spacer()
+            Button("Done") { showSettings = false }
+                .buttonStyle(NoopButtonStyle(.secondary))
+                .accessibilityLabel("Close settings")
+        }
+
+        connectedHeader
+        consentBar
+        // v5: a SECOND opt-in, only meaningful once data access is on, folds a summary of the
+        // new on-device signals (your strongest patterns + Lab Book) into the coach context.
+        if coach.dataConsent { onDeviceSignalsBar }
+        systemPromptBar
+        privacyFootnote
+
+        Button(role: .destructive) {
+            coach.disconnect()
+            keyDraft = ""
+            showSettings = false
+        } label: {
+            Label("Disconnect", systemImage: "xmark.circle")
+                .font(StrandFont.subhead)
+        }
+        .buttonStyle(NoopButtonStyle(.secondary))
+        .accessibilityLabel("Disconnect provider")
+    }
+
+    private var connectedHeader: some View {
+        HStack(spacing: 10) {
+            StatePill("\(coach.provider.displayName) · \(coach.model)", tone: .accent, showsDot: true)
+            Spacer()
+        }
     }
 
     /// Explicit, revocable permission for the coach to read & send the user's data. Off by default.
@@ -135,7 +475,7 @@ struct CoachView: View {
 
     /// Editable system prompt, the instructions that frame the coach. Collapsed by default; expanding
     /// reveals a TextEditor bound to the engine (edits persist to UserDefaults and take effect on the
-    /// next message) plus a Reset-to-default control. Lives inline in the existing settings, NOT a modal.
+    /// next message) plus a Reset-to-default control.
     private var systemPromptBar: some View {
         NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
             VStack(alignment: .leading, spacing: promptExpanded ? 10 : 0) {
@@ -373,206 +713,6 @@ struct CoachView: View {
         guard !trimmed.isEmpty else { return }
         coach.setCustomModel(trimmed)
         customModel = false
-    }
-
-    // MARK: - Connected state
-
-    private var connectedHeader: some View {
-        HStack(spacing: 10) {
-            StatePill("\(coach.provider.displayName) · \(coach.model)", tone: .accent, showsDot: true)
-            Spacer()
-            if coach.sending {
-                StatePill("Thinking", tone: .accent, pulsing: true)
-            }
-        }
-    }
-
-    private var transcript: some View {
-        StrandCard(padding: 16) {
-            if coach.messages.isEmpty {
-                emptyTranscript
-            } else {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        // Lazy so off-screen bubbles aren't all resident/laid-out at once; with the
-                        // `maxStoredMessages` cap the transcript is already bounded, this keeps render cost flat.
-                        LazyVStack(alignment: .leading, spacing: 12) {
-                            ForEach(coach.messages) { message in
-                                bubble(message).id(message.id)
-                            }
-                            if coach.sending {
-                                typingIndicator.id("typing")
-                            }
-                        }
-                        .padding(.vertical, 2)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(minHeight: 220, maxHeight: 460)
-                    .onChangeCompat(of: coach.messages.count) { _ in
-                        scrollToEnd(proxy)
-                    }
-                    .onChangeCompat(of: coach.sending) { _ in
-                        scrollToEnd(proxy)
-                    }
-                }
-            }
-        }
-    }
-
-    private var emptyTranscript: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Ask your first question")
-                .font(StrandFont.headline)
-                .foregroundStyle(StrandPalette.textPrimary)
-            Text("Coach reads a summary of your last two weeks plus 30-day averages and recent workouts, then answers in plain language. Try a suggestion below.")
-                .font(StrandFont.subhead)
-                .foregroundStyle(StrandPalette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
-    }
-
-    @ViewBuilder
-    private func bubble(_ message: ChatMessage) -> some View {
-        switch message.role {
-        case .user:
-            HStack {
-                Spacer(minLength: 48)
-                Text(message.text)
-                    .font(StrandFont.body)
-                    .foregroundStyle(StrandPalette.surfaceBase)
-                    .textSelection(.enabled)
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .frame(maxWidth: 520, alignment: .trailing)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("You said: \(message.text)")
-        case .assistant:
-            // LLM replies arrive as Markdown (bold, lists, headings, tables),             // rendered with the chat-bubble-sized Strand theme. User bubbles stay
-            // verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
-            // The reply sits on a frosted Charge-tinted surface, a card, not a flat box.
-            HStack {
-                Markdown(message.text)
-                    .markdownTheme(.strand)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
-                    .frame(maxWidth: 560, alignment: .leading)
-                Spacer(minLength: 48)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Coach said: \(message.text)")
-        }
-    }
-
-    private var typingIndicator: some View {
-        HStack(spacing: 8) {
-            ProgressView().controlSize(.small).tint(StrandPalette.accent)
-            Text("Coach is thinking…")
-                .font(StrandFont.subhead)
-                .foregroundStyle(StrandPalette.textSecondary)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 11)
-        .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
-        .frame(maxWidth: 320, alignment: .leading)
-        .accessibilityLabel("Coach is thinking")
-    }
-
-    private func errorBanner(_ message: String) -> some View {
-        StrandCard(padding: 14) {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(StrandPalette.statusCritical)
-                    .accessibilityHidden(true)
-                Text(message)
-                    .font(StrandFont.subhead)
-                    .foregroundStyle(StrandPalette.statusCritical)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Error: \(message)")
-    }
-
-    private var suggestionChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(suggestions, id: \.self) { prompt in
-                    Button {
-                        send(prompt)
-                    } label: {
-                        Text(prompt)
-                            .font(StrandFont.captionNumber)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(StrandPalette.surfaceInset, in: Capsule(style: .continuous))
-                            .overlay(Capsule(style: .continuous).strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                    }
-                    // Liquid tap response: the physical settle-inward every tappable liquid
-                    // affordance gets, replacing the flat `.plain` press.
-                    .buttonStyle(LiquidPressStyle())
-                    .disabled(coach.sending)
-                    .accessibilityLabel("Suggested prompt: \(prompt)")
-                }
-            }
-            .padding(.vertical, 1)
-        }
-    }
-
-    /// The input bar, a frosted overlay surface holding the field + Send, so the composer reads as a
-    /// distinct docked surface above the canvas rather than two floating controls.
-    private var composer: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            TextField("Ask Coach about your data…", text: $draft, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(StrandFont.body)
-                .foregroundStyle(StrandPalette.textPrimary)
-                .lineLimit(1...5)
-                .focused($composerFocused)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-                .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(composerFocused ? StrandPalette.focusRing : StrandPalette.hairline, lineWidth: 1))
-                .onSubmit { send(draft) }
-                .accessibilityLabel("Question")
-
-            // Docked icon-only send affordance: a crisp accent-filled square sized to the
-            // composer row (not the full 48pt control height), so it routes through the same
-            // token fill/label colours as the button system without overpowering the field.
-            Button {
-                send(draft)
-            } label: {
-                Group {
-                    if coach.sending {
-                        ProgressView().controlSize(.small).tint(StrandPalette.goldDeepText)
-                    } else {
-                        Image(systemName: "arrow.up")
-                            .font(.system(size: 15, weight: .semibold))
-                    }
-                }
-                .frame(width: 44, height: 38)
-                .foregroundStyle(StrandPalette.goldDeepText)
-                .background(StrandPalette.accent,
-                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .disabled(coach.sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .accessibilityLabel("Send")
-        }
-        .padding(8)
-        .background(StrandPalette.surfaceOverlay, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
-            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
     }
 
     private var privacyFootnote: some View {

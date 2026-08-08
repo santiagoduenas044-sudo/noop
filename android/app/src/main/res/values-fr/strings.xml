@@ -153,6 +153,7 @@
     <string name="l10n_coach_screen_custom_dce04fd3">Personnalisé…</string>
     <string name="l10n_coach_screen_custom_model_2e3bedea">Modèle personnalisé</string>
     <string name="l10n_coach_screen_custom_model_id_6ffe2740">ID de modèle personnalisé</string>
+    <string name="l10n_coach_screen_coach_settings_5b8d3a2e">Réglages du coach</string>
     <string name="l10n_coach_screen_disconnect_ed28e068">Déconnecter</string>
     <string name="l10n_coach_screen_disconnect_provider_fa13625c">Déconnecter le fournisseur</string>
     <string name="l10n_coach_screen_e_g_gpt_4o_1da2e4d2">Par exemple gpt-4o</string>

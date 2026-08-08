@@ -9,32 +9,44 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -79,22 +91,26 @@ fun CoachScreen(vm: CoachViewModel = viewModel()) {
     val showDayCycleBackground = remember { NoopPrefs.showDayCycleBackground(context) }
     val skyBehindCards = remember { NoopPrefs.skyBehindCards(context) }
 
-    ScreenScaffold(
-        title = uiString(R.string.l10n_coach_screen_coach_b32c9ad3),
-        subtitle = "Ask about your recovery, strain, sleep and HRV, grounded in your own numbers.",
-        // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the liquid sky sits behind the
-        // header and the cards float over the flat canvas below. Reuses the shared LiquidScreenSky() slot
-        // verbatim; when the day-cycle background is off, the scaffold paints the plain surface instead.
-        topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
-        // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
-        // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
-        fullBleedBackground = showDayCycleBackground && skyBehindCards,
-    ) {
-        if (!configured) {
+    if (!configured) {
+        // Setup stays a page: it IS a form, so the scrolling scaffold is the right shell.
+        ScreenScaffold(
+            title = uiString(R.string.l10n_coach_screen_coach_b32c9ad3),
+            subtitle = "Ask about your recovery, strain, sleep and HRV, grounded in your own numbers.",
+            // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the liquid sky sits behind the
+            // header and the cards float over the flat canvas below. Reuses the shared LiquidScreenSky() slot
+            // verbatim; when the day-cycle background is off, the scaffold paints the plain surface instead.
+            topBackground = if (showDayCycleBackground) { { LiquidScreenSky(fillHeight = skyBehindCards) } } else null,
+            // Sky-behind-cards fills the viewport so the transparent cards reveal the sky the whole way
+            // down (Today / Trends / Sleep / metric-detail parity - same two prefs, same two behaviours).
+            fullBleedBackground = showDayCycleBackground && skyBehindCards,
+        ) {
             CoachSetup(vm = vm)
-        } else {
-            CoachChat(vm = vm)
         }
+    } else {
+        // Once connected, Coach is a FULL-SCREEN CHAT (not a scrolling page): a compact bar, a transcript
+        // that fills the screen, and a composer docked to the bottom. The account plumbing (data consent,
+        // on-device signals, instructions, disconnect) moves behind the gear into a settings sheet.
+        CoachChat(vm = vm)
     }
 }
 
@@ -223,118 +239,307 @@ private fun CoachChat(vm: CoachViewModel) {
     val provider by vm.provider.collectAsStateWithLifecycle()
     val model by vm.model.collectAsStateWithLifecycle()
     var input by remember { mutableStateOf("") }
+    var showSettings by remember { mutableStateOf(false) }
+    val showDayCycleBackground = remember { NoopPrefs.showDayCycleBackground(context) }
+    val listState = rememberLazyListState()
 
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    // Keep the newest message (or the thinking bubble) in view as the conversation grows.
+    LaunchedEffect(messages.size, sending) {
+        val count = messages.size + if (sending) 1 else 0
+        if (count > 0) listState.animateScrollToItem(count - 1)
+    }
 
-        // Active-provider strip + reset-key affordance.
-        NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StatePill(title = uiString(R.string.l10n_coach_screen_provider_displayname_model_8b39f761, provider.displayName, model), tone = StrandTone.Accent, showsDot = true)
-                Spacer(Modifier.weight(1f))
-                val disconnectInteraction = remember { MutableInteractionSource() }
-                Text(
-                    uiString(R.string.l10n_coach_screen_disconnect_ed28e068),
-                    style = NoopType.caption,
-                    color = Palette.textSecondary,
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Backdrop: the flat canvas, with the day-of-sky band bled in at the TOP behind the bar — the same
+        // atmosphere the liquid tabs carry, so Coach sits in one world. Purely decorative, drawn once.
+        Box(Modifier.fillMaxSize().background(Palette.surfaceBase))
+        if (showDayCycleBackground) {
+            Box(Modifier.fillMaxWidth().align(Alignment.TopCenter)) { LiquidScreenSky() }
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            CoachTopBar(
+                provider = provider.displayName,
+                model = model,
+                thinking = sending,
+                onOpenSettings = { showSettings = true },
+            )
+
+            if (messages.isEmpty()) {
+                CoachEmptyState(
+                    modifier = Modifier.weight(1f),
+                    sending = sending,
+                    onPick = { prompt ->
+                        input = ""
+                        vm.send(context, prompt)
+                    },
+                )
+            } else {
+                LazyColumn(
+                    state = listState,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .liquidPress(disconnectInteraction)
-                        .clickable(interactionSource = disconnectInteraction, indication = null) { vm.disconnect(context) }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                        .semantics { contentDescription = uiString(R.string.l10n_coach_screen_disconnect_provider_fa13625c) },
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    items(messages) { msg -> ChatBubble(msg) }
+                    if (sending) item { ThinkingBubble() }
+                }
+            }
+
+            // Docked composer: an error line (if any) + the input row, on a hairline-lipped surface so the
+            // transcript never bleeds under it. `imePadding` lifts the whole dock above the keyboard.
+            HorizontalDivider(thickness = 1.dp, color = Palette.hairline)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Palette.surfaceBase)
+                    .imePadding()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (error != null) {
+                    Text(
+                        error!!,
+                        style = NoopType.subhead,
+                        color = Palette.statusCritical,
+                        modifier = Modifier.semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, error!!) },
+                    )
+                }
+                CoachInputRow(
+                    input = input,
+                    onValueChange = {
+                        input = it
+                        if (error != null) vm.clearError()
+                    },
+                    sending = sending,
+                    onSend = {
+                        vm.send(context, input)
+                        input = ""
+                    },
                 )
             }
         }
+    }
 
-        // Data-access consent, off by default; no metrics are sent until this is on.
-        val consent by vm.consent.collectAsStateWithLifecycle()
-        NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(uiString(R.string.l10n_coach_screen_let_the_coach_use_my_data_405d1188), style = NoopType.subhead, color = Palette.textPrimary)
-                    Text(
-                        if (consent) "On: your recovery, sleep, HRV and workouts are shared with the provider for tailored coaching."
-                        else "Off: the coach answers generally and sends none of your metrics.",
-                        style = NoopType.footnote, color = Palette.textTertiary,
-                    )
-                }
-                androidx.compose.material3.Switch(
-                    checked = consent,
-                    onCheckedChange = { vm.setConsent(context, it) },
-                )
-            }
-        }
+    if (showSettings) {
+        CoachSettingsSheet(vm = vm, onDismiss = { showSettings = false })
+    }
+}
 
-        // Editable system prompt, inline in the settings, collapsed by default. Edits persist and
-        // take effect on the next message (the engine reads the stored prompt fresh per send).
-        CoachInstructions(vm = vm)
+// MARK: - Chat chrome (top bar, empty state, input row)
 
-        // Transcript or empty-state with suggested prompts.
-        if (messages.isEmpty()) {
-            NoopCard(padding = 18.dp) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        uiString(R.string.l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca),
-                        style = NoopType.subhead, color = Palette.textSecondary,
-                    )
-                    SuggestedPrompts(onPick = { input = it })
-                }
-            }
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                messages.forEach { msg -> ChatBubble(msg) }
-                if (sending) ThinkingBubble()
-            }
-        }
-
-        // Error line (red).
-        if (error != null) {
+/** Compact chat header: the title, the live provider·model status, a "thinking" pill while a reply
+ *  streams, and the gear that opens the settings sheet. Mirrors the iOS `chatBar`. */
+@Composable
+private fun CoachTopBar(
+    provider: String,
+    model: String,
+    thinking: Boolean,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            Text(uiString(R.string.l10n_coach_screen_coach_b32c9ad3), style = NoopType.title2, color = Palette.textPrimary)
             Text(
-                error!!,
-                style = NoopType.subhead,
-                color = Palette.statusCritical,
-                modifier = Modifier.semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, error!!) },
+                uiString(R.string.l10n_coach_screen_provider_displayname_model_8b39f761, provider, model),
+                style = NoopType.footnote,
+                color = Palette.textSecondary,
+                maxLines = 1,
             )
         }
+        if (thinking) {
+            StatePill(title = uiString(R.string.l10n_coach_screen_thinking_a60d9c9c), tone = StrandTone.Accent, pulsing = true)
+            Spacer(Modifier.width(8.dp))
+        }
+        val gearInteraction = remember { MutableInteractionSource() }
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(Palette.surfaceInset)
+                .border(1.dp, Palette.hairline, CircleShape)
+                .liquidPress(gearInteraction)
+                .clickable(interactionSource = gearInteraction, indication = null, onClick = onOpenSettings)
+                .semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_settings_5b8d3a2e) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.Tune, contentDescription = null, tint = Palette.textPrimary, modifier = Modifier.size(18.dp))
+        }
+    }
+}
 
-        // Input row + Send, a frosted overlay surface so the composer reads as a docked input bar.
-        Row(
+/** Empty conversation: a warm welcome centred over the canvas, with tappable starter prompts — the
+ *  "what do I say first" state a real chat opens on, not a settings wall. Mirrors the iOS `emptyChat`. */
+@Composable
+private fun CoachEmptyState(
+    modifier: Modifier = Modifier,
+    sending: Boolean,
+    onPick: (String) -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 24.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            uiString(R.string.l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca),
+            style = NoopType.subhead,
+            color = Palette.textSecondary,
+            modifier = Modifier.padding(bottom = 16.dp),
+        )
+        SUGGESTED_PROMPTS.forEach { prompt ->
+            val shape = RoundedCornerShape(50)
+            val chipInteraction = remember { MutableInteractionSource() }
+            Text(
+                prompt,
+                style = NoopType.subhead,
+                color = Palette.textPrimary,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(shape)
+                    .background(Palette.surfaceInset)
+                    .border(1.dp, Palette.hairline, shape)
+                    .liquidPress(chipInteraction)
+                    .clickable(
+                        interactionSource = chipInteraction,
+                        indication = null,
+                        enabled = !sending,
+                    ) { onPick(prompt) }
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .semantics { contentDescription = uiString(R.string.l10n_coach_screen_suggested_prompt_prompt_379c0b15, prompt) },
+            )
+        }
+    }
+}
+
+/** The input bar itself: field + Send, a frosted overlay surface so the composer reads as a distinct
+ *  docked control rather than two floating pieces. */
+@Composable
+private fun CoachInputRow(
+    input: String,
+    onValueChange: (String) -> Unit,
+    sending: Boolean,
+    onSend: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Palette.surfaceOverlay)
+            .border(1.dp, Palette.hairline, RoundedCornerShape(18.dp))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OutlinedTextField(
+            value = input,
+            onValueChange = onValueChange,
+            modifier = Modifier.weight(1f),
+            placeholder = { Text(uiString(R.string.l10n_coach_screen_ask_your_coach_b1577d4c), style = NoopType.body, color = Palette.textTertiary) },
+            textStyle = NoopType.body,
+            singleLine = false,
+            maxLines = 4,
+            enabled = !sending,
+            colors = coachFieldColors(),
+            shape = RoundedCornerShape(14.dp),
+        )
+        SendButton(
+            enabled = input.isNotBlank() && !sending,
+            sending = sending,
+            onClick = onSend,
+        )
+    }
+}
+
+// MARK: - Settings sheet
+
+/** Everything that used to stack above the conversation, now behind the gear: the active-provider strip,
+ *  the data-access consent, the editable instructions, the privacy note, and Disconnect. Presented as a
+ *  bottom sheet so the chat itself stays uncluttered. Mirrors the iOS Coach settings sheet. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CoachSettingsSheet(vm: CoachViewModel, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val provider by vm.provider.collectAsStateWithLifecycle()
+    val model by vm.model.collectAsStateWithLifecycle()
+    val consent by vm.consent.collectAsStateWithLifecycle()
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceRaised,
+        contentColor = Palette.textPrimary,
+    ) {
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Palette.surfaceOverlay)
-                .border(1.dp, Palette.hairline, RoundedCornerShape(18.dp))
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = {
-                    input = it
-                    if (error != null) vm.clearError()
-                },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(uiString(R.string.l10n_coach_screen_ask_your_coach_b1577d4c), style = NoopType.body, color = Palette.textTertiary) },
-                textStyle = NoopType.body,
-                singleLine = false,
-                maxLines = 4,
-                enabled = !sending,
-                colors = coachFieldColors(),
-                shape = RoundedCornerShape(14.dp),
+            Text(
+                uiString(R.string.l10n_coach_screen_coach_settings_5b8d3a2e),
+                style = NoopType.headline,
+                color = Palette.textPrimary,
             )
-            SendButton(
-                enabled = input.isNotBlank() && !sending,
-                sending = sending,
-                onClick = {
-                    vm.send(context, input)
-                    input = ""
-                },
+
+            // Active provider·model.
+            StatePill(
+                title = uiString(R.string.l10n_coach_screen_provider_displayname_model_8b39f761, provider.displayName, model),
+                tone = StrandTone.Accent,
+                showsDot = true,
+            )
+
+            // Data-access consent, off by default; no metrics are sent until this is on.
+            NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(uiString(R.string.l10n_coach_screen_let_the_coach_use_my_data_405d1188), style = NoopType.subhead, color = Palette.textPrimary)
+                        Text(
+                            if (consent) "On: your recovery, sleep, HRV and workouts are shared with the provider for tailored coaching."
+                            else "Off: the coach answers generally and sends none of your metrics.",
+                            style = NoopType.footnote, color = Palette.textTertiary,
+                        )
+                    }
+                    androidx.compose.material3.Switch(
+                        checked = consent,
+                        onCheckedChange = { vm.setConsent(context, it) },
+                    )
+                }
+            }
+
+            // Editable system prompt, collapsed by default. Edits persist and take effect on the next message.
+            CoachInstructions(vm = vm)
+
+            // Privacy note.
+            PrivacyNote(local = provider == AiProvider.CUSTOM)
+
+            // Disconnect: forget the key and drop back to the setup form.
+            val disconnectInteraction = remember { MutableInteractionSource() }
+            Text(
+                uiString(R.string.l10n_coach_screen_disconnect_ed28e068),
+                style = NoopType.subhead,
+                color = Palette.statusCritical,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .liquidPress(disconnectInteraction)
+                    .clickable(interactionSource = disconnectInteraction, indication = null) {
+                        vm.disconnect(context)
+                        onDismiss()
+                    }
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .semantics { contentDescription = uiString(R.string.l10n_coach_screen_disconnect_provider_fa13625c) },
             )
         }
-
-        // Privacy note repeated under the input so it's always on screen.
-        PrivacyNote(local = provider == AiProvider.CUSTOM)
     }
 }
 
@@ -484,32 +689,6 @@ private val SUGGESTED_PROMPTS = listOf(
     "Why might my HRV be low lately?",
     "How can I improve my sleep?",
 )
-
-@Composable
-private fun SuggestedPrompts(onPick: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Overline("Try asking")
-        // Simple wrapped column of chips (one per row keeps long prompts readable).
-        SUGGESTED_PROMPTS.forEach { prompt ->
-            val shape = RoundedCornerShape(50)
-            val chipInteraction = remember { MutableInteractionSource() }
-            Text(
-                prompt,
-                style = NoopType.caption,
-                color = Palette.textPrimary,
-                modifier = Modifier
-                    .wrapContentWidth()
-                    .clip(shape)
-                    .background(Palette.surfaceInset)
-                    .border(1.dp, Palette.hairline, shape)
-                    .liquidPress(chipInteraction)
-                    .clickable(interactionSource = chipInteraction, indication = null) { onPick(prompt) }
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .semantics { contentDescription = uiString(R.string.l10n_coach_screen_suggested_prompt_prompt_379c0b15, prompt) },
-            )
-        }
-    }
-}
 
 // MARK: - Model dropdown
 
