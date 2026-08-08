@@ -80,9 +80,9 @@
     <!-- Trends / Explore / Deep Timeline , see the English values/strings.xml comment for scope.
          Wording matches the existing iOS/macOS German catalog entries where one exists. -->
     <string name="trends_subtitle">Der rote Faden deiner Zeit.</string>
-    <string name="trends_charge">Ladung</string>
-    <string name="trends_effort">Anstrengung</string>
-    <string name="trends_rest">Ruhe</string>
+    <string name="trends_charge">Erholung</string>
+    <string name="trends_effort">Belastung</string>
+    <string name="trends_rest">Schlaf</string>
     <string name="trends_hrv_full">Herzfrequenzvariabilität</string>
     <string name="trends_resting_hr_full">Ruheherzfrequenz</string>
     <string name="trends_no_readings_this_week">Keine Messwerte diese Woche</string>
@@ -528,7 +528,7 @@
     <string name="l10n_intelligence_screen_band_ec8a8993">± %1$s</string>
     <string name="l10n_intelligence_screen_by_day_2e5d14ca">Nach Tag</string>
     <string name="l10n_intelligence_screen_charge_weighs_your_heart_rate_variability_026745e6">Ladung wiegt Ihre Herzfrequenzvariabilität gegen Ihre persönliche Baseline</string>
-    <string name="l10n_intelligence_screen_effort_8c974bc6">Anstrengung</string>
+    <string name="l10n_intelligence_screen_effort_8c974bc6">Belastung</string>
     <string name="l10n_intelligence_screen_estimate_from_today_s_effort_your_667d7560">Schätzung aus dem heutigen Aufwand, Ihrem typischen Schlaf und Ihrer %1$s-Nacht</string>
     <string name="l10n_intelligence_screen_how_this_works_b895a8c3">Wie das funktioniert</string>
     <string name="l10n_intelligence_screen_intelligence_c698f940">Intelligenz</string>
@@ -604,7 +604,7 @@
     <string name="l10n_live_workout_screen_avg_cdc93143">Ø</string>
     <string name="l10n_live_workout_screen_cadence_68af11f0">Trittfrequenz</string>
     <string name="l10n_live_workout_screen_cancel_77dfd213">Abbrechen</string>
-    <string name="l10n_live_workout_screen_effort_8c974bc6">Anstrengung</string>
+    <string name="l10n_live_workout_screen_effort_8c974bc6">Belastung</string>
     <string name="l10n_live_workout_screen_end_this_workout_4869c76a">Workout beenden?</string>
     <string name="l10n_live_workout_screen_end_workout_3e8d6238">Workout beenden</string>
     <string name="l10n_live_workout_screen_peak_c83dbbd3">Spitze</string>
@@ -630,13 +630,13 @@
     <string name="l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9">Nicht genug überlappende Geschichte, um die Stimmung mit Ihrer</string>
     <string name="l10n_mind_section_one_check_in_per_day_picking_b103f22e">Ein Check-in pro Tag; die Auswahl eines anderen Gesichts überschreibt das heutige.</string>
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">Lesen Sie Ihre Check-ins...</string>
-    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">GEBÜHR</string>
-    <string name="l10n_noop_compact_glance_widget_effort_660752e7">ANSTRENGUNG</string>
-    <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">RUHE</string>
+    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">ERHOLUNG</string>
+    <string name="l10n_noop_compact_glance_widget_effort_660752e7">BELASTUNG</string>
+    <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">SCHLAF</string>
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">Strap-Akku</string>
-    <string name="l10n_noop_glance_widget_charge_49a8cb83">GEBÜHR</string>
-    <string name="l10n_noop_glance_widget_effort_660752e7">ANSTRENGUNG</string>
-    <string name="l10n_noop_glance_widget_rest_cbaaa181">RUHE</string>
+    <string name="l10n_noop_glance_widget_charge_49a8cb83">ERHOLUNG</string>
+    <string name="l10n_noop_glance_widget_effort_660752e7">BELASTUNG</string>
+    <string name="l10n_noop_glance_widget_rest_cbaaa181">SCHLAF</string>
     <string name="l10n_notifications_settings_screen_02d_02d_ce23a78c">%1$02d:%2$02d</string>
     <string name="l10n_notifications_settings_screen_all_other_apps_51a8af2c">Alle anderen Apps</string>
     <string name="l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa">%1$s-Handgelenkwarnungen</string>
@@ -1302,7 +1302,7 @@
     <string name="l10n_health_screen_blood_o_9bf5ed9b">Blut-O₂</string>
     <string name="l10n_health_screen_blood_oxygen_a8ad9ff5">Blutsauerstoff</string>
     <string name="l10n_health_screen_drives_your_fitness_age_9d0d1219">Speist dein Fitnessalter</string>
-    <string name="l10n_health_screen_effort_8c974bc6">Anstrengung</string>
+    <string name="l10n_health_screen_effort_8c974bc6">Belastung</string>
     <string name="l10n_health_screen_fitness_age_12383b4a">Fitnessalter</string>
     <string name="l10n_health_screen_health_monitor_c4abc3fc">Gesundheitsmonitor</string>
     <string name="l10n_health_screen_heart_rate_variability_20f0069e">Herzfrequenzvariabilität</string>
@@ -1313,7 +1313,7 @@
     <string name="l10n_health_screen_refresh_fitness_age_now_85fc516f">Erfrischende Fitness Jetzt Alter</string>
     <string name="l10n_health_screen_resp_rate_1c48dbd8">Atemfreq.</string>
     <string name="l10n_health_screen_respiratory_rate_3fbb532f">Atemfrequenz</string>
-    <string name="l10n_health_screen_rest_b79e5f48">Ruhe</string>
+    <string name="l10n_health_screen_rest_b79e5f48">Schlaf</string>
     <string name="l10n_health_screen_resting_heart_rate_9700f4d8">Ruheherzfrequenz</string>
     <string name="l10n_health_screen_skin_temp_a4affc5a">Hauttemperatur</string>
     <string name="l10n_health_screen_skin_temperature_f59127f6">Hauttemperatur</string>
@@ -1331,12 +1331,12 @@
     <string name="l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c">Ein 60-Sekunden-Schnappschuss Ihrer Beat-to-Beat-Intervalle (R-R) vom Band, gereinigt</string>
     <string name="l10n_hrv_snapshot_screen_close_hrv_reading_a29a99a1">HRV-Messung schließen</string>
     <string name="l10n_hrv_snapshot_screen_hrv_reading_a2cf71f3">HRV-Messung</string>
-    <string name="l10n_insights_screen_charge_d4e1aee4">Ladung</string>
+    <string name="l10n_insights_screen_charge_d4e1aee4">Erholung</string>
     <string name="l10n_insights_screen_insights_b4510362">Einblicke</string>
     <string name="l10n_insights_screen_insights_read_your_journal_and_outcomes_6ec8aaf9">Insights lesen Sie Ihr Tagebuch und Ergebnisse</string>
     <string name="l10n_insights_screen_pre_filled_from_last_night_tap_ce81097c">Vorgefüllt von gestern Abend. Tippen Sie, um zu bestätigen oder zu ändern.</string>
     <string name="l10n_insights_screen_reading_your_journal_and_outcomes_4a59af69">Dein Journal und deine Ergebnisse werden gelesen…</string>
-    <string name="l10n_insights_screen_rest_b79e5f48">Ruhe</string>
+    <string name="l10n_insights_screen_rest_b79e5f48">Schlaf</string>
     <string name="l10n_insights_screen_rhr_04edf9b3">RHR</string>
     <string name="l10n_journal_log_journal_57d7f743">Tagebuch</string>
     <string name="l10n_journal_reminder_log_today_s_journal_cb33be3e">Heutiges Journal ausfüllen</string>
@@ -1353,7 +1353,7 @@
     <string name="l10n_live_screen_can_t_connect_your_strap_s_cf78be83">Kann nicht verbunden werden - die Paarung Ihres Bandes wurde zurückgesetzt</string>
     <string name="l10n_live_screen_charging_5f99fe21">Lädt</string>
     <string name="l10n_live_screen_distance_42320809">Distanz</string>
-    <string name="l10n_live_screen_effort_8c974bc6">Anstrengung</string>
+    <string name="l10n_live_screen_effort_8c974bc6">Belastung</string>
     <string name="l10n_live_screen_end_a2bb9d34">Ende</string>
     <string name="l10n_live_screen_end_workout_3e8d6238">Workout beenden</string>
     <string name="l10n_live_screen_history_synced_relativeago_at_0ece753a">Geschichte synchronisiert %1$s</string>
@@ -1396,7 +1396,7 @@
     <string name="l10n_settings_screen_buzz_the_time_on_your_strap_06fc879d">Buzz die Zeit auf Ihrem Gurt</string>
     <string name="l10n_settings_screen_cancel_77dfd213">Abbrechen</string>
     <string name="l10n_settings_screen_card_transparency_c5c7b4f3">Kartentransparenz</string>
-    <string name="l10n_settings_screen_charge_d4e1aee4">Ladung</string>
+    <string name="l10n_settings_screen_charge_d4e1aee4">Erholung</string>
     <string name="l10n_settings_screen_charge_effort_and_rest_and_how_d2c423a4">Ladung, Anstrengung und Ruhe und wie sie sich von WHOOP unterscheiden</string>
     <string name="l10n_settings_screen_chart_colours_525f4a37">Diagrammfarben</string>
     <string name="l10n_settings_screen_check_for_updates_736b9062">Nach Updates suchen</string>
@@ -1599,7 +1599,7 @@
     <string name="l10n_today_screen_recovery_ea924f72">Erholung</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">%1$s%% Ladung</string>
     <string name="l10n_today_screen_respiratory_1cd8c175">Atmung</string>
-    <string name="l10n_today_screen_rest_b79e5f48">Ruhe</string>
+    <string name="l10n_today_screen_rest_b79e5f48">Schlaf</string>
     <string name="l10n_today_screen_rest_hr_04005617">Ruhe-HF</string>
     <string name="l10n_today_screen_resting_heart_rate_348928d6">Ruheherzfrequenz</string>
     <string name="l10n_today_screen_resting_hr_26677094">Ruhe-HF</string>
@@ -1618,8 +1618,8 @@
     <string name="l10n_today_screen_vismin_5d665ceb">%1$s</string>
     <string name="l10n_today_screen_weight_69c0b815">Gewicht</string>
     <string name="l10n_trends_explore_screen_blood_oxygen_a8ad9ff5">Blutsauerstoff</string>
-    <string name="l10n_trends_explore_screen_charge_d4e1aee4">Ladung</string>
-    <string name="l10n_trends_explore_screen_effort_8c974bc6">Anstrengung</string>
+    <string name="l10n_trends_explore_screen_charge_d4e1aee4">Erholung</string>
+    <string name="l10n_trends_explore_screen_effort_8c974bc6">Belastung</string>
     <string name="l10n_trends_explore_screen_respiratory_rate_3fbb532f">Atemfrequenz</string>
     <string name="l10n_trends_explore_screen_resting_hr_26677094">Ruhe-HF</string>
     <string name="l10n_trends_explore_screen_sleep_3cac34e6">Schlaf</string>
@@ -1649,9 +1649,9 @@
     <string name="timeline_metric_respiration">Atmung</string>
     <string name="timeline_metric_motion">Bewegung</string>
     <string name="timeline_metric_band_sleep_state">Schlafstatus des Bands</string>
-    <string name="explore_category_charge">Ladung</string>
-    <string name="explore_category_effort">Anstrengung</string>
-    <string name="explore_category_rest">Ruhe</string>
+    <string name="explore_category_charge">Erholung</string>
+    <string name="explore_category_effort">Belastung</string>
+    <string name="explore_category_rest">Schlaf</string>
     <string name="explore_category_health">Gesundheit</string>
     <string name="explore_category_heart">Herz</string>
     <string name="explore_category_nutrition">Ernährung</string>

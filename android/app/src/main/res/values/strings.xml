@@ -89,9 +89,9 @@
          hardcoded English throughout. Direct Compose copy and data-driven MetricSpec/TimelineMetric
          labels now live in resources; German wording follows the Apple catalogs where available. -->
     <string name="trends_subtitle">The thread of you over time.</string>
-    <string name="trends_charge">Charge</string>
-    <string name="trends_effort">Effort</string>
-    <string name="trends_rest">Rest</string>
+    <string name="trends_charge">Recovery</string>
+    <string name="trends_effort">Strain</string>
+    <string name="trends_rest">Sleep</string>
     <string name="trends_hrv_full">Heart rate variability</string>
     <string name="trends_resting_hr_full">Resting heart rate</string>
     <string name="trends_no_readings_this_week">No readings this week</string>
@@ -537,7 +537,7 @@
     <string name="l10n_intelligence_screen_band_ec8a8993">± %1$s</string>
     <string name="l10n_intelligence_screen_by_day_2e5d14ca">By Day</string>
     <string name="l10n_intelligence_screen_charge_weighs_your_heart_rate_variability_026745e6">Charge weighs your heart-rate variability against your personal baseline </string>
-    <string name="l10n_intelligence_screen_effort_8c974bc6">Effort</string>
+    <string name="l10n_intelligence_screen_effort_8c974bc6">Strain</string>
     <string name="l10n_intelligence_screen_estimate_from_today_s_effort_your_667d7560">Estimate from today\'s effort, your typical sleep and your %1$s-night </string>
     <string name="l10n_intelligence_screen_how_this_works_b895a8c3">How this works</string>
     <string name="l10n_intelligence_screen_intelligence_c698f940">Intelligence</string>
@@ -613,7 +613,7 @@
     <string name="l10n_live_workout_screen_avg_cdc93143">Avg</string>
     <string name="l10n_live_workout_screen_cadence_68af11f0">Cadence</string>
     <string name="l10n_live_workout_screen_cancel_77dfd213">Cancel</string>
-    <string name="l10n_live_workout_screen_effort_8c974bc6">Effort</string>
+    <string name="l10n_live_workout_screen_effort_8c974bc6">Strain</string>
     <string name="l10n_live_workout_screen_end_this_workout_4869c76a">End this workout?</string>
     <string name="l10n_live_workout_screen_end_workout_3e8d6238">End workout</string>
     <string name="l10n_live_workout_screen_peak_c83dbbd3">Peak</string>
@@ -639,13 +639,13 @@
     <string name="l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9">Not enough overlapping history to correlate mood with your </string>
     <string name="l10n_mind_section_one_check_in_per_day_picking_b103f22e">One check-in per day; picking another face overwrites today\'s.</string>
     <string name="l10n_mind_section_reading_your_check_ins_71a100a9">Reading your check-ins…</string>
-    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">CHARGE</string>
-    <string name="l10n_noop_compact_glance_widget_effort_660752e7">EFFORT</string>
-    <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">REST</string>
+    <string name="l10n_noop_compact_glance_widget_charge_49a8cb83">RECOVERY</string>
+    <string name="l10n_noop_compact_glance_widget_effort_660752e7">STRAIN</string>
+    <string name="l10n_noop_compact_glance_widget_rest_cbaaa181">SLEEP</string>
     <string name="l10n_noop_compact_glance_widget_strap_battery_a6c7f09c">Strap battery</string>
-    <string name="l10n_noop_glance_widget_charge_49a8cb83">CHARGE</string>
-    <string name="l10n_noop_glance_widget_effort_660752e7">EFFORT</string>
-    <string name="l10n_noop_glance_widget_rest_cbaaa181">REST</string>
+    <string name="l10n_noop_glance_widget_charge_49a8cb83">RECOVERY</string>
+    <string name="l10n_noop_glance_widget_effort_660752e7">STRAIN</string>
+    <string name="l10n_noop_glance_widget_rest_cbaaa181">SLEEP</string>
     <string name="l10n_notifications_settings_screen_02d_02d_ce23a78c">%1$02d:%2$02d</string>
     <string name="l10n_notifications_settings_screen_all_other_apps_51a8af2c">All other apps</string>
     <string name="l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa">%1$s wrist alerts</string>
@@ -1311,7 +1311,7 @@
     <string name="l10n_health_screen_blood_o_9bf5ed9b">Blood O₂</string>
     <string name="l10n_health_screen_blood_oxygen_a8ad9ff5">Blood Oxygen</string>
     <string name="l10n_health_screen_drives_your_fitness_age_9d0d1219">Drives your Fitness Age</string>
-    <string name="l10n_health_screen_effort_8c974bc6">Effort</string>
+    <string name="l10n_health_screen_effort_8c974bc6">Strain</string>
     <string name="l10n_health_screen_fitness_age_12383b4a">Fitness Age</string>
     <string name="l10n_health_screen_health_monitor_c4abc3fc">Health Monitor</string>
     <string name="l10n_health_screen_heart_rate_variability_20f0069e">Heart Rate Variability</string>
@@ -1322,7 +1322,7 @@
     <string name="l10n_health_screen_refresh_fitness_age_now_85fc516f">Refresh Fitness Age now</string>
     <string name="l10n_health_screen_resp_rate_1c48dbd8">Resp Rate</string>
     <string name="l10n_health_screen_respiratory_rate_3fbb532f">Respiratory Rate</string>
-    <string name="l10n_health_screen_rest_b79e5f48">Rest</string>
+    <string name="l10n_health_screen_rest_b79e5f48">Sleep</string>
     <string name="l10n_health_screen_resting_heart_rate_9700f4d8">Resting Heart Rate</string>
     <string name="l10n_health_screen_skin_temp_a4affc5a">Skin Temp</string>
     <string name="l10n_health_screen_skin_temperature_f59127f6">Skin Temperature</string>
@@ -1340,12 +1340,12 @@
     <string name="l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c">A 60-second snapshot of your beat-to-beat (R-R) intervals from the strap, cleaned </string>
     <string name="l10n_hrv_snapshot_screen_close_hrv_reading_a29a99a1">Close HRV reading</string>
     <string name="l10n_hrv_snapshot_screen_hrv_reading_a2cf71f3">HRV Reading</string>
-    <string name="l10n_insights_screen_charge_d4e1aee4">Charge</string>
+    <string name="l10n_insights_screen_charge_d4e1aee4">Recovery</string>
     <string name="l10n_insights_screen_insights_b4510362">Insights</string>
     <string name="l10n_insights_screen_insights_read_your_journal_and_outcomes_6ec8aaf9">Insights read your journal and outcomes</string>
     <string name="l10n_insights_screen_pre_filled_from_last_night_tap_ce81097c">Pre-filled from last night. Tap to confirm or change.</string>
     <string name="l10n_insights_screen_reading_your_journal_and_outcomes_4a59af69">Reading your journal and outcomes…</string>
-    <string name="l10n_insights_screen_rest_b79e5f48">Rest</string>
+    <string name="l10n_insights_screen_rest_b79e5f48">Sleep</string>
     <string name="l10n_insights_screen_rhr_04edf9b3">RHR</string>
     <string name="l10n_journal_log_journal_57d7f743">Journal</string>
     <string name="l10n_journal_reminder_log_today_s_journal_cb33be3e">Log today\'s journal</string>
@@ -1362,7 +1362,7 @@
     <string name="l10n_live_screen_can_t_connect_your_strap_s_cf78be83">Can\'t connect - your strap\'s pairing was reset</string>
     <string name="l10n_live_screen_charging_5f99fe21">Charging</string>
     <string name="l10n_live_screen_distance_42320809">Distance</string>
-    <string name="l10n_live_screen_effort_8c974bc6">Effort</string>
+    <string name="l10n_live_screen_effort_8c974bc6">Strain</string>
     <string name="l10n_live_screen_end_a2bb9d34">End</string>
     <string name="l10n_live_screen_end_workout_3e8d6238">End workout</string>
     <string name="l10n_live_screen_history_synced_relativeago_at_0ece753a">History synced %1$s</string>
@@ -1405,7 +1405,7 @@
     <string name="l10n_settings_screen_buzz_the_time_on_your_strap_06fc879d">Buzz the time on your strap</string>
     <string name="l10n_settings_screen_cancel_77dfd213">Cancel</string>
     <string name="l10n_settings_screen_card_transparency_c5c7b4f3">Card transparency</string>
-    <string name="l10n_settings_screen_charge_d4e1aee4">Charge</string>
+    <string name="l10n_settings_screen_charge_d4e1aee4">Recovery</string>
     <string name="l10n_settings_screen_charge_effort_and_rest_and_how_d2c423a4">Charge, Effort and Rest, and how they differ from WHOOP</string>
     <string name="l10n_settings_screen_chart_colours_525f4a37">Chart colours</string>
     <string name="l10n_settings_screen_check_for_updates_736b9062">Check for updates</string>
@@ -1608,7 +1608,7 @@
     <string name="l10n_today_screen_recovery_ea924f72">Recovery</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">%1$s%% Charge</string>
     <string name="l10n_today_screen_respiratory_1cd8c175">Respiratory</string>
-    <string name="l10n_today_screen_rest_b79e5f48">Rest</string>
+    <string name="l10n_today_screen_rest_b79e5f48">Sleep</string>
     <string name="l10n_today_screen_rest_hr_04005617">Rest HR</string>
     <string name="l10n_today_screen_resting_heart_rate_348928d6">Resting heart rate</string>
     <string name="l10n_today_screen_resting_hr_26677094">Resting HR</string>
@@ -1627,8 +1627,8 @@
     <string name="l10n_today_screen_vismin_5d665ceb">%1$s</string>
     <string name="l10n_today_screen_weight_69c0b815">Weight</string>
     <string name="l10n_trends_explore_screen_blood_oxygen_a8ad9ff5">Blood Oxygen</string>
-    <string name="l10n_trends_explore_screen_charge_d4e1aee4">Charge</string>
-    <string name="l10n_trends_explore_screen_effort_8c974bc6">Effort</string>
+    <string name="l10n_trends_explore_screen_charge_d4e1aee4">Recovery</string>
+    <string name="l10n_trends_explore_screen_effort_8c974bc6">Strain</string>
     <string name="l10n_trends_explore_screen_respiratory_rate_3fbb532f">Respiratory Rate</string>
     <string name="l10n_trends_explore_screen_resting_hr_26677094">Resting HR</string>
     <string name="l10n_trends_explore_screen_sleep_3cac34e6">Sleep</string>
@@ -1658,9 +1658,9 @@
     <string name="timeline_metric_respiration">Respiration</string>
     <string name="timeline_metric_motion">Motion</string>
     <string name="timeline_metric_band_sleep_state">Band Sleep State</string>
-    <string name="explore_category_charge">Charge</string>
-    <string name="explore_category_effort">Effort</string>
-    <string name="explore_category_rest">Rest</string>
+    <string name="explore_category_charge">Recovery</string>
+    <string name="explore_category_effort">Strain</string>
+    <string name="explore_category_rest">Sleep</string>
     <string name="explore_category_health">Health</string>
     <string name="explore_category_heart">Heart</string>
     <string name="explore_category_nutrition">Nutrition</string>

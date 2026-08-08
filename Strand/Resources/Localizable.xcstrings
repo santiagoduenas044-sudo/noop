@@ -35934,55 +35934,55 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ladung"
+            "value": "Erholung"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Charge"
+            "value": "Recovery"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Carga"
+            "value": "Recuperación"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Charge"
+            "value": "Récupération"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Carica"
+            "value": "Recupero"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Carga"
+            "value": "Recuperação"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Заряд"
+            "value": "Восстановление"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "能量"
+            "value": "恢复"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "能量"
+            "value": "恢復"
           }
         }
       }
@@ -52360,13 +52360,13 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Anstrengung"
+            "value": "Belastung"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Effort"
+            "value": "Strain"
           }
         },
         "es": {
@@ -52389,14 +52389,14 @@
         },
         "pt-PT": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Esforço"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Усилие"
+            "value": "Нагрузка"
           }
         },
         "zh-Hans": {
@@ -111545,55 +111545,55 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ruhe"
+            "value": "Schlaf"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rest"
+            "value": "Sleep"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Descanso"
+            "value": "Sueño"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Repos"
+            "value": "Sommeil"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Riposo"
+            "value": "Sonno"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Descanso"
+            "value": "Sono"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Отдых"
+            "value": "Сон"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "休息"
+            "value": "睡眠"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "休息"
+            "value": "睡眠"
           }
         }
       }
@@ -168085,6 +168085,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "Touchez un jour pour le compléter"
+          }
+        }
+      }
+    },
+    "Rest interval": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rest"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruhe"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descanso"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Repos"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Riposo"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descanso"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Отдых"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "休息"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "休息"
           }
         }
       }
