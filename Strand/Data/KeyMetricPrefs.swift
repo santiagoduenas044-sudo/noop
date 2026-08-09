@@ -66,6 +66,12 @@ enum KeyMetricPrefs {
     /// Decode the stored string into an ordered list of enabled tiles. An empty/unset string yields the
     /// full default order (so a fresh install shows every tile). Unknown tokens are ignored; this returns
     /// ONLY the enabled tiles in their saved order — the editor pairs it with the disabled remainder.
+    ///
+    /// A non-empty string that decodes to NO known tiles (e.g. every token is stale/unrecognised) also
+    /// falls back to the default order rather than an empty grid — matching the Kotlin twin's
+    /// `decodeEnabled` and this file's own `DashboardCardPrefs.decodeEnabled`, both of which already treat
+    /// "nothing decodable" as "nothing saved". Before this fix this function alone returned `[]`, which
+    /// rendered as a blank Key Metrics grid — reading exactly like the user's customisation had vanished.
     static func decodeEnabled(_ raw: String) -> [KeyMetric] {
         let trimmed = raw.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return KeyMetric.defaultOrder }
@@ -76,6 +82,6 @@ enum KeyMetricPrefs {
                 result.append(m)
             }
         }
-        return result
+        return result.isEmpty ? KeyMetric.defaultOrder : result
     }
 }
